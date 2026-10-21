@@ -1353,7 +1353,6 @@ def test_ci_checks_the_content_of_posh_ssh_after_installing_it():
     assert (ROOT / "scripts" / "Get-GjkPoshSshManifest.ps1").is_file()
 
 
-
 # ---------------------------------------------------------------------------
 # H-3 (1.0.2): the needle guards run in CI on push and tag runs
 # ---------------------------------------------------------------------------
@@ -1389,7 +1388,9 @@ def test_h3_ci_writes_the_needle_secret_to_a_temporary_file_on_push_runs_only():
 
 def test_h3_the_suites_in_ci_name_the_reason_of_every_skip():
     for name in ("The three invariants, by name", "Full suite"):
-        assert " -rs" in _ci_step(name), name
+        # The command line itself, not a comment in the step.
+        command = _ci_step(name).split("run: ", 1)[1].splitlines()[0]
+        assert command.startswith("python -m pytest") and command.split()[-1] == "-rs", (name, command)
 
 
 def test_h3_contributing_says_a_maintainer_runs_the_hygiene_suite_with_the_list():
