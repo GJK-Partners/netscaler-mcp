@@ -47,7 +47,7 @@ from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 
-from nsmcp.answer import Answer, Certainty
+from nsmcp.answer import NAME_CUT_NOTE, Answer, Certainty
 from nsmcp.cert_usage import names_in_cert_usage_sources
 from nsmcp.chain import ENTRY_RESOURCES, NOT_FOLLOWED, SERVICEGROUP_BINDING, names_in_chain_sources
 from nsmcp.compare import names_in_compare_sources
@@ -61,6 +61,7 @@ from nsmcp.ha import names_in_ha_sources
 from nsmcp.headers import names_in_header_sources
 from nsmcp.hidden_rules import names_in_hidden_rule_sources
 from nsmcp.impact import BINDING_FILE
+from nsmcp.limits import NAME_ECHO_MAX_LEN
 from nsmcp.mgmt_plane import names_in_mgmt_sources
 from nsmcp.names import names_in_name_sources
 from nsmcp.overzicht import names_in_overview_sources
@@ -1362,6 +1363,13 @@ def _limit(
     def s(text: str) -> str:
         return _replace(text, pattern, name_to_pseudonym)
 
+    return _map_text(answer, s)
+
+
+def _map_text(answer: Answer, s) -> Answer:
+    """`answer` with `s` applied to EVERY text field it carries - the one
+    list of fields both the masking (`_limit`) and the name cut
+    (`_cut_long_names`) walk, so neither can forget one the other knows."""
     copy = replace(
         answer,
         question=s(answer.question),
@@ -1394,6 +1402,30 @@ def _limit(
             ),
         )
     return copy
+
+
+def _cut_long_names(answer: Answer, names: tuple[str, ...], caller_name: str | None) -> Answer:
+    """1.0.2: every known object name (`extra_names`, the structural
+    collection) and the caller's own name longer than `NAME_ECHO_MAX_LEN`
+    is cut to that length with `NAME_CUT_NOTE`, in every text field, in
+    one pass (longest first, as the masking does). Measured before: the
+    limit held only for `status_namen` and for a name as a subject, and a
+    certificate name of 5000 characters reached `rapport_dekking` whole.
+    A name of at most 128 characters is untouched."""
+    candidates = [*names, *([caller_name] if caller_name else [])]
+    long_names = sorted(
+        {name for name in candidates if isinstance(name, str) and len(name) > NAME_ECHO_MAX_LEN},
+        key=len,
+        reverse=True,
+    )
+    if not long_names:
+        return answer
+    pattern = re.compile("|".join(re.escape(name) for name in long_names))
+
+    def s(text: str) -> str:
+        return pattern.sub(lambda match: match.group(0)[:NAME_ECHO_MAX_LEN] + NAME_CUT_NOTE, text)
+
+    return _map_text(answer, s)
 
 
 def _minimal(answer: Answer, tool: str) -> str:
@@ -1583,7 +1615,7 @@ def render(
     refusal, and that difference in behavior is gone.
     """
     if level is Disclosure.FULL:
-        return answer.to_text()
+        return _cut_long_names(answer, extra_names, caller_name).to_text()
     # Below 'volledig' first: what may only be said at 'volledig' leaves the
     # answer BEFORE any masking or counting sees it (see
     # `_without_full_only`).
@@ -1611,4 +1643,4 @@ def render(
         if invented is not None and _OBJECT_NUMBER.fullmatch(invented):
             raise PseudonymAsInput(_PSEUDONYM_AS_INPUT)
         return _limit(answer, extra_names, pseudonym_table_path, invented).to_text()
-    return _minimal(answer, tool)
+    return _minimal(_cut_long_names(answer, extra_names, caller_name), tool)

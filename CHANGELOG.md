@@ -73,8 +73,11 @@ operator notices first is listed under "Changed".
 - Every field of every answer goes through one character filter: control,
   format, line- and paragraph-separator characters (ESC, bidi overrides,
   zero-width characters) become a visible "?". `status_namen` names a name
-  over 128 characters or with such a character by its position, and a name as
-  the subject of a finding is cut at 128 characters with a note.
+  over 128 characters or with such a character by its position; everywhere
+  else an object name the export knows, and a name or term the caller passes,
+  is cut at 128 characters with a note, in every field of every reading tool
+  (`rapport_dekking` and `certificaat_wat_breekt_er` carried a name of 5000
+  characters whole).
 - At `openheid: minimaal` the severity line comes from typed fields of the
   expiry list, never from outcome text, so an object name cannot steer it.
 - The failure answer of `status_ververs` filters the collector's lines, cuts a

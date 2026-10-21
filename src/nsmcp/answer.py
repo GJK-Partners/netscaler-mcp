@@ -138,6 +138,15 @@ def _safe_subject(finding) -> str:
     return text
 
 
+def safe_name(value: str) -> str:
+    """`safe_text`, and cut at `NAME_ECHO_MAX_LEN` with `NAME_CUT_NOTE`: for
+    a name or a caller's term echoed outside `render()` (1.0.2)."""
+    text = _safe(value)
+    if len(text) > NAME_ECHO_MAX_LEN:
+        return text[:NAME_ECHO_MAX_LEN] + NAME_CUT_NOTE
+    return text
+
+
 def safe_text(value: str) -> str:
     """Public name for `_safe`, for the one reading tool outside the
     `Answer.to_text()` seam (mcp_server.py's kennis_uitleg, and

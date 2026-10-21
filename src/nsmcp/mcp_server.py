@@ -104,7 +104,7 @@ from nsmcp.action import (
     what_to_do,
 )
 from nsmcp.after_upgrade import report_after_upgrade
-from nsmcp.answer import Answer, Certainty, Finding, ReadGap, knowledge_age_line, safe_text, stamp_data
+from nsmcp.answer import Answer, Certainty, Finding, ReadGap, knowledge_age_line, safe_name, safe_text, stamp_data
 from nsmcp.backup import readback_ok, save_readback_ok
 from nsmcp.chain import service_chain
 from nsmcp.code_channel import BURN_NOTICE, CHANNEL_FAILED, OLD_PRESENTER_MARKER, MirrorRefused, send_notice
@@ -2261,7 +2261,8 @@ def build_server(
                     # echoing it verbatim here would defeat the whole point
                     # of those levels the moment a caller types a real
                     # appliance object name as `begrip`.
-                    shown = clean if disclosure is Disclosure.FULL else _UNKNOWN_NAME_IN_QUESTION
+                    # 1.0.2: the echo goes through the filter and the name limit.
+                    shown = safe_name(clean) if disclosure is Disclosure.FULL else _UNKNOWN_NAME_IN_QUESTION
                     # `knowledge.version` is capped at the source
                     # (knowledge.py) but not type-checked there, and this is
                     # the NOT-FOUND branch: the common case, at every
@@ -2290,7 +2291,7 @@ def build_server(
                 # route it through, so it calls the same function directly.
                 # The knowledge-base age line below is the same reuse as the
                 # NOT-FOUND branch above - see that branch's comment.
-                return f"{clean}: {safe_text(entry)}\n\n{knowledge_age_line(knowledge.date, knowledge.age_days)}"
+                return f"{safe_name(clean)}: {safe_text(entry)}\n\n{knowledge_age_line(knowledge.date, knowledge.age_days)}"
 
             return _guarded(ctx, work, "kennis_uitleg", {"begrip": term})
 

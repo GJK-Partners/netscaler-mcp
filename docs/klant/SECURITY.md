@@ -220,8 +220,9 @@ tekenfilter: stuurtekens (zoals ESC), opmaaktekens (een zero-width space, de
 tekens die de leesrichting omkeren) en de regel- en alineascheiders van Unicode
 worden een zichtbaar vraagteken. Een objectnaam die zo'n teken draagt of langer is
 dan 128 tekens, herhaalt `status_namen` niet; die noemt de rij dan bij positie.
-Een naam als onderwerp van een bevinding wordt op 128 tekens afgekapt, met een
-zichtbare melding. Dat begrenst de vorm en de omvang van een injectie; het is
+Elke andere herhaling van een objectnaam die de export kent, en van een naam of
+begrip dat de aanroeper zelf meegeeft, wordt in elk veld van het antwoord op 128
+tekens afgekapt, met de zichtbare melding "...(naam afgekapt)". Dat begrenst de vorm en de omvang van een injectie; het is
 geen filter op de inhoud, en dat wordt hier niet beweerd.
 
 ## Wat dit product wel en niet doet

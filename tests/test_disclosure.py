@@ -4251,3 +4251,130 @@ def test_sr18_a_deeply_nested_pseudonym_table_is_refused_as_broken(tmp_path):
     table.write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
     with pytest.raises(PseudonymTableBroken):
         render(_sr7_answer(), Disclosure.LIMITED, tool="x", extra_names=("cert_echt",), pseudonym_table_path=table)
+
+
+# --------------------------------------------------------------------------
+# 1.0.2, second round: the name limit of 128 at the ONE rendering seam
+# --------------------------------------------------------------------------
+#
+# Measured in the review of the first 1.0.2 build: the limit held for
+# `status_namen` and for a name as the subject of a finding, but a
+# certificate name of 5000 characters still reached `rapport_dekking` whole
+# (a line of 8307 characters), and `certificaat_wat_breekt_er` repeated a
+# caller's name of 5000 characters. A sweep over every reading tool found
+# eleven of twenty-three carrying a name over 128 characters. `render()` now
+# cuts every known object name, and the caller's name, at 128 with a note -
+# in every text field, at every level.
+
+_LONG_FILL = "L" * 5000
+_LONG_FIELDS = ("name", "certkey", "vservername", "servicename", "servicegroupname", "policyname", "profilename")
+
+
+def _export_with_long_names(root: Path) -> Path:
+    import shutil
+
+    export = root / "export"
+    shutil.copytree(Path(__file__).resolve().parent / "fixtures" / "lab-export-vpx-20260826", export)
+    for path in sorted((export / "objects").glob("*.json")):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for rows in raw.values():
+            if isinstance(rows, list) and rows and isinstance(rows[0], dict):
+                for field in _LONG_FIELDS:
+                    if isinstance(rows[0].get(field), str):
+                        rows[0][field] = f"{path.stem[:6]}-{_LONG_FILL}"
+                        break
+        path.write_text(json.dumps(raw), encoding="utf-8")
+    seal_manifest(export)
+    return export
+
+
+@pytest.mark.parametrize("level", ["volledig", "beperkt", "minimaal"])
+def test_sr9_no_reading_tool_carries_an_object_name_over_128_characters(tmp_path, level):
+    import asyncio
+    import shutil
+
+    import mcp.types as types
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    from nsmcp.start import build_server_from_config
+
+    supplied = tmp_path / "aanlevering"
+    supplied.mkdir()
+    export = _export_with_long_names(supplied)
+    beheer = tmp_path / "beheer"
+    beheer.mkdir()
+    shutil.copy(Path(__file__).resolve().parent.parent / "kennis.example.json", beheer / "kennis.json")
+    config = beheer / "config.json"
+    config.write_text(
+        json.dumps({"profiel": "dienst", "exportmap": str(export), "kennispad": "kennis.json", "openheid": level}),
+        encoding="utf-8",
+    )
+    server = build_server_from_config(config)
+
+    async def scenario():
+        answers = {}
+        async with create_connected_server_and_client_session(
+            server, client_info=types.Implementation(name="claude-code", version="1.0")
+        ) as client:
+            for tool in (await client.list_tools()).tools:
+                arguments = {}
+                for name in tool.inputSchema.get("required", []):
+                    kind = tool.inputSchema["properties"].get(name, {}).get("type")
+                    arguments[name] = 30 if kind == "integer" else f"vraag-{_LONG_FILL}"
+                result = await client.call_tool(tool.name, arguments)
+                answers[tool.name] = "\n".join(b.text for b in result.content if hasattr(b, "text"))
+        return answers
+
+    answers = asyncio.run(scenario())
+    assert len(answers) >= 20, sorted(answers)
+    too_long = sorted(tool for tool, text in answers.items() if "L" * 129 in text)
+    assert too_long == [], too_long
+
+
+def test_sr9_render_cuts_a_known_name_in_every_text_field():
+    long_name = "VS-" + "x" * 300
+    answer = Answer(
+        question=f"wat breekt er aan {long_name}?",
+        findings=[
+            Finding(
+                subject="certificaat",
+                outcome=f"gebonden aan {long_name}",
+                certainty=Certainty.ESTABLISHED,
+                evidence=f"config/sslvserver kent {long_name}",
+                subject_is_name=False,
+            )
+        ],
+        read_gaps=[ReadGap(source=f"vservername={long_name}", reason=f"{long_name} niet gelezen")],
+    )
+    text = render(answer, Disclosure.FULL, tool="t", extra_names=(long_name,))
+    assert "x" * 129 not in text, text
+    assert text.count("...(naam afgekapt)") == 5, text
+    assert "VS-" + "x" * 125 + " ...(naam afgekapt)" in text
+
+
+def test_sr9_render_cuts_the_callers_own_long_name():
+    asked = "vraag-" + "q" * 400
+    answer = Answer(
+        question=f"wat breekt er aan {asked}?",
+        findings=[
+            Finding(
+                subject=asked,
+                outcome="niet gevonden in deze export",
+                certainty=Certainty.ESTABLISHED,
+                evidence=f"config/sslcertkey kent {asked} niet",
+            )
+        ],
+    )
+    text = render(answer, Disclosure.FULL, tool="t", caller_name=asked)
+    assert "q" * 129 not in text, text
+
+
+def test_sr9_a_name_of_at_most_128_characters_is_rendered_whole():
+    name = "VS-" + "y" * 125
+    answer = Answer(
+        question="q",
+        findings=[Finding(subject="s", outcome=f"gebonden aan {name}", certainty=Certainty.ESTABLISHED, evidence="e")],
+    )
+    text = render(answer, Disclosure.FULL, tool="t", extra_names=(name,))
+    assert f"gebonden aan {name}" in text
+    assert "naam afgekapt" not in text
