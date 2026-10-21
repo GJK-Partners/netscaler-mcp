@@ -1457,3 +1457,28 @@ def test_b3_the_answer_without_a_target_claims_no_live_read(preflight_export, kn
     assert "live gelezen" not in regel8
     assert "live lezing" not in regel8
     assert "niet gelezen: er is geen doel ingesteld" in regel8
+
+
+# --- B4 (1.0.2): no internal object in the customer answer ------------------
+#
+# Measured: check 3 put a dataclass into an f-string -
+# "rolverdeling HaDimension(label='rolverdeling', state=..., evidence=...".
+
+_INTERNAL_REPR = ("HaDimension(", "HaResult(", "(label=", "evidence=", "safe_state=", "read_gap=")
+
+
+@pytest.mark.parametrize("fixture", [_LAB_EXPORT_B1, FIXTURE], ids=["lab-export", "preflight-export"])
+def test_b4_no_preflight_answer_carries_an_internal_object(fixture, knowledge):
+    from nsmcp.answer import ReadGap
+
+    export = load_export(fixture)
+    for gap in (None, ReadGap(source="stat/system", reason="er is geen doel ingesteld")):
+        for free in (None, 9000):
+            text = preflight_answer(export, knowledge, free, 1081, gap).to_text()
+            for needle in _INTERNAL_REPR:
+                assert needle not in text, (needle, text)
+
+
+def test_b4_check_three_names_the_two_states_in_words(knowledge):
+    drie = next(c for c in preflight_checks(load_export(_LAB_EXPORT_B1), knowledge, 9000, 1081) if c.number == 3)
+    assert "rolverdeling niet van toepassing, sync niet van toepassing" in drie.evidence

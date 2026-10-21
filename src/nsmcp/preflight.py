@@ -573,7 +573,10 @@ def _check_3_ha(export) -> Check:
             "config/hanode",
             f"{gaps[0].source}: {gaps[0].reason}",
         )
-    evidence = f"config/hanode, {result.node_count} node(s); rolverdeling {result.roles}, sync {result.sync}"
+    # B4 (1.0.2): the state WORD of each dimension, never the dataclass itself.
+    evidence = (
+        f"config/hanode, {result.node_count} node(s); rolverdeling {result.roles.state}, sync {result.sync.state}"
+    )
     word, reason = _ha_word(result.blockers)
     return Check(3, NAME_3, word, evidence, reason)
 
