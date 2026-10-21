@@ -30,6 +30,7 @@ from pathlib import Path
 
 from nsmcp.answer import ReadGap, repeatable_token
 from nsmcp.export import MISSING as _MISSING, TARGET_FILE, USABLE, load_export, shape_of
+from nsmcp.limits import neutralise_hidden
 from nsmcp.powershell import PowerShellMissing, start_powershell
 from nsmcp.retention import Retention, _discard_previous, keep, prune
 from nsmcp.target import CertAgreement, Target
@@ -275,6 +276,9 @@ def _scrub_error_text(error_text: str, target: Target) -> str:
 
 
 _STDERR_TAIL_LINES = 10
+# SR-11 (1.0.2): one line of the tail is cut at this many characters, with a
+# visible note - the review probe put 3000 characters in one line.
+_STDERR_LINE_CHARS = 400
 _NO_ERROR_LINE = "geen foutregel"
 
 
@@ -312,7 +316,19 @@ def _short_report(error_text: str, target: Target) -> str:
     lines = [line.strip() for line in scrubbed.splitlines() if line.strip()]
     if not lines:
         return _NO_ERROR_LINE
-    return " | ".join(lines[-_STDERR_TAIL_LINES:])
+    # SR-11 (1.0.2): every character that is invisible or moves text around
+    # (ESC, a bidi override, a zero-width space) becomes visible, a long line
+    # is cut with a note, and the lines left out are COUNTED - the same
+    # "... (N regels ingekort)" the writing tools say (`_from_script`); the
+    # cut used to be silent.
+    shown = [
+        line if len(line) <= _STDERR_LINE_CHARS else line[:_STDERR_LINE_CHARS] + " ...(regel afgekapt)"
+        for line in (neutralise_hidden(line) for line in lines[-_STDERR_TAIL_LINES:])
+    ]
+    cut = len(lines) - _STDERR_TAIL_LINES
+    if cut > 0:
+        shown.insert(0, f"... ({cut} regels ingekort)")
+    return " | ".join(shown)
 
 
 def _has_usable_resource(resources: dict) -> bool:

@@ -804,8 +804,12 @@ per blok, met een zichtbare melding hoeveel regels zijn ingekort. Zonder die lim
 mislukte schrijfactie hele NITRO-payloads in de context van het taalmodel leggen.
 
 **Dit is een maskering van bekende waarden, geen garantie over de hele foutuitvoer.** Tot tien
-regels ruwe PowerShell-uitvoer gaan verder ongefilterd mee (zie `_short_report` in `collect.py`
-voor het leespad en `_from_script` in `mcp_server.py` voor het schrijfpad). Een waarde die dit
+regels PowerShell-uitvoer gaan verder mee (zie `_short_report` in `collect.py` voor het leespad
+en `_from_script` in `mcp_server.py` voor het schrijfpad). Op het leespad gaan die regels sinds
+1.0.2 door het tekenfilter van elk antwoord (stuurtekens, opmaaktekens en Unicode-scheiders
+worden een zichtbaar vraagteken), wordt een regel boven de 400 tekens afgekapt met een melding,
+staat er hoeveel regels zijn ingekort, en sluit het faalantwoord van `status_ververs` af met de
+eigen regels "Kennisbasis ..." en "Gegevens ..." van het product. Een waarde die dit
 product niet als "van het doel" kent - bijvoorbeeld het werkelijke certificaat-thumbprint dat de
 appliance teruggeeft bij een pin-mismatch, of een heel ander adres in een omleidings- of
 DNS-foutmelding - kan dus gewoon in het antwoord verschijnen.

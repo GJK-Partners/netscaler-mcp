@@ -2572,7 +2572,7 @@ def test_status_ververs_carries_a_fourth_unpinned_headline_vocabulary():
     )
     for literal in (
         "De scan van '{name}' is gelukt.",
-        "De scan van '{name}' is niet gelukt: {exc}",
+        "De scan van '{name}' is niet gelukt: {reden}",
         "De scan van '{name}' is voltooid: de annulering kwam nadat de ",
         "De scan van '{name}' is voltooid, maar onbekend is of de annulering ",
     ):

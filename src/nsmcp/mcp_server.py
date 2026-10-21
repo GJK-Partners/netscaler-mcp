@@ -1751,11 +1751,29 @@ def build_server(
                             # still learns WHY the scan did not run.
                             exc = exc.without_script_output()
                         diagnosis = phase_summary(phase_report(exc.evidence_dir, export_dir))
+                        # SR-11 (1.0.2): the failure is not a bare f-string any
+                        # more. The error and the phase lines (both can carry
+                        # text the collector wrote) go through the one text
+                        # filter, line by line, and the product's own two stamp
+                        # lines close the answer - after anything the collector
+                        # may have printed that looks like them.
+                        reden = safe_text(str(exc))
+                        diagnose = "\n".join(safe_text(regel) for regel in diagnosis.splitlines())
+                        kennis = _knowledge()
+                        closing = Answer(
+                            question=f"verversen van {name}",
+                            knowledge_age_days=kennis.age_days,
+                            knowledge_date=kennis.date,
+                            data_age_reason=(
+                                "deze scan leverde geen nieuwe gegevens; de leeftijd van de huidige"
+                                " export staat in het volgende antwoord"
+                            ),
+                        ).stamp_lines()
                         return (
-                            f"De scan van '{name}' is niet gelukt: {exc}\n"
-                            f"{diagnosis}\n"
+                            f"De scan van '{name}' is niet gelukt: {reden}\n"
+                            f"{diagnose}\n"
                             "Of de vorige gegevens nog gelden, staat in de gegevensleeftijd "
-                            "van het volgende antwoord."
+                            "van het volgende antwoord.\n\n" + "\n".join(closing)
                         )
                     writes_since_scan.resolve_scan(baseline)
                     export = load_export(export_dir)
