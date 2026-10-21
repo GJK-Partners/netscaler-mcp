@@ -71,3 +71,53 @@ def test_the_version_is_the_public_one_dot_zero():
 def test_the_changelog_carries_that_same_version():
     changelog = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## [1.0.1]" in changelog
+
+
+# --- B7 (1.0.2): the MCP handshake names the product version ---------------
+#
+# Measured in the public test: `initialize` answered
+# serverInfo.version = "1.29.0", the version of the mcp library.
+
+
+def test_b7_the_package_version_follows_the_project_file():
+    import nsmcp
+
+    assert nsmcp.__version__ == _project()["version"]
+
+
+def test_b7_the_stdio_handshake_reports_the_product_version_not_the_library_version():
+    import json
+    import subprocess
+    import sys
+    from importlib.metadata import version as library_version
+
+    repo = PYPROJECT.parent
+    process = subprocess.Popen(
+        [sys.executable, "-m", "nsmcp.start", str(repo / "config.example.json")],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    try:
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "pakkettest", "version": "1.0"},
+            },
+        }
+        process.stdin.write(json.dumps(request) + "\n")
+        process.stdin.flush()
+        line = process.stdout.readline()
+    finally:
+        process.kill()
+        process.communicate(timeout=30)
+    info = json.loads(line)["result"]["serverInfo"]
+    assert info["name"] == "netscaler-mcp"
+    assert info["version"] == _project()["version"]
+    assert info["version"] != library_version("mcp")

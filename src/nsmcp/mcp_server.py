@@ -96,6 +96,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import Context, FastMCP
 
+from nsmcp import __version__
 from nsmcp.action import (
     REPLACED_CERTIFICATE_SUBJECT,
     USE_NOT_ESTABLISHED_OUTCOME,
@@ -1080,6 +1081,10 @@ def build_server(
     # same starter and the same polite stop the write script gets. A test
     # hands in a stub, exactly like `run` for the collector.
     server = FastMCP("netscaler-mcp", log_level=_FASTMCP_LOG_LEVEL)
+    # B7 (1.0.2): FastMCP takes no version, and the low-level server then
+    # reports the version of the mcp library in `initialize`. The product
+    # version goes in its place (`serverInfo.version`).
+    server._mcp_server.version = __version__
     targets = load_targets(targets_path) if targets_path else {}
     decision = decide or allow_all
     # The pseudonym table (pseudonym -> real name) stays LOCAL next to the
