@@ -20,6 +20,9 @@ operator notices first is listed under "Changed".
   starts the server; a missing export map names the resolved path and that
   directory. `config.example.json` now starts from any working directory and
   from a client configuration without `cwd`.
+- A configuration file on a network path or a network drive, or a configured
+  path that leads to one through a link, no longer starts the server; keep the
+  configuration and the paths it names on a local disk.
 - At `openheid: beperkt` the pseudonym table and its lock live beside the
   configuration file (or in `onderhoud.ledgermap`), never beside the export;
   a configuration in the directory around the export map is refused at start.
@@ -107,6 +110,10 @@ operator notices first is listed under "Changed".
   README Platform section names modules instead of line numbers that had
   moved, the English README no longer ends in a Dutch internal chapter, and it
   explains the "Unknown tool" error of an unregistered writing tool.
+- `docs/klant/BEVEILIGING-EN-DATASTROMEN.md` has a chapter on `scriptpin`,
+  `uitvoeringsbeleid` and the path rules; `docs/klant/SECURITY.md` names where
+  the pseudonym table lives and its start and lock refusals; the manual says
+  HSTS is read through an SSL profile only, not set directly on a vserver.
 
 ## [1.0.1] - 2026-10-21
 
