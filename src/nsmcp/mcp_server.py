@@ -1914,7 +1914,7 @@ def build_server(
             whole number - each a ReadGap with its reason, and never a second
             attempt through the collector.
 
-            The third value says whether a read process really ran (
+            The third value says whether a read process really ran (since
             1.0.2): a missing script, an invalid pin or a process that did
             not start is "niet gelezen", never "live gelezen"."""
             script = sibling_script(onderhoud, LIVE_MEASURE_SCRIPT)

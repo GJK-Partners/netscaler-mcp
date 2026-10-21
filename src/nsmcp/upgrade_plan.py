@@ -187,12 +187,12 @@ _CHECK_8_REASON = (
     "onderhoud_upgrade_plan leest niet live; status_update_preflight meet de vrije ruimte op"
     " /var wel, vlak voor het venster"
 )
-# Check 8's own EVIDENCE (`preflight._check_8_free_space`)
-# unconditionally says "stat/system, live gelezen; ..." - true for B3
-# (`status_update_preflight`, which really does read it live) and false for
-# B7, which never attempts a live read at all. The reason above already says
-# so; the evidence must say the SAME thing, not the opposite, one line
-# above it. This names the same vendorvloer/bundel/uitpakkosten numbers
+# Check 8's own EVIDENCE (`preflight._check_8_free_space`) names the route
+# that ran ("live gelezen via <route>") or, when none ran, "niet gelezen:
+# <reden>" - written for `status_update_preflight`, which really does attempt
+# a live read. B7 never attempts one at all, so it states its own evidence:
+# the reason above already says so, and the evidence must say the SAME
+# thing, not something else, one line above it. This names the same vendorvloer/bundel/uitpakkosten numbers
 # `_check_8_free_space` computes - through `preflight.own_floor_mb()`, not a
 # second copy of the formula (the numbers were
 # imported, the arithmetic was retyped, and the two could disagree the

@@ -166,6 +166,11 @@ gebroken tabel wordt fail-closed geweigerd; een boosaardig bewerkte tabel (rij
 A wijst naar object B) niet. Bij `openheid: beperkt` worden pseudoniemen ook voor schrijven terugvertaald.
 De beheerder moet daarom de echte namen in het codekanaal controleren; de
 tabel en de configuratie moeten tegen wijziging door onbevoegden beschermd zijn.
+Sinds 1.0.2 staat de tabel met haar slotbestand naast het configuratiebestand (of
+in `onderhoud.ledgermap`), nooit naast de export; bij `openheid: beperkt` weigert
+de server te starten als die map de exportmap is of de map eromheen, en een
+slotbestand dat niet te openen is of te lang vastzit, is een weigering met reden.
+De integriteitscontrole zelf ontbreekt nog steeds.
 
 ### Wat buiten scope valt
 

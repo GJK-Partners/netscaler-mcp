@@ -929,7 +929,9 @@ vserver zo'n eigen profiel, dan is het "wel gedefinieerd maar niet gebonden". De
 ingebouwde profielen (`ns_default_ssl_profile_...`) staan op elke appliance en tellen
 alleen mee als een vserver ze bindt. Is niet te lezen welk profiel een vserver bindt
 (de bron of het veld `sslprofile` ontbreekt), dan is HSTS "niet beoordeeld" en staat
-het leesgat onder NIET VASTGESTELD.
+het leesgat onder NIET VASTGESTELD. Het product leest HSTS alleen via een profiel: HSTS
+die rechtstreeks op een SSL-vserver aanstaat (zonder standaardprofiel), zien
+`beveiliging_headers` en `beveiliging_tls_baseline` niet.
 
 ### Certificaatgebruik buiten de virtuele servers
 

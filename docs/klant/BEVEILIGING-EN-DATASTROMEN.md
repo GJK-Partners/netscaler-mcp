@@ -321,6 +321,29 @@ U heeft hierop drie knoppen:
 3. **Uw eigen netwerk- en egress-beleid.** Het product dwingt geen netwerkbeleid af; welke
    verbindingen de machine mag maken, is en blijft uw handhavingslaag.
 
+## Scripts en paden
+
+Het product start PowerShell-scripts (het verzamelscript, het schrijfscript, de faserunner en de
+kleine SSH-scripts naast de runner) en leest bestanden en mappen op paden uit de configuratie.
+Drie instellingen en regels bepalen wat daarbij gebeurt:
+
+- **`scriptpin`** legt per script een sha256 vast. Is de sleutel ingesteld, dan start een script
+  alleen als zijn bytes en die van elk ander script (`.ps1`, `.psm1`) in dezelfde map vlak voor
+  de start gelijk zijn aan hun pin; een script zonder pin in die map weigert de start, want
+  PowerShell kan het op naam inlezen. Zonder `scriptpin` wordt er niets gecontroleerd. De pin is
+  zo sterk als de bescherming van het configuratiebestand: wie dat kan schrijven, kan ook de pin
+  aanpassen.
+- **`uitvoeringsbeleid`** kiest het PowerShell-uitvoeringsbeleid: `Bypass` (standaard; de scripts
+  van het product zijn niet gesigneerd), `AllSigned` of `RemoteSigned` (Windows beslist dan zelf
+  over de handtekening).
+- **Paden**: een relatief pad telt vanaf de map van het configuratiebestand. Een netwerk- of
+  apparaatpad (`\\server\share`, ook `\\?\UNC\`), een dubbele punt na de schijfletter (een
+  alternatieve gegevensstroom), een pad dat van de huidige schijf afhangt en een padonderdeel dat
+  op een punt of spatie eindigt, weigert de server bij de start. Dat geldt ook voor het
+  configuratiebestand zelf en voor de plek waar een pad via een junction of symbolische link
+  uitkomt (gevolgd zonder het doel te openen), en voor een netwerkstation. Deze versie leest
+  alleen van een lokale schijf.
+
 ## De openheidsknop
 
 De openheidsknop regelt hoeveel een antwoord prijsgeeft aan het taalmodel dat meeleest. De
@@ -452,8 +475,10 @@ Het product beschermt wat binnen zijn eigen grens ligt. Daarbuiten liggen vier z
 
 Versie 1.0.2, 21-10-2026. Gewijzigd sinds 1.0.1: in de stand `beperkt` staat de vertaaltabel naast
 het configuratiebestand (of in `onderhoud.ledgermap`), nooit naast de export; elk veld van een
-antwoord gaat door een tekenfilter; de PowerShell-scripts kunnen per script worden vastgepind
-(`scriptpin`). Zie de HANDLEIDING. De claims in dit document zijn herleidbaar tot de broncode en de
+antwoord gaat door een tekenfilter en een objectnaam wordt op 128 tekens afgekapt; de
+PowerShell-scripts kunnen per script worden vastgepind (`scriptpin`, met elk script in dezelfde
+map), het uitvoeringsbeleid is een instelling, en een pad wordt ook geweigerd op de plek waar het
+uitkomt (zie "Scripts en paden"). Zie de HANDLEIDING. De claims in dit document zijn herleidbaar tot de broncode en de
 testsuite van dit product, met drie benoemde uitzonderingen: het leesgedrag tegen
 de appliance zit in het vrijgegeven verzamelscript van GJK NetScaler Healthcheck 1.0 (zie
 "Verzamelen"); het schrijfgedrag tegen de appliance — de terugleescontrole, de
