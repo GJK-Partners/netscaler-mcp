@@ -35,16 +35,10 @@ async def main() -> None:
     parameters = StdioServerParameters(
         command=sys.executable,
         args=["-m", "nsmcp.start", str(CONFIG)],
-        # config.example.json uses paths RELATIVE TO ITS OWN DIRECTORY -
-        # start.py resolves them against the process cwd, not against the
-        # config file's location. Without this, running the documented
-        # command (`python examples/minimal_client.py`) from any directory
-        # other than the repository root fails inside the CHILD process
-        # with an honest "Fout: exportmap niet gevonden: ...". That line
-        # DOES reach this script - the child's stderr is inherited, not
-        # captured - but it prints first and is then buried under a much
-        # longer ExceptionGroup/McpError traceback stdio_client raises
-        # once the pipe closes.
+        # config.example.json uses paths RELATIVE TO ITS OWN DIRECTORY;
+        # since 1.0.2 start.py resolves them against that directory, so the
+        # working directory no longer matters. Kept so the child process
+        # runs in the repository whatever directory this script is run from.
         cwd=CONFIG.parent,
         env=debug_env,
     )

@@ -221,6 +221,14 @@ def load_config(path: Path) -> dict:
     return raw
 
 
+def _code_path_text(value) -> Path:
+    """handelen.codekanaal.pad: SR-8's refusals, then `_check_code_path`
+    (which keeps requiring an absolute path - never resolved for it)."""
+    text = _require_text(value, "handelen.codekanaal.pad")
+    _refuse_remote_or_stream(text, "handelen.codekanaal.pad")
+    return Path(text)
+
+
 def _code_channel(value, forbidden_dirs: list[Path]):
     """Validates `handelen.codekanaal` and hands the kind to the ONE seam.
 
@@ -266,7 +274,7 @@ def _code_channel(value, forbidden_dirs: list[Path]):
             raise ConfigError(
                 "handelen.codekanaal van soort bestand mist het veld pad (een absoluut pad naar het codebestand)"
             )
-        fields["pad"] = _check_code_path(Path(_require_text(fields["pad"], "handelen.codekanaal.pad")), forbidden_dirs)
+        fields["pad"] = _check_code_path(_code_path_text(fields["pad"]), forbidden_dirs)
     if kind == "sso":
         ontbreekt = [v for v in ("pad", "autoriteit", "wachttijd_s") if v not in fields]
         if ontbreekt:
@@ -276,7 +284,7 @@ def _code_channel(value, forbidden_dirs: list[Path]):
                 "https-url waar de goedkeuring vandaan komt en wachttijd_s is het aantal seconden "
                 "dat het product op aflevering wacht"
             )
-        fields["pad"] = _check_code_path(Path(_require_text(fields["pad"], "handelen.codekanaal.pad")), forbidden_dirs)
+        fields["pad"] = _check_code_path(_code_path_text(fields["pad"]), forbidden_dirs)
         # `_check_code_path` was built for
         # the `bestand` kind's code FILE, a path where nothing needs to
         # exist yet - the product writes it. The `sso` presenter is the
@@ -329,7 +337,18 @@ def _code_channel(value, forbidden_dirs: list[Path]):
         raise ConfigError(f"handelen.codekanaal van soort {kind} mist het veld {exc}") from None
 
 
-def _onderhoud_config(value, *, handelen_configured: bool) -> MaintenanceConfig:
+def _onderhoud_path(value, field: str, base: Path | None) -> Path:
+    """`_config_path` when the caller knows the configuration's directory;
+    a direct caller without it (a test) keeps the old reading, with the
+    SR-8 refusals all the same."""
+    if base is not None:
+        return _config_path(value, field, base)
+    text = _require_text(value, field)
+    _refuse_remote_or_stream(text, field)
+    return Path(text)
+
+
+def _onderhoud_config(value, *, handelen_configured: bool, base: Path | None = None) -> MaintenanceConfig:
     """Validates `onderhoud` STRUCTURALLY: the five required fields, the
     soak-hours floor, that `runner` is a real file and `ledgermap` a real
     directory, and that `handelen` is configured at all - a phase is a
@@ -366,13 +385,13 @@ def _onderhoud_config(value, *, handelen_configured: bool) -> MaintenanceConfig:
             "product 24 uur wandkloktijd, en juist de nacht is het venster waarin een stille "
             "regressie zichtbaar wordt"
         )
-    runner = Path(_require_text(value["runner"], "onderhoud.runner"))
+    runner = _onderhoud_path(value["runner"], "onderhoud.runner", base)
     if not runner.is_file():
         raise ConfigError(f"onderhoud.runner is geen bestand: {runner}")
-    ledgermap = Path(_require_text(value["ledgermap"], "onderhoud.ledgermap"))
+    ledgermap = _onderhoud_path(value["ledgermap"], "onderhoud.ledgermap", base)
     if not ledgermap.is_dir():
         raise ConfigError(f"onderhoud.ledgermap is geen map: {ledgermap}")
-    firmwaremap = Path(_require_text(value["firmwaremap"], "onderhoud.firmwaremap"))
+    firmwaremap = _onderhoud_path(value["firmwaremap"], "onderhoud.firmwaremap", base)
     ssh_gebruiker = _require_text(value["ssh_gebruiker"], "onderhoud.ssh_gebruiker")
     # Same treatment as `firmwaremap` above - no
     # existence check: the register may not exist yet until the first write
@@ -381,7 +400,7 @@ def _onderhoud_config(value, *, handelen_configured: bool) -> MaintenanceConfig:
     # `open`.
     actieregister = None
     if "actieregister" in value:
-        actieregister = Path(_require_text(value["actieregister"], "onderhoud.actieregister"))
+        actieregister = _onderhoud_path(value["actieregister"], "onderhoud.actieregister", base)
     if not handelen_configured:
         raise ConfigError("onderhoud vereist de sectie handelen; een fase is een schrijvende handeling")
     return MaintenanceConfig(
@@ -805,6 +824,76 @@ def _without_extended_prefix(text: str) -> str:
     return text
 
 
+# SR-8 + B6 (1.0.2). Where a configured path may point. Measured on 1.0.0: a
+# relative path followed the working directory of the MCP host (one config,
+# two exports, depending on who started it - and the client configuration
+# from the manual did not start at all); a UNC export map turned every
+# reading tool into an SMB client; `kennis.json:zijstroom` (an alternate data
+# stream) passed `is_file()`. Now: a relative path is resolved against the
+# directory of the configuration file, one that still depends on the current
+# drive or root (`C:x`, `\x`) is refused, and so is every network or device
+# spelling, a colon after the drive letter and a component that ends in a dot
+# or a space (Windows drops those, so the name read is not the name written).
+_LOCAL_DEVICE_DRIVE = re.compile(r"^\\\\[?.]\\[A-Za-z]:(\\|$)")
+_LOCAL_VOLUME_GUID = re.compile(r"^\\\\\?\\Volume\{[0-9A-Fa-f-]{36}\}(\\|$)")
+
+
+def _refuse_remote_or_stream(text: str, field: str) -> None:
+    """Refuses the spellings of SR-8 in `text` (operator text, `!r`-quoted)."""
+    if os.name != "nt":
+        return
+    spelled = text.replace("/", "\\")
+    rest = spelled
+    if spelled.startswith("\\\\"):
+        if _LOCAL_DEVICE_DRIVE.match(spelled):
+            rest = spelled[4:]
+        elif _LOCAL_VOLUME_GUID.match(spelled):
+            rest = spelled[_LOCAL_VOLUME_GUID.match(spelled).end() :]
+        else:
+            raise ConfigError(
+                f"{field} is een netwerk- of apparaatpad; deze versie leest alleen van een lokale schijf"
+                f" (geen \\\\server\\share, geen \\\\?\\UNC\\): {text!r}"
+            )
+    if len(rest) >= 2 and rest[1] == ":" and rest[0].isascii() and rest[0].isalpha():
+        rest = rest[2:]
+    if ":" in rest:
+        raise ConfigError(
+            f"{field} draagt een dubbele punt na de schijfletter (een alternatieve gegevensstroom of geen geldig"
+            f" pad): {text!r}"
+        )
+    for part in rest.split("\\"):
+        if part not in ("", ".", "..") and part[-1] in (".", " "):
+            raise ConfigError(
+                f"{field} heeft een padonderdeel dat op een punt of spatie eindigt; Windows laat die weg, dus"
+                f" de naam die gelezen wordt is niet de naam die er staat: {text!r}"
+            )
+
+
+def _config_path(value, field: str, base: Path) -> Path:
+    """The path of `field` as the server uses it: SR-8's refusals first, then
+    a relative path resolved against `base` (the directory of the
+    configuration file), never against the working directory."""
+    text = _require_text(value, field)
+    _refuse_remote_or_stream(text, field)
+    candidate = Path(text)
+    if _is_absolute_path(candidate):
+        return candidate
+    if candidate.drive or candidate.root:
+        raise ConfigError(
+            f"{field} hangt af van de huidige schijf of map (een schijf zonder map of een map zonder schijf);"
+            f" schrijf het pad volledig uit of relatief aan de map van het configuratiebestand: {text!r}"
+        )
+    return base / candidate
+
+
+def _relative_note(value, base: Path) -> str:
+    """For a refusal over a path that was written RELATIVE: where it was
+    resolved (B6). Empty for an absolute path."""
+    if isinstance(value, str) and not _is_absolute_path(Path(value.strip())):
+        return f" (relatief pad, opgelost tegen de map van het configuratiebestand {base}, niet tegen de werkmap)"
+    return ""
+
+
 def _is_absolute_path(path: Path) -> bool:
     """Whether `path` names one place, whatever the working directory or
     the current drive, on every Python version the product supports.
@@ -1128,15 +1217,16 @@ def build_server_from_config(path: Path) -> FastMCP:
     # directories the product itself reads, and these are those directories.
     # Only the CONSTRUCTION moves up - the existence checks stay below, so the
     # order in which an operator hears about a missing file is unchanged.
-    export_dir = Path(_require_text(raw["exportmap"], "exportmap"))
+    base = path.resolve().parent
+    export_dir = _config_path(raw["exportmap"], "exportmap", base)
     _require_comparable_export_dir(export_dir)
-    knowledge_path = Path(_require_text(raw["kennispad"], "kennispad"))
+    knowledge_path = _config_path(raw["kennispad"], "kennispad", base)
     # Absent is allowed and is NOT a pass: the package then loads, but every
     # floor and CVE statement on it says `[niet vastgesteld]` (see
     # `build_server(knowledge_pin=...)`).
     knowledge_pin = _kennispin(raw["kennispin"]) if "kennispin" in raw else None
-    targets_path = Path(_require_text(raw["doelen"], "doelen")) if "doelen" in raw else None
-    collect_script = Path(_require_text(raw["verzamelscript"], "verzamelscript")) if "verzamelscript" in raw else None
+    targets_path = _config_path(raw["doelen"], "doelen", base) if "doelen" in raw else None
+    collect_script = _config_path(raw["verzamelscript"], "verzamelscript", base) if "verzamelscript" in raw else None
 
     action_script = None
     fixture_dir = None
@@ -1201,8 +1291,8 @@ def build_server_from_config(path: Path) -> FastMCP:
                     "zelf vormt. Een lege sectie ({}) is geldig en betekent: niets toegestaan"
                 )
             raise ConfigError(f"handelen mist veld: {', '.join(sorted(missing_action_fields))}{reden}")
-        action_script = Path(_require_text(section["schrijfscript"], "handelen.schrijfscript"))
-        fixture_dir = Path(_require_text(section["fixturemap"], "handelen.fixturemap"))
+        action_script = _config_path(section["schrijfscript"], "handelen.schrijfscript", base)
+        fixture_dir = _config_path(section["fixturemap"], "handelen.fixturemap", base)
         _require_file(action_script, "handelen.schrijfscript")
         if not fixture_dir.is_dir():
             # !r-quoted: `fixture_dir` is operator text
@@ -1215,7 +1305,7 @@ def build_server_from_config(path: Path) -> FastMCP:
 
     onderhoud = None
     if "onderhoud" in raw:
-        onderhoud = _onderhoud_config(raw["onderhoud"], handelen_configured="handelen" in raw)
+        onderhoud = _onderhoud_config(raw["onderhoud"], handelen_configured="handelen" in raw, base=base)
 
     # Where `status_ververs` records which exports this server collected:
     # OUTSIDE the export map, in a directory the writing tools already own
@@ -1305,9 +1395,9 @@ def build_server_from_config(path: Path) -> FastMCP:
     # geen bestand" (see their docstrings): say what the path actually is,
     # not that it is missing.
     if export_dir.exists() and not export_dir.is_dir():
-        raise ConfigError(f"exportmap is geen map: {export_dir}")
+        raise ConfigError(f"exportmap is geen map: {export_dir}{_relative_note(raw['exportmap'], base)}")
     if not export_dir.is_dir():
-        raise ConfigError(f"exportmap niet gevonden: {export_dir}")
+        raise ConfigError(f"exportmap niet gevonden: {export_dir}{_relative_note(raw['exportmap'], base)}")
     _check_provenance_dir(provenance_dir, export_dir)
     # After the provenance check on purpose: a ledger map or a configuration
     # file in the export map keeps the refusal it already had (its provenance

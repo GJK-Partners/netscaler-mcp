@@ -1494,6 +1494,13 @@ def test_a_code_file_inside_a_directory_the_product_reads_is_refused(tmp_path):
             )
 
 
+# SR-8 (1.0.2): the two network spellings of the local disk are refused at
+# the start as network paths, before containment is compared; the tests
+# below therefore expect THAT refusal for them.
+_NETWORK_SPELLINGS = frozenset({"unc-uitgebreid", "beheershare"})
+_NETWORK_REFUSAL = "handelen.codekanaal.pad is een netwerk- of apparaatpad"
+
+
 @pytest.mark.parametrize("spelling", [spelling for spelling in PATH_SPELLINGS if spelling != "relatief"])
 def test_a_code_file_inside_a_directory_the_product_reads_is_refused_in_every_spelling(tmp_path, spelling):
     """Measured on the provenance map's check, which has the same form: the
@@ -1501,7 +1508,8 @@ def test_a_code_file_inside_a_directory_the_product_reads_is_refused_in_every_sp
     a path outside it, because `Path.resolve()` keeps that spelling. A
     relative path never reaches this check - it is refused as not absolute."""
     verboden = spelled(tmp_path / "export" / "code.txt", spelling)
-    with pytest.raises(start.ConfigError, match="die het product zelf"):
+    expected = _NETWORK_REFUSAL if spelling in _NETWORK_SPELLINGS else "die het product zelf"
+    with pytest.raises(start.ConfigError, match=expected):
         start.build_server_from_config(_config(tmp_path, handelen=_handelen(tmp_path, _bestand(tmp_path, verboden))))
 
 
@@ -1517,6 +1525,12 @@ def test_a_code_file_through_a_link_inside_a_directory_the_product_reads_is_refu
     export.mkdir()
     directory_link(export / "uit", outside)
     verboden = spelled(export / "uit" / "code.txt", spelling)
+    if spelling in _NETWORK_SPELLINGS:
+        with pytest.raises(start.ConfigError, match=_NETWORK_REFUSAL):
+            start.build_server_from_config(
+                _config(tmp_path, handelen=_handelen(tmp_path, _bestand(tmp_path, verboden)))
+            )
+        return
     with pytest.raises(start.ConfigError, match="die het product zelf") as refused:
         start.build_server_from_config(_config(tmp_path, handelen=_handelen(tmp_path, _bestand(tmp_path, verboden))))
     assert repr(export) in str(refused.value)
@@ -1531,16 +1545,22 @@ def test_a_code_file_path_that_cannot_be_compared_is_refused(tmp_path):
     with pytest.raises(start.ConfigError) as refused:
         start.build_server_from_config(_config(tmp_path, handelen=_handelen(tmp_path, _bestand(tmp_path, code_file))))
     message = str(refused.value)
-    assert message.startswith(
-        "kan niet vaststellen dat handelen.codekanaal.pad buiten een map ligt die het product zelf leest of schrijft"
-    ), message
-    assert message.endswith(f": {code_file!r}"), message
+    # SR-8 (1.0.2): the colon of "Fout:" after the drive letter is refused
+    # first; still over this field, still quoted.
+    assert message.startswith("handelen.codekanaal.pad draagt een dubbele punt na de schijfletter"), message
+    assert message.endswith(f": {str(code_file)!r}"), message
     assert "\x00" not in message and "\n" not in message
 
 
 @pytest.mark.parametrize("spelling", [spelling for spelling in PATH_SPELLINGS if spelling != "relatief"])
 def test_a_code_file_beside_the_directories_the_product_reads_is_accepted_in_every_spelling(tmp_path, spelling):
     code_file = spelled(_code_file(tmp_path), spelling)
+    if spelling in _NETWORK_SPELLINGS:
+        with pytest.raises(start.ConfigError, match=_NETWORK_REFUSAL):
+            start.build_server_from_config(
+                _config(tmp_path, handelen=_handelen(tmp_path, _bestand(tmp_path, code_file)))
+            )
+        return
     assert start.build_server_from_config(
         _config(tmp_path, handelen=_handelen(tmp_path, _bestand(tmp_path, code_file)))
     )
@@ -2819,8 +2839,10 @@ def test_an_export_map_with_a_nul_character_is_refused_over_the_export_map_itsel
     export = f"{root / 'export'}\x00\nFout: niets aan de hand"
     body["exportmap"] = export
     message = _start_refusal(root, body)
-    assert message.startswith("exportmap is geen pad dat de server kan vergelijken"), message
-    assert message.endswith(f": {Path(export)!r}"), message
+    # SR-8 (1.0.2): the colon of "Fout:" after the drive letter is refused
+    # first; still over the export map itself, still quoted.
+    assert message.startswith("exportmap draagt een dubbele punt na de schijfletter"), message
+    assert message.endswith(f": {export!r}"), message
     assert "handelen.codekanaal.pad" not in message
     assert "\x00" not in message and "\n" not in message
 
@@ -2909,3 +2931,104 @@ def test_b3_preflight_without_a_target_claims_no_live_read_through_a_real_sessio
     assert "live gelezen" not in regel8
     assert "live lezing" not in regel8
     assert "verzamelscript, live" not in text
+
+
+# --------------------------------------------------------------------------
+# SR-8 + B6 (1.0.2): where a configured path points
+# --------------------------------------------------------------------------
+#
+# Measured in the public test and the security review of 1.0.0: a relative
+# path was resolved against the working directory of whatever started the
+# server - the client configuration from the manual, without `cwd`, did not
+# start ("exportmap niet gevonden: tests\fixtures\..."), and the same file
+# answered with another export from another directory. A UNC export map made
+# every reading tool an SMB client; an alternate data stream hid a knowledge
+# package behind an innocent file name.
+
+
+def _relative_config(tmp_path: Path, **overrides) -> Path:
+    config_dir = tmp_path / "beheer"
+    config_dir.mkdir()
+    _real_export(config_dir)
+    _real_knowledge(config_dir)
+    doc = {"profiel": "dienst", "exportmap": "export", "kennispad": "kennis.json"}
+    doc.update(overrides)
+    path = config_dir / "config.json"
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    return path
+
+
+def test_b6_a_relative_path_resolves_against_the_config_directory_not_the_working_directory(tmp_path, monkeypatch):
+    forget_identities()
+    path = _relative_config(tmp_path)
+    elsewhere = tmp_path / "elders"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    assert build_server_from_config(path)
+
+
+def test_b6_a_missing_relative_export_map_names_the_resolved_path_and_the_config_directory(tmp_path, monkeypatch):
+    path = _relative_config(tmp_path, exportmap="bestaat-niet")
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    message = str(refused.value)
+    assert str(tmp_path / "beheer" / "bestaat-niet") in message, message
+    assert "map van het configuratiebestand" in message, message
+
+
+def test_b6_the_example_config_starts_from_any_working_directory(tmp_path, monkeypatch):
+    forget_identities()
+    example = Path(__file__).resolve().parent.parent / "config.example.json"
+    monkeypatch.chdir(tmp_path)
+    assert build_server_from_config(example)
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        "\\\\localhost\\C$\\nsmcp\\export",
+        "//localhost/C$/nsmcp/export",
+        "\\\\?\\UNC\\localhost\\C$\\nsmcp\\export",
+        "\\\\.\\pipe\\export",
+    ],
+    ids=["unc", "unc-slashes", "unc-extended", "device-pipe"],
+)
+@pytest.mark.parametrize("field", ["exportmap", "kennispad", "doelen", "verzamelscript"])
+def test_sr8_a_network_or_device_path_is_refused_at_the_start(tmp_path, field, spelling):
+    path = _relative_config(tmp_path, **{field: spelling})
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    message = str(refused.value)
+    assert message.startswith(f"{field} is een netwerk- of apparaatpad"), message
+
+
+@pytest.mark.parametrize("field", ["exportmap", "kennispad", "doelen", "verzamelscript"])
+def test_sr8_an_alternate_data_stream_is_refused(tmp_path, field):
+    stream = str(tmp_path / "beheer" / "kennis.json") + ":zijstroom"
+    path = _relative_config(tmp_path, **{field: stream})
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    assert str(refused.value).startswith(f"{field} draagt een dubbele punt na de schijfletter"), str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    ["C:kennis.json", "\\kennis.json", "beheer\\kennis.json.", "beheer\\kennis.json "],
+    ids=["drive-relative", "root-relative", "trailing-dot", "trailing-space"],
+)
+def test_sr8_a_path_that_depends_on_the_current_drive_or_ends_in_a_dot_or_space_is_refused(tmp_path, spelling):
+    path = _relative_config(tmp_path, kennispad=spelling)
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    assert str(refused.value).startswith("kennispad "), str(refused.value)
+
+
+def test_sr8_a_local_extended_spelling_stays_accepted(tmp_path):
+    forget_identities()
+    path = _relative_config(tmp_path)
+    extended = "\\\\?\\" + str(tmp_path / "beheer" / "export")
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["exportmap"] = extended
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    assert build_server_from_config(path)

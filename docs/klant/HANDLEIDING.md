@@ -177,14 +177,37 @@ alleen de taal eromheen.
 U heeft nodig:
 
 1. **Python 3.11 of hoger** op de machine waar het product draait.
-2. **Het geleverde productpakket.** Installeer het volgens de leveringsinstructie; daarna is
-   het commando `netscaler-mcp` beschikbaar.
+2. **Het productpakket.** Installeer het volgens de leveringsinstructie, of vanaf de broncode
+   op GitHub zoals hieronder; daarna is het commando `netscaler-mcp` beschikbaar.
 3. **Het verzamelscript van GJK NetScaler Healthcheck 1.0** (alleen nodig als het product
    zelf gaat scannen). Dit is een los PowerShell-bestand dat bij de levering hoort; zet het op
    een vaste plek en verwijs ernaar in de configuratie.
 4. **Het kennispakket.** Dit komt uit het kennisabonnement van GJK Partners en wordt apart
    geleverd; het staat niet in het productpakket. Zonder kennispakket werkt het product wel,
    maar meldt elk antwoord dat de kennisbasis ontbreekt.
+
+### Installeren vanaf GitHub
+
+Vanaf een kloon van de repository, in PowerShell, in de map van de kloon:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-build.txt
+.\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip install -e . --no-deps --no-build-isolation
+```
+
+Het commando staat daarna in `.venv\Scripts\netscaler-mcp.exe`, niet op het zoekpad van
+Windows. Noem in de clientconfiguratie (zie "Starten en aansluiten") dus het volledige pad naar
+dat bestand, of activeer de omgeving eerst.
+
+De repository bevat een werkend voorbeeld: `config.example.json` wijst naar de meegeleverde
+labexport `tests\fixtures\lab-export-vpx-20260826` en het voorbeeldkennispakket
+`kennis.example.json` (dat geen echte CVE-basis bevat). Proberen zonder appliance:
+
+```powershell
+.\.venv\Scripts\python.exe examples\minimal_client.py
+```
 
 ## Configuratie
 
@@ -206,6 +229,15 @@ Het product leest één configuratiebestand (JSON). Een volledig voorbeeld:
 `hoofdstukken`, `handelen`, `openheid`, `bewaren` en `kennispin` zijn optioneel. Bij een
 onbekend veld, een ontbrekend verplicht veld of een onbekende waarde start het product niet,
 met een duidelijke melding — er is nooit een stille terugval.
+
+Paden in de configuratie: een relatief pad (zoals `tests\fixtures\...` in
+`config.example.json`) telt vanaf de map waar het configuratiebestand staat, niet vanaf de
+werkmap van het proces dat de server start. Vindt de server een map niet, dan noemt de
+melding het uitgeschreven pad en die map. Een netwerkpad (`\\server\share\...`, ook als
+`\\?\UNC\...`), een apparaatpad anders dan een lokale schijf, een dubbele punt na de
+schijfletter (een alternatieve gegevensstroom), een pad dat van de huidige schijf afhangt
+(`C:map` of `\map`) en een padonderdeel dat op een punt of spatie eindigt, weigert de server
+bij de start. `handelen.codekanaal.pad` moet bovendien absoluut zijn.
 
 ### Het kennispakket vastpinnen (`kennispin`)
 
@@ -656,6 +688,11 @@ argumenten, bijvoorbeeld:
   }
 }
 ```
+
+Staat `netscaler-mcp` niet op het zoekpad (bij een installatie vanaf GitHub staat het in
+`.venv\Scripts\`), schrijf dan het volledige pad naar `netscaler-mcp.exe` bij `command`. Een
+`cwd` in de clientconfiguratie is niet nodig: relatieve paden in de configuratie tellen vanaf
+de map van het configuratiebestand.
 
 Wilt u de configuratie eerst controleren, start het commando dan één keer handmatig:
 
