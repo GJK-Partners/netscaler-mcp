@@ -110,6 +110,32 @@ jobs:
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\scripts\Get-GjkPoshSshManifest.ps1
           if ($LASTEXITCODE -ne 0) { Write-Host ('[FOUT] Posh-SSH-manifest: exitcode {0}' -f $LASTEXITCODE); exit $LASTEXITCODE }
 
+      - name: Private hygiene needles
+        # The hygiene guards search the tree for names of the maintainers' own
+        # environment; those names cannot be in the tree, so the guards read
+        # them from a list outside it (tests/private_needles.py). Without the
+        # list they skip - and in CI they skipped on every run. On a push (the
+        # release branch and every v* tag) the list comes from the repository
+        # secret NSMCP_PRIVATE_NEEDLES: through the environment, into a file
+        # under RUNNER_TEMP, never printed (GitHub also masks the value in the
+        # log). A pull request - a fork has no access to secrets - does not
+        # run this step; its guards skip, and `-rs` below prints why. A push
+        # without the secret fails here: a release run whose guards skip
+        # would be green without having looked.
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          NEEDLES: ${{ secrets.NSMCP_PRIVATE_NEEDLES }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NEEDLES)) {
+            Write-Host '[FOUT] repository-secret NSMCP_PRIVATE_NEEDLES ontbreekt; de hygieneguards zouden overslaan'
+            exit 1
+          }
+          $path = Join-Path $env:RUNNER_TEMP 'nsmcp-private-needles.txt'
+          [System.IO.File]::WriteAllText($path, $env:NEEDLES, (New-Object System.Text.UTF8Encoding($false)))
+          "NSMCP_PRIVATE_NEEDLES=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host '[OK] needle-lijst in een tijdelijk bestand gezet (inhoud niet gelogd)'
+
       - name: Lint
         run: python -m ruff check --no-cache src tests scripts
 
@@ -121,10 +147,11 @@ jobs:
         # in a reading tool, nothing established without evidence, and the
         # confirmation code never reaching the model. They run first and by
         # name, so the log says which promise was measured.
-        run: python -m pytest tests/test_no_network.py tests/test_answer.py tests/test_handelen_zonder_code.py -q
+        run: python -m pytest tests/test_no_network.py tests/test_answer.py tests/test_handelen_zonder_code.py -q -rs
 
       - name: Full suite
-        run: python -m pytest -q
+        # -rs: every skip with its reason in the log (H-3, 1.0.2).
+        run: python -m pytest -q -rs
 
       - name: Software bill of materials
         # cyclonedx-py reads the installed environment (the same one the

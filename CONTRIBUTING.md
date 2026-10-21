@@ -64,6 +64,15 @@ the sdist hash of each. `--no-build-isolation` makes the editable install use
 exactly that toolchain; without it, pip would fetch setuptools from the index
 into a throwaway build environment, outside the hash check.
 
+Some hygiene guards search the tree for names of the maintainers' own
+environment, read from a list outside the tree: the file named in the
+environment variable `NSMCP_PRIVATE_NEEDLES`, or an ignored
+`.private-needles.txt` in the repository root (see `tests/private_needles.py`).
+Without the list those guards skip with a reason (`pytest -rs` shows it). A
+maintainer runs the hygiene suite with the list before every release; CI does
+the same on every push from the repository secret `NSMCP_PRIVATE_NEEDLES`, and
+a pull request from a fork runs without it.
+
 The suite is Windows-only throughout: the collector, the write path,
 the confirmation window and the reader all depend on Windows. The
 reader imports `nsmcp.disclosure`, which unconditionally imports

@@ -1351,3 +1351,48 @@ def test_ci_checks_the_content_of_posh_ssh_after_installing_it():
     check = text.index("scripts\\Get-GjkPoshSshManifest.ps1")
     assert install < check, "de manifestcontrole hoort NA Install-Module"
     assert (ROOT / "scripts" / "Get-GjkPoshSshManifest.ps1").is_file()
+
+
+
+# ---------------------------------------------------------------------------
+# H-3 (1.0.2): the needle guards run in CI on push and tag runs
+# ---------------------------------------------------------------------------
+#
+# Without a needle list the hygiene guards skip, and in CI they skipped every
+# time. The list comes from the repository secret NSMCP_PRIVATE_NEEDLES; a
+# fork pull request has no access to it and keeps skipping, visibly.
+
+
+def _ci_step(name: str) -> str:
+    text = _CI.read_text(encoding="utf-8")
+    start = text.index(f"- name: {name}")
+    end = text.find("\n      - ", start + 1)
+    return text[start : end if end != -1 else len(text)]
+
+
+def test_h3_ci_writes_the_needle_secret_to_a_temporary_file_on_push_runs_only():
+    step = _ci_step("Private hygiene needles")
+    assert "if: github.event_name == 'push'" in step
+    # The secret reaches the script through the environment, never inline in
+    # the script text, and is never printed.
+    assert "${{ secrets.NSMCP_PRIVATE_NEEDLES }}" in step
+    run = step.split("run: |", 1)[1]
+    assert "secrets." not in run
+    assert "RUNNER_TEMP" in run and "GITHUB_ENV" in run
+    assert "NSMCP_PRIVATE_NEEDLES=" in run
+    for printer in ("Write-Host $env:NEEDLES", "echo $env:NEEDLES", "Write-Output $env:NEEDLES"):
+        assert printer not in run
+    # Before the suites that read it.
+    text = _CI.read_text(encoding="utf-8")
+    assert text.index("- name: Private hygiene needles") < text.index("- name: Full suite")
+
+
+def test_h3_the_suites_in_ci_name_the_reason_of_every_skip():
+    for name in ("The three invariants, by name", "Full suite"):
+        assert " -rs" in _ci_step(name), name
+
+
+def test_h3_contributing_says_a_maintainer_runs_the_hygiene_suite_with_the_list():
+    text = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "NSMCP_PRIVATE_NEEDLES" in text
+    assert "maintainer" in text.lower()
