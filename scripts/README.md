@@ -65,12 +65,13 @@ PowerShell 5.1, ASCII-only:
   Andere versies mogen ernaast geinstalleerd staan; ze worden niet geladen. Het modulepad van het
   account dat de server draait (`PSModulePath`, in het bijzonder
   `%ProgramFiles%\WindowsPowerShell\Modules` en `$PSHOME\Modules`) is daarmee een beheermap: de pin
-  toetst de versie, geen inhoud of herkomst, dus wie daar mag schrijven kiest welke module als
-  3.2.7 geladen wordt. Dat geldt ook voor de modulemap in het eigen profiel van dat account (de
+  toetst de versie, en sinds 1.0.2 toetst `Assert-GjkPoshSsh` ook de inhoud van elke geladen of
+  beschikbare 3.2.7 tegen het gemeten manifest (`[FOUT]` en exitcode 3 bij een afwijking), geen
+  herkomst; wie daar mag schrijven kan een andere module dus niet stil als 3.2.7 laten laden. Dat geldt ook voor de modulemap in het eigen profiel van dat account (de
   CurrentUser-scope, `Documents\WindowsPowerShell\Modules`): die wordt als eerste doorzocht, is
   door dat account zelf te beschrijven en kan door mapomleiding in een gesynchroniseerde
-  documentenmap liggen. De inhoud toetst `Get-GjkPoshSshManifest.ps1` (hieronder), los van de
-  runner; CI draait het direct na `Install-Module`.
+  documentenmap liggen. Dezelfde toets staat los in `Get-GjkPoshSshManifest.ps1` (hieronder);
+  CI draait die direct na `Install-Module`.
 - Een credential in Windows Credential Manager, op de TARGETNAAM die `-CredentialTarget`
   meegeeft. Het wachtwoord verlaat `Get-GjkCredential` nooit als platte tekst en komt in geen
   enkele uitvoer, ledgerregel of logregel voor - alleen de targetnaam zelf.

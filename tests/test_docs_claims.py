@@ -423,12 +423,14 @@ def test_the_powershell_module_path_is_named_as_an_administrative_map():
     itself can write it, and folder redirection can put it in a
     synchronised documents folder. Naming only the machine-wide maps left
     out the one map that is loaded first."""
+    # SR-6 (1.0.2): the transport checks the content too now; the three
+    # passages say so, and that origin is still not checked.
     security = _block_with(_section(_read("docs/klant/SECURITY.md"), "## Vertrouwensmodel en scope"), "PSModulePath")
-    assert "toetst de versie, geen inhoud" in security
+    assert "toetst het SSH-transport" in security and "ook de inhoud" in security
     vereist = _block_with(_read("docs/klant/HANDLEIDING.md"), "**Vereist: Posh-SSH")
-    assert "PSModulePath" in vereist and "geen inhoud" in vereist
+    assert "PSModulePath" in vereist and "ook de" in vereist and "geen herkomst" in vereist
     scripts = _block_with(_section(_read("scripts/README.md"), "## Vereisten"), "PSModulePath")
-    assert "geen inhoud" in scripts
+    assert "ook de inhoud" in scripts and "geen" in scripts and "herkomst" in scripts
     for naam, passage in (("SECURITY.md", security), ("HANDLEIDING.md", vereist), ("scripts/README.md", scripts)):
         assert "Documents\\WindowsPowerShell\\Modules" in passage, naam
         assert "CurrentUser" in passage, naam

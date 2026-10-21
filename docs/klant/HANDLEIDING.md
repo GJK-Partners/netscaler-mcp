@@ -1294,11 +1294,13 @@ Andere versies mogen ernaast geïnstalleerd staan; ze worden niet geladen. Insta
 bijwerken naar precies die versie): `Install-Module -Name Posh-SSH -RequiredVersion 3.2.7
 -Scope AllUsers`. Het modulepad van het account waaronder de server draait (`PSModulePath`, in
 het bijzonder `%ProgramFiles%\WindowsPowerShell\Modules` en `$PSHOME\Modules`) is daarmee een
-beheermap: de pin toetst de versie, geen inhoud of herkomst, dus wie daar mag schrijven, kiest
-welke module als 3.2.7 geladen wordt. Dat geldt ook voor de modulemap in het eigen profiel van
+beheermap: de pin toetst de versie, en sinds 1.0.2 toetst het transport bij elke start ook de
+inhoud tegen het gemeten manifest (zie hieronder), geen herkomst; wie daar mag schrijven, kan een
+andere module dus niet stil als 3.2.7 laten laden, maar wel de SSH-route stilleggen. Dat geldt ook voor de modulemap in het eigen profiel van
 dat account (de CurrentUser-scope, `Documents\WindowsPowerShell\Modules`): die wordt als eerste
 doorzocht, is door dat account zelf te beschrijven en kan door mapomleiding in een
-gesynchroniseerde documentenmap liggen. De inhoud toetsen kan achteraf, zonder iets te wijzigen:
+gesynchroniseerde documentenmap liggen. Wijkt de inhoud af, dan stopt de fase (of de live meting) met `[FOUT]` en exitcode 3. Dezelfde
+toets los draaien kan ook, zonder iets te wijzigen:
 `powershell.exe -NoProfile -File scripts\Get-GjkPoshSshManifest.ps1` vergelijkt een
 sha256-manifest over de bestanden van elke geinstalleerde Posh-SSH 3.2.7 met de waarde die over
 die versie uit de PowerShell Gallery is gemeten, drukt de volledige lijst af en eindigt met
