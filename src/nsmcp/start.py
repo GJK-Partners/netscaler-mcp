@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import sys
 import warnings
 from datetime import UTC, datetime
@@ -171,6 +172,11 @@ def load_config(path: Path) -> dict:
     profile-specific rules - that is up to build_server_from_config(),
     which calls this function. The same layering as load_targets() in
     target.py: structure first, content second."""
+    # 1.0.2: the configuration file itself goes through the same path
+    # refusals, BEFORE anything opens it: a configuration on a share made
+    # every relative path in it a network path.
+    _refuse_remote_or_stream(str(path), "configuratiebestand")
+    _refuse_where_it_leads(Path(path), "configuratiebestand")
     _require_file(path, "configuratiebestand")
     try:
         raw_text = path.read_text(encoding="utf-8")
@@ -233,6 +239,7 @@ def _code_path_text(value) -> Path:
     (which keeps requiring an absolute path - never resolved for it)."""
     text = _require_text(value, "handelen.codekanaal.pad")
     _refuse_remote_or_stream(text, "handelen.codekanaal.pad")
+    _refuse_where_it_leads(Path(text), "handelen.codekanaal.pad")
     return Path(text)
 
 
@@ -352,6 +359,7 @@ def _onderhoud_path(value, field: str, base: Path | None) -> Path:
         return _config_path(value, field, base)
     text = _require_text(value, field)
     _refuse_remote_or_stream(text, field)
+    _refuse_where_it_leads(Path(text), field)
     return Path(text)
 
 
@@ -876,20 +884,109 @@ def _refuse_remote_or_stream(text: str, field: str) -> None:
             )
 
 
+# 1.0.2, second round. The refusals above read the SPELLING; measured in the
+# review, a configuration file on a share made every relative path a network
+# path, and a link (junction, symbolic link) in a local path was followed
+# wherever it led. `_refuse_where_it_leads` applies the same refusals to the
+# place a path LEADS to: it follows links component by component with
+# `os.lstat`/`os.readlink`, which read the link itself and never open its
+# target - `Path.resolve()` would open it, and so contact the very share it
+# is meant to refuse. A drive letter that Windows maps to a network share is
+# refused too (`_drive_is_remote`).
+_LINK_LIMIT = 32
+_DRIVE_REMOTE = 4  # GetDriveTypeW: DRIVE_REMOTE
+
+
+def _drive_is_remote(drive: str) -> bool:
+    """Whether `drive` (`Z:`) is a network drive. `GetDriveTypeW` reads the
+    local drive mapping and opens nothing on the share."""
+    if os.name != "nt" or len(drive) != 2 or drive[1] != ":":
+        return False
+    import ctypes
+
+    return ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == _DRIVE_REMOTE
+
+
+def _refuse_led_to(plain: str, field: str, followed: bool) -> None:
+    """The refusals of `_refuse_remote_or_stream` over a location the server
+    computed (resolved against the configuration's directory, or reached
+    through a link), and a network drive letter."""
+    try:
+        _refuse_remote_or_stream(plain, field)
+    except ConfigError as exc:
+        reason = str(exc)[len(field) + 1 :] if str(exc).startswith(field + " ") else str(exc)
+        via = "via een junction of symbolische link" if followed else "na het oplossen"
+        raise ConfigError(f"{field} leidt naar een plek die deze versie weigert ({via}): {reason}") from None
+    drive = Path(plain).drive
+    if _drive_is_remote(drive):
+        raise ConfigError(
+            f"{field} ligt op een netwerkstation ({drive}); deze versie leest alleen van een lokale schijf"
+        )
+
+
+def _refuse_where_it_leads(path: Path, field: str) -> None:
+    """Follows `path` link by link without opening a target, and refuses
+    when any step lands on a network or device path, an alternate data
+    stream or a network drive. A component that does not exist (yet) ends
+    the walk: there is nothing beyond it to follow. A reparse point that is
+    no link (a cloud placeholder, deduplication) is an ordinary directory
+    here. More than `_LINK_LIMIT` links is refused as well."""
+    if os.name != "nt":
+        return
+    try:
+        current = os.path.abspath(str(path))
+    except (OSError, ValueError):
+        return  # an unreadable spelling (a NUL character) is refused by the checks that read it
+    followed = False
+    for _ in range(_LINK_LIMIT):
+        plain = _without_extended_prefix(current)
+        _refuse_led_to(plain, field, followed)
+        parts = Path(plain).parts
+        walked = Path(parts[0]) if parts else Path(plain)
+        redirected = None
+        for index in range(1, len(parts)):
+            walked = walked / parts[index]
+            try:
+                attributes = os.lstat(walked).st_file_attributes
+            except (OSError, ValueError):
+                return
+            if not attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                continue
+            try:
+                target = os.readlink(walked)
+            except (OSError, ValueError):
+                continue
+            if not _is_absolute_path(Path(target)):
+                target = os.path.join(os.path.dirname(str(walked)), target)
+            redirected = os.path.join(target, *parts[index + 1 :])
+            break
+        if redirected is None:
+            return
+        try:
+            current = os.path.abspath(redirected)
+        except (OSError, ValueError):
+            current = redirected
+        followed = True
+    raise ConfigError(f"{field} loopt via meer dan {_LINK_LIMIT} koppelingen; zo'n pad wordt niet gevolgd")
+
+
 def _config_path(value, field: str, base: Path) -> Path:
     """The path of `field` as the server uses it: `_refuse_remote_or_stream` first, then
     a relative path resolved against `base` (the directory of the
-    configuration file), never against the working directory."""
+    configuration file), never against the working directory, and then the
+    same refusals over where the result leads (`_refuse_where_it_leads`)."""
     text = _require_text(value, field)
     _refuse_remote_or_stream(text, field)
     candidate = Path(text)
     if _is_absolute_path(candidate):
+        _refuse_where_it_leads(candidate, field)
         return candidate
     if candidate.drive or candidate.root:
         raise ConfigError(
             f"{field} hangt af van de huidige schijf of map (een schijf zonder map of een map zonder schijf);"
             f" schrijf het pad volledig uit of relatief aan de map van het configuratiebestand: {text!r}"
         )
+    _refuse_where_it_leads(base / candidate, field)
     return base / candidate
 
 

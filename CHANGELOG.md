@@ -79,7 +79,11 @@ operator notices first is listed under "Changed".
   knowledge and data lines.
 - Every path in the configuration refuses a network or device path (UNC, also
   `\\?\UNC\`), a colon after the drive letter (an alternate data stream), a
-  drive- or root-relative path and a component ending in a dot or a space.
+  drive- or root-relative path and a component ending in a dot or a space. The
+  same refusals hold for the configuration file itself and for where a path
+  leads: links and junctions are followed without opening their target, and a
+  configuration on a share, a link to a share or a stream, or a network drive
+  letter is refused at start.
 - A lock beside the pseudonym table that cannot be opened is a refusal with
   its reason, and a table value with a control character is refused.
 - A configuration file, targets file or pseudonym table nested deeper than the

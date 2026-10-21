@@ -469,7 +469,7 @@ Configuration keys (Dutch, verbatim):
 | Key | Required | Meaning |
 |---|---|---|
 | `profiel` | yes | `"online"`, `"afgeschermd"` or `"dienst"` |
-| `exportmap` | yes | directory with the NSHC export (`objects/`, `bindings/`, `export-manifest.json`). A relative path in any path key counts from the directory of the configuration file, not from the working directory; a network path (UNC, also `\\?\UNC\`), a device path other than a local drive, a colon after the drive letter (an alternate data stream), a drive- or root-relative path and a component ending in a dot or space are refused at start |
+| `exportmap` | yes | directory with the NSHC export (`objects/`, `bindings/`, `export-manifest.json`). A relative path in any path key counts from the directory of the configuration file, not from the working directory; a network path (UNC, also `\\?\UNC\`), a device path other than a local drive, a colon after the drive letter (an alternate data stream), a drive- or root-relative path and a component ending in a dot or space are refused at start - for the spelling, for the configuration file itself, and for where a path leads: a junction or symbolic link is followed link by link without opening its target, and a configuration file on a share, a link to a share or a stream, or a network drive letter is refused too |
 | `kennispad` | yes | path to the knowledge package |
 | `doelen` | no | path to a targets file, enabling self-scanning |
 | `verzamelscript` | no | path to the NSHC collector script |

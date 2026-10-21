@@ -3175,3 +3175,140 @@ def test_sr18_a_deeply_nested_targets_file_is_a_target_error_not_a_traceback(tmp
     path.write_text(_DEEP, encoding="utf-8")
     with pytest.raises(TargetError, match="doelenbestand"):
         load_targets(path)
+
+
+# --------------------------------------------------------------------------
+# 1.0.2, second round: the refusals also hold for where a path LEADS
+# --------------------------------------------------------------------------
+#
+# Measured in the review of the first 1.0.2 build: the refusals read the
+# spelling only. A configuration file on a share made every relative path a
+# network path (`_config_path("export", "exportmap", \\server\share\beheer)`
+# -> `\\server\share\beheer\export`), and a link in a local path was
+# followed wherever it led. The check now follows links and junctions
+# component by component WITHOUT opening their targets (so a refused share
+# is never contacted), and refuses a network drive letter as well.
+
+_NOWHERE = r"\\server.invalid\share\export"
+
+
+def _link(link: Path, target: str) -> None:
+    import os
+
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - depends on the Windows symlink privilege
+        pytest.skip(f"symbolische link niet toegestaan op deze machine: {exc.__class__.__name__}")
+
+
+def _junction(link: Path, target: Path) -> None:
+    import subprocess
+
+    done = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+
+
+@pytest.mark.parametrize(
+    "share", [r"\\server.invalid\share\beheer\config.json", r"\\.\pipe\nsmcp\config.json"], ids=["share", "pipe"]
+)
+def test_sr8_a_configuration_file_on_a_share_is_refused_before_it_is_read(tmp_path, capsys, share):
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(Path(share))
+    assert str(refused.value).startswith("configuratiebestand is een netwerk- of apparaatpad"), str(refused.value)
+    assert run([share]) == 1
+    assert "Fout: configuratiebestand is een netwerk- of apparaatpad" in capsys.readouterr().err
+
+
+def test_sr8_a_relative_path_beside_a_configuration_on_a_share_is_refused():
+    from nsmcp.start import _config_path
+
+    with pytest.raises(ConfigError) as refused:
+        _config_path("export", "exportmap", Path(r"\\server.invalid\share\beheer"))
+    assert str(refused.value).startswith("exportmap leidt naar een plek die deze versie weigert"), str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "target", [_NOWHERE, r"\\.\pipe\nsmcp-bestaat-niet"], ids=["share", "pipe"]
+)  # the pipe variant stays local even when the check is taken out (mutation proof)
+@pytest.mark.parametrize("field", ["exportmap", "kennispad", "doelen", "verzamelscript"])
+def test_sr8_a_link_to_a_share_is_refused_where_it_leads(tmp_path, field, target):
+    path = _relative_config(tmp_path, **{field: r"naar-share\bestand"})
+    _link(path.parent / "naar-share", target)
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    message = str(refused.value)
+    assert message.startswith(f"{field} leidt naar een plek die deze versie weigert"), message
+    assert "netwerk- of apparaatpad" in message, message
+
+
+def test_sr8_a_local_junction_on_the_way_to_a_link_to_a_share_is_followed(tmp_path):
+    path = _relative_config(tmp_path, exportmap=r"lokaal\export")
+    elders = tmp_path / "elders"
+    elders.mkdir()
+    _link(elders / "export", _NOWHERE)
+    _junction(path.parent / "lokaal", elders)
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    assert str(refused.value).startswith("exportmap leidt naar een plek die deze versie weigert"), str(refused.value)
+
+
+def test_sr8_a_link_to_an_alternate_data_stream_is_refused(tmp_path):
+    path = _relative_config(tmp_path, kennispad="stroom")
+    _link(path.parent / "stroom", str(path.parent / "kennis.json") + ":zijstroom")
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    message = str(refused.value)
+    assert message.startswith("kennispad leidt naar een plek die deze versie weigert"), message
+    assert "dubbele punt" in message, message
+
+
+def test_sr8_a_configuration_file_behind_a_link_to_a_share_is_refused(tmp_path):
+    beheer = tmp_path / "beheer"
+    beheer.mkdir()
+    _link(beheer / "gedeeld", r"\\server.invalid\share\beheer")
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(beheer / "gedeeld" / "config.json")
+    assert str(refused.value).startswith("configuratiebestand leidt naar een plek die deze versie weigert"), str(
+        refused.value
+    )
+
+
+@pytest.mark.parametrize("veld", ["ledgermap", "runner"])
+def test_sr8_a_maintenance_path_through_a_link_to_a_share_is_refused(tmp_path, veld):
+    from nsmcp.start import _onderhoud_config
+
+    body = _onderhoud(tmp_path)
+    _link(tmp_path / "gedeeld", r"\\server.invalid\share\onderhoud")
+    body[veld] = str(tmp_path / "gedeeld" / ("runner.ps1" if veld == "runner" else "ledger"))
+    for base in (tmp_path, None):
+        with pytest.raises(ConfigError) as refused:
+            _onderhoud_config(body, handelen_configured=True, base=base)
+        assert str(refused.value).startswith(f"onderhoud.{veld} leidt naar een plek"), str(refused.value)
+
+
+def test_sr8_a_network_drive_letter_is_refused(tmp_path, monkeypatch):
+    from nsmcp import start as start_module
+
+    path = _relative_config(tmp_path)
+    drive = Path(str(tmp_path)).drive
+    monkeypatch.setattr(start_module, "_drive_is_remote", lambda letter: letter.upper() == drive.upper())
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    message = str(refused.value)
+    assert message.startswith("configuratiebestand ligt op een netwerkstation"), message
+
+
+def test_sr8_a_local_junction_as_export_map_stays_accepted(tmp_path):
+    forget_identities()
+    path = _relative_config(tmp_path)
+    elders = tmp_path / "elders"
+    elders.mkdir()
+    (path.parent / "export").rename(elders / "export")
+    _junction(path.parent / "export", elders / "export")
+    assert build_server_from_config(path)
+
+
+def test_sr8_the_drive_type_check_says_a_local_disk_is_local(tmp_path):
+    from nsmcp.start import _drive_is_remote
+
+    assert _drive_is_remote(Path(str(tmp_path)).drive) is False

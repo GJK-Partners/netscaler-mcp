@@ -696,7 +696,12 @@ def test_a_configuration_file_inside_the_export_map_is_refused_at_startup_in_ano
     export = _export_of_b(tmp_path)
     config = _service_config(export, export, _knowledge(tmp_path))
     message = _refused_at_startup(spelled(config, spelling))
-    assert message.startswith("de herkomstmap mag niet in de exportmap staan"), message
+    if spelling in ("unc-uitgebreid", "beheershare"):
+        # 1.0.2: a configuration file on a network path is refused before it
+        # is read at all - the provenance check is never reached.
+        assert message.startswith("configuratiebestand is een netwerk- of apparaatpad"), message
+    else:
+        assert message.startswith("de herkomstmap mag niet in de exportmap staan"), message
 
 
 # --- the writing tools --------------------------------------------------------

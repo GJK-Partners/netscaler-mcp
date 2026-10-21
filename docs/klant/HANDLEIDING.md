@@ -237,7 +237,12 @@ melding het uitgeschreven pad en die map. Een netwerkpad (`\\server\share\...`, 
 `\\?\UNC\...`), een apparaatpad anders dan een lokale schijf, een dubbele punt na de
 schijfletter (een alternatieve gegevensstroom), een pad dat van de huidige schijf afhangt
 (`C:map` of `\map`) en een padonderdeel dat op een punt of spatie eindigt, weigert de server
-bij de start. `handelen.codekanaal.pad` moet bovendien absoluut zijn.
+bij de start. Dat geldt ook voor het configuratiebestand zelf en voor de plek waar een pad
+uitkomt: de server volgt een junction of symbolische link stap voor stap zonder het doel te
+openen, en weigert een configuratiebestand op een share (dan zou elk relatief pad een netwerkpad
+worden), een koppeling naar een share of een gegevensstroom, en een netwerkstation
+(`Z:` gekoppeld aan een share). Een junction naar een andere lokale map blijft toegestaan.
+`handelen.codekanaal.pad` moet bovendien absoluut zijn.
 
 ### Het kennispakket vastpinnen (`kennispin`)
 
