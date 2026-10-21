@@ -668,3 +668,27 @@ def test_the_changelog_says_why_1_0_0_was_withdrawn_and_keeps_the_dependency_tex
     assert "`mcp` 1.29.0 -> 1.30.0" in section
     assert section.index("withdrawn the same day") < section.index("dependency audit")
     assert "## [1.0.0] - 2026-09-30" in text
+
+
+# --- Documentation Minors of the public test (1.0.2) ------------------------
+
+
+def test_the_readme_carries_no_source_line_numbers_that_rot():
+    """The Platform section named `mcp_server.py:89`, `disclosure.py:42` and
+    `:466`/`:480`; measured a release later, every one of them pointed at
+    another line."""
+    readme = _read("README.md")
+    assert re.findall(r"\b[a-z_]+\.py:\d+", readme) == []
+    assert re.findall(r"`:\d+`", readme) == []
+
+
+def test_the_english_readme_does_not_end_in_a_dutch_internal_chapter():
+    readme = _read("README.md")
+    assert "## Integratiegrens" not in readme
+    assert "externe review" not in readme
+    assert "under 40 lines" not in readme
+
+
+def test_the_readme_explains_the_unknown_tool_error_of_an_unregistered_writing_tool():
+    readme = _read("README.md")
+    assert "Unknown tool: <name>" in readme and "handelen" in readme

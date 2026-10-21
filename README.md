@@ -42,12 +42,13 @@ from [`tests/fixtures/lab-export-vpx-20260826/`](tests/fixtures/lab-export-vpx-2
 default, and `NSMCP_DEBUG=1` before the command restores the request-level log
 lines (and any third-party warning) if you are diagnosing a problem.
 
-The client is under 40 lines, docstring included: [`examples/minimal_client.py`](examples/minimal_client.py).
+The client is one short file, docstring and comments included: [`examples/minimal_client.py`](examples/minimal_client.py).
 It uses [`config.example.json`](config.example.json), which points at the
 shipped export and at [`kennis.example.json`](kennis.example.json), and pins that
 package with `kennispin` (the output of `python -m nsmcp.knowledge --digest
-kennis.example.json`). Change the example package and the server refuses it until
-the pin is updated.
+kennis.example.json`). Change the example package and the server still starts,
+but refuses the package: every answer that uses it says the package differs from
+the pin, until the pin is updated.
 
 **About that knowledge package.** `kennis.example.json` deliberately carries no
 CVE base. The real knowledge package (CVE base, cipher baseline, expiry rules)
@@ -625,17 +626,17 @@ table below says why per part.
 
 | part | platform | why |
 |---|---|---|
-| the reading tools (an answer from a supplied export) | Windows | `nsmcp.mcp_server` imports `nsmcp.disclosure` at module scope (`mcp_server.py:89`), and `nsmcp.disclosure` does an unconditional top-level `import msvcrt` (`disclosure.py:42`) - stdlib on Windows only, absent on Linux and macOS. Importing the server fails with `ModuleNotFoundError` before any tool runs |
+| the reading tools (an answer from a supplied export) | Windows | `nsmcp.mcp_server` imports `nsmcp.disclosure` at module scope, and `nsmcp.disclosure` does an unconditional top-level `import msvcrt` - stdlib on Windows only, absent on Linux and macOS. Importing the server fails with `ModuleNotFoundError` before any tool runs |
 | self-scanning (`status_ververs`) | Windows | it starts the NSHC collector through Windows PowerShell |
 | five of the seven writing tools | Windows | they start the reviewed write script through Windows PowerShell (the sixth, `onderhoud_upgrade_fase`, starts its own runner and the seventh, `config_opslaan`, its own SSH script - see docs/ARCHITECTURE.md) |
-| the confirmation window (`codekanaal: venster`) | Windows | `ctypes.windll` and a user32 message box. `ctypes` itself imports on any platform; only touching `.windll` fails, so in isolation this channel refuses gracefully at start, with a message that points at the file channel (`code_channel.py:254-256` and `:288-293`) - unreached today, though: `mcp_server.py` imports `nsmcp.disclosure` (line 89) before `nsmcp.code_channel` (line 93), so on another platform the `msvcrt` import failure fires first and this refusal never runs through the product's shipped entry point |
+| the confirmation window (`codekanaal: venster`) | Windows | `ctypes.windll` and a user32 message box. `ctypes` itself imports on any platform; only touching `.windll` fails, so in isolation this channel refuses gracefully when it is used, with a message that points at the file channel (`code_channel.window_presenter`) - unreached today, though: importing `nsmcp.mcp_server` also imports `nsmcp.disclosure`, so on another platform the `msvcrt` import failure fires at start and this refusal never runs through the product's shipped entry point |
 
 **Why the reading half is not the exception it looks like.** `msvcrt` is
 unlike `ctypes` or `subprocess`: it does not exist at all outside Windows,
 so the bare `import msvcrt` fails immediately, rather than only when a
 Windows-only member is touched. `nsmcp/disclosure.py` uses it for real
 cross-process file locking around the pseudonym table (`msvcrt.locking` in
-`_ProcessLock`, `disclosure.py:466` and `:480`). So a Linux or macOS user
+`disclosure._ProcessLock`). So a Linux or macOS user
 gets nothing today: the failure is `ModuleNotFoundError` at import time,
 before any question is asked - not a first-use refusal like the
 confirmation window's.
@@ -654,25 +655,24 @@ Apache License 2.0 - see [LICENSE](LICENSE).
 The curated knowledge base is not covered by it: it is maintained and
 delivered separately by GJK Partners.
 
-## Integratiegrens
+## Register and action log
 
-Het volledige register bevat 34 gereedschappen: 27 lezende en 7 schrijvende,
-in negen hoofdstukken. Alle namen die beginnen met `onderhoud_` worden alleen
-aangemeld wanneer `onderhoud` is geconfigureerd; hun bestaande schrijf- en
-allowlistpoorten blijven daarnaast gelden. De enige netwerkuitzonderingen
-voor leestools zijn `status_ververs` en `status_update_preflight`.
+The customer documents state the register in Dutch: "Het volledige register
+bevat 34 gereedschappen: 27 lezende en 7 schrijvende" - in nine chapters. Every
+tool whose name starts with `onderhoud_` is registered only when `onderhoud` is
+configured; its write and allowlist gates apply on top. The only network
+exceptions among the reading tools are `status_ververs` and
+`status_update_preflight`.
 
-Het actielogboek op stderr bevat per voorstel en per uitvoerpoging een
-gestructureerde regel met tien velden. `voorstel` is dezelfde letter als in
-het codekanaal en wordt voor het inwisselen gelezen. `bevestiger` komt uit
-het kanaal voor die specifieke code, of is null. De code zelf staat nooit
-in het logboek. Een gestart runnerproces krijgt `uitkomst: gestart`; dat is
-geen geslaagde fase. Het faseoordeel komt uit het ledger.
+A tool that is not registered does not exist for the client: calling a writing
+tool on a server without a `handelen` section gets the MCP library's own
+English protocol error (`Unknown tool: <name>`), not a Dutch product answer.
+That error means the section that registers the tool is missing from the
+configuration (see "What it does not do" and the configuration keys above).
 
-De twaalf bevindingen uit de externe review zijn in deze integratie verwerkt
-(14-9-2026), met drie bewuste afwijkingen van de aangedragen patches: een MCP-host
-binnen een Windows Job Object wordt niet geweigerd maar gemeten (zie "Gemeten: de
-faserunner en het Job Object van de host" in OPENSTAANDE-METINGEN.md); de vendorbanner
-wordt herkend op zijn gemeten eerste zin, niet op een exacte tweede zin; en de
-volledigheidseis aan `show ha node` geldt alleen op het pad dat met
-`standalone_geaccepteerd` opent. Historische ledgergegevens zijn niet herschreven.
+The action log on stderr carries one structured line per proposal and per
+execution attempt, with ten fields. `voorstel` is the same letter as in the code
+channel and is read before the code is redeemed. `bevestiger` comes from the
+channel for that specific code, or is null. The code itself is never in the
+log. A started runner process gets `uitkomst: gestart`; that is not a passed
+phase. The phase verdict comes from the ledger.

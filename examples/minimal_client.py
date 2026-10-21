@@ -25,9 +25,9 @@ async def main() -> None:
     # NSMCP_DEBUG, forwarded on top of the SDK's own safe default
     # environment (StdioServerParameters.env=None would otherwise pass only
     # a fixed allowlist - PATH and the like - never the caller's own
-    # variables). Merge-review I-3: this is the one variable that restores
-    # the server's normal startup noise (a third-party warning, two FastMCP
-    # request-logging lines) for diagnosis; every other rejection already
+    # variables). This is the one variable that restores the server's
+    # normal startup noise (a third-party warning and the FastMCP log lines
+    # per request) for diagnosis; every other rejection already
     # reaches this script's own stderr unfiltered.
     debug_env = (
         {"NSMCP_DEBUG": os.environ["NSMCP_DEBUG"]} if os.environ.get("NSMCP_DEBUG") else None
