@@ -205,8 +205,14 @@ niet met wat in de chat staat, geef de code dan niet af.
 
 Wat het product zelf doet: vrije tekstvelden uit het kennispakket worden
 genormaliseerd op regeleinden en afgekapt op een plafond, met een zichtbare zin
-dat er is afgekapt. Dat begrenst de omvang van een injectie; het is geen filter
-op de inhoud, en dat wordt hier niet beweerd.
+dat er is afgekapt. Sinds 1.0.2 gaat elk veld van elk antwoord bovendien door een
+tekenfilter: stuurtekens (zoals ESC), opmaaktekens (een zero-width space, de
+tekens die de leesrichting omkeren) en de regel- en alineascheiders van Unicode
+worden een zichtbaar vraagteken. Een objectnaam die zo'n teken draagt of langer is
+dan 128 tekens, herhaalt `status_namen` niet; die noemt de rij dan bij positie.
+Een naam als onderwerp van een bevinding wordt op 128 tekens afgekapt, met een
+zichtbare melding. Dat begrenst de vorm en de omvang van een injectie; het is
+geen filter op de inhoud, en dat wordt hier niet beweerd.
 
 ## Wat dit product wel en niet doet
 

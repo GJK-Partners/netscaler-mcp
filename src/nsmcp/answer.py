@@ -32,7 +32,7 @@ from datetime import UTC, date, datetime
 from enum import Enum
 from functools import cache
 
-from nsmcp.limits import capped_text
+from nsmcp.limits import NAME_ECHO_MAX_LEN, capped_text
 
 # The character class per vocabulary, keyed by (allow_underscore, allow_hyphen).
 _TOKEN_CHARS = {
@@ -121,6 +121,21 @@ def _safe(value: str) -> str:
     """
     text, _ = capped_text(str(value))
     return text.replace("\n", " ")
+
+
+# SR-9 (1.0.2): what a NAME subject longer than `NAME_ECHO_MAX_LEN` ends with.
+NAME_CUT_NOTE = " ...(naam afgekapt)"
+
+
+def _safe_subject(finding) -> str:
+    """The subject of a finding as rendered: `_safe`, and when the subject
+    is an object NAME (`subject_is_name`) no longer than the name limit, with
+    a visible note. Masking (`disclosure._limit`) runs before this, so a
+    pseudonym is what gets measured below 'volledig'."""
+    text = _safe(finding.subject)
+    if finding.subject_is_name and len(text) > NAME_ECHO_MAX_LEN:
+        return text[:NAME_ECHO_MAX_LEN] + NAME_CUT_NOTE
+    return text
 
 
 def safe_text(value: str) -> str:
@@ -415,10 +430,10 @@ class Answer:
 
     def to_text(self) -> str:
         lines = list(self._leading_lines())
-        lines.append(f"Vraag: {self.question}")
+        lines.append(f"Vraag: {_safe(self.question)}")
         lines.append("")
         for b in self.findings:
-            lines.append(f"- {_safe(b.subject)}: {_safe(b.outcome)} [{b.certainty.value}]")
+            lines.append(f"- {_safe_subject(b)}: {_safe(b.outcome)} [{b.certainty.value}]")
             lines.append(f"    bewijs: {_safe(b.evidence)}")
             if b.reason:
                 lines.append(f"    reden: {_safe(b.reason)}")

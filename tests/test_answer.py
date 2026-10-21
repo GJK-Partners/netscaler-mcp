@@ -647,3 +647,70 @@ def test_safe_text_is_the_public_name_for_the_same_capping_and_flattening():
     assert len(result) <= MAX_FREE_TEXT_CHARS + 100
     assert "\n" not in result
     assert "afgekapt" in result
+
+
+# --- SR-9 (1.0.2): the character filter of every rendered field ------------
+
+
+@pytest.mark.parametrize(
+    "character",
+    [
+        "\u202e",
+        "\u202a",
+        "\u2066",
+        "\u2069",
+        "\u200b",
+        "\u200d",
+        "\ufeff",
+        "\u2028",
+        "\u2029",
+        "\x1b",
+        "\x00",
+        "\x7f",
+        "\x85",
+    ],
+)
+def test_sr9_safe_text_drops_control_format_and_separator_characters(character):
+    from nsmcp.answer import safe_text
+
+    shown = safe_text(f"voor{character}na")
+    assert character not in shown
+    assert shown.startswith("voor") and shown.endswith("na")
+    assert len(shown.splitlines()) == 1
+
+
+def test_sr9_every_field_of_a_rendered_answer_is_filtered():
+    from nsmcp.answer import Answer, Certainty, Finding, NotAssessed, ReadGap
+
+    hostile = "x\u202ey\u2028z\x1b[2J"
+    answer = Answer(
+        question=f"vraag {hostile}",
+        findings=[
+            Finding(
+                subject=hostile,
+                outcome=hostile,
+                certainty=Certainty.NOT_ESTABLISHED,
+                evidence=hostile,
+                reason=hostile,
+            )
+        ],
+        read_gaps=[ReadGap(source=hostile, reason=hostile)],
+        not_assessed=[NotAssessed(subject=hostile, reason=hostile)],
+    )
+    text = answer.to_text()
+    for character in ("\u202e", "\u2028", "\x1b"):
+        assert character not in text
+
+
+def test_sr9_a_name_subject_is_capped_at_the_name_limit():
+    from nsmcp.answer import Answer, Certainty, Finding
+    from nsmcp.export import NAME_ECHO_MAX_LEN
+
+    long_name = "N" * 5000
+    text = Answer(
+        question="q",
+        findings=[Finding(subject=long_name, outcome="o", certainty=Certainty.ESTABLISHED, evidence="e")],
+    ).to_text()
+    assert "N" * (NAME_ECHO_MAX_LEN + 1) not in text
+    assert "N" * NAME_ECHO_MAX_LEN in text
+    assert "naam afgekapt" in text

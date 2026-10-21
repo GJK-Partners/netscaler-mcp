@@ -38,7 +38,9 @@ from nsmcp.limits import (
     MAX_JSON_DEPTH,
     MAX_OBJECTS_PER_FILE,
     MAX_TEXT_LINES,
+    NAME_ECHO_MAX_LEN,
     exceeds_depth,
+    is_hidden_character,
 )
 from nsmcp.redact import redact_config_line, redact_config_lines
 
@@ -1338,6 +1340,15 @@ def identity_shape_clause(subject: str, shapes: set[str]) -> str:
 # "name" field of the identical resources).
 _UNSAFE_NAME_CHAR = re.compile(r"[\x00-\x1f\x7f]")
 
+
+def has_unsafe_name_char(text: str) -> bool:
+    """True when `text` carries a character a name may not echo: an ASCII
+    control character (`_UNSAFE_NAME_CHAR`) or, since 1.0.2 (SR-9), any
+    other control, format, line- or paragraph-separator character
+    (`limits.is_hidden_character`: a bidi override, a zero-width space, NEL)."""
+    return _UNSAFE_NAME_CHAR.search(text) is not None or any(is_hidden_character(c) for c in text)
+
+
 # No measured bound exists in this export for an object NAME specifically
 # (unlike MANIFEST_KEY_MAX_LEN/_TARGET_NAME_MAX_LEN/_TIMESTAMP_MAX_LEN above,
 # each anchored to a real key/value in the live fixture): the longest
@@ -1345,8 +1356,8 @@ _UNSAFE_NAME_CHAR = re.compile(r"[\x00-\x1f\x7f]")
 # (tests/fixtures/lab-export-vpx-20260826/) is 87 characters (a certificate
 # subject string). 128 is chosen to stay clear of every real name measured
 # while still bounding a pathological string - the same length
-# `_TARGET_NAME_MAX_LEN` above uses for the same reason.
-NAME_ECHO_MAX_LEN = 128
+# `_TARGET_NAME_MAX_LEN` above uses for the same reason. The value lives in
+# `limits.py` since 1.0.2 (SR-9), imported above under this same name.
 
 
 def safe_name_label(row: dict, field: str, position: int) -> str:
@@ -1381,7 +1392,7 @@ def safe_name_label(row: dict, field: str, position: int) -> str:
             break
     if len(text) > NAME_ECHO_MAX_LEN:
         return f"positie {position} (tekst langer dan {NAME_ECHO_MAX_LEN} tekens)"
-    if _UNSAFE_NAME_CHAR.search(text) is not None:
+    if has_unsafe_name_char(text):
         return f"positie {position} (tekst met een regeleinde of stuurteken)"
     return text
 

@@ -35,7 +35,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from nsmcp.answer import Answer, Certainty, Finding, ReadGap
-from nsmcp.export import MISSING, shape_or_missing
+from nsmcp.export import MISSING, safe_name_label, shape_or_missing
 from nsmcp.knowledge import Knowledge
 
 # This module was the one whose own `row.get(field)`
@@ -109,7 +109,16 @@ def _one_family(export, label: str, resource: str, field: str) -> FamilyNames:
     for position, row in enumerate(rows, start=1):
         raw = row.get(field, MISSING)
         if isinstance(raw, str) and raw.strip():
-            names.append(raw.strip())
+            # SR-9 (1.0.2): no limit and no character gate used to apply
+            # here - a name of 5000 characters or with a bidi override, a
+            # line separator or an ESC reached the answer verbatim. The same
+            # gate as every other echoed name (`export.safe_name_label`); a
+            # name that fails it is named by its position and its shape.
+            shown = safe_name_label({field: raw}, field, position)
+            if shown == raw.strip():
+                names.append(shown)
+            else:
+                unreadable.append(f"{shown}: {field} niet herhaald")
         else:
             # The POSITION, never the value: a field that is not text is not a
             # name, and repeating it would put unmasked export content in

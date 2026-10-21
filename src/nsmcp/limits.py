@@ -19,6 +19,8 @@ Never silent, in either direction.
 
 from __future__ import annotations
 
+import unicodedata
+
 # 32 MB. The real lab export carries a 34 KB manifest and a 181 KB largest
 # object file; this is three orders above it and still read in well under a
 # second.
@@ -120,6 +122,43 @@ def exceeds_depth(value, limit: int = MAX_JSON_DEPTH) -> bool:
     return False
 
 
+# SR-9 (1.0.2). The Unicode categories that are invisible or that move text
+# around without being text: control characters (Cc - ESC, NUL, NEL, ...),
+# format characters (Cf - zero-width space, the bidi overrides and isolates,
+# a byte-order mark), the line and paragraph separators (Zl, Zp) and lone
+# surrogates (Cs). Measured in the security review of 1.0.0: a right-to-left
+# override, a line separator and an ESC sequence in an object name all
+# reached the model verbatim. Each one becomes a visible "?" (a tab a
+# space); the newline is the one Cc character kept, because the line
+# endings are normalised above and the renderer flattens it itself.
+_HIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Cs"})
+HIDDEN_CHARACTER_MARK = "?"
+
+# The longest a NAME may be when it is echoed in an answer. Moved here from
+# `export.py` (which still exports it under the same name) so `answer.py`
+# can apply it without importing `export.py`. See the measurement there.
+NAME_ECHO_MAX_LEN = 128
+
+
+def is_hidden_character(character: str) -> bool:
+    """True for a character `neutralise_hidden` replaces (a newline too)."""
+    return unicodedata.category(character) in _HIDDEN_CATEGORIES
+
+
+def neutralise_hidden(text: str) -> str:
+    """`text` with every invisible or text-moving character made visible:
+    `HIDDEN_CHARACTER_MARK` for each, a space for a tab, and the newline
+    kept. Plain printable text comes back unchanged."""
+    if text.isprintable():
+        return text
+    return "".join(
+        character
+        if character == "\n" or not is_hidden_character(character)
+        else (" " if character == "\t" else HIDDEN_CHARACTER_MARK)
+        for character in text
+    )
+
+
 def capped_text(value: str, cap: int = MAX_FREE_TEXT_CHARS) -> tuple[str, bool]:
     """Returns (text, truncated) for a free text field from outside.
 
@@ -129,7 +168,7 @@ def capped_text(value: str, cap: int = MAX_FREE_TEXT_CHARS) -> tuple[str, bool]:
     looks like a new answer line, and the length is capped with a visible
     sentence - never a silent cut.
     """
-    text = str(value).replace("\r\n", "\n").replace("\r", "\n")
+    text = neutralise_hidden(str(value).replace("\r\n", "\n").replace("\r", "\n"))
     if len(text) <= cap:
         return text, False
     return text[:cap] + TRUNCATION_NOTE, True
