@@ -546,6 +546,7 @@ def test_shielded_and_online_pass_doelen_and_verzamelscript_through(tmp_path, mo
         forbidden_addresses=(),
         knowledge_pin=None,
         provenance_dir=None,
+        script_policy=None,
     ):
         seen["targets_path"] = targets_path
         seen["collect_script"] = collect_script
@@ -569,6 +570,7 @@ def test_shielded_and_online_pass_doelen_and_verzamelscript_through(tmp_path, mo
             forbidden_addresses=forbidden_addresses,
             knowledge_pin=knowledge_pin,
             provenance_dir=provenance_dir,
+            script_policy=script_policy,
         )
 
     monkeypatch.setattr("nsmcp.start.build_server", spy)
@@ -621,6 +623,7 @@ def _spy_on_build_server(monkeypatch):
         forbidden_addresses=(),
         knowledge_pin=None,
         provenance_dir=None,
+        script_policy=None,
     ):
         seen["disclosure"] = disclosure
         seen["knowledge_pin"] = knowledge_pin
@@ -648,6 +651,7 @@ def _spy_on_build_server(monkeypatch):
             forbidden_addresses=forbidden_addresses,
             knowledge_pin=knowledge_pin,
             provenance_dir=provenance_dir,
+            script_policy=script_policy,
         )
 
     monkeypatch.setattr("nsmcp.start.build_server", spy)
@@ -3094,3 +3098,57 @@ def test_sr7_at_beperkt_the_table_sits_beside_the_configuration(tmp_path):
     assert result.isError is False, result
     assert (beheer / "openheid-vertaaltabel.json").is_file()
     assert not (supplied / "openheid-vertaaltabel.json").exists()
+
+
+# --------------------------------------------------------------------------
+# SR-5 (1.0.2): scriptpin and uitvoeringsbeleid in the configuration
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def restore_script_policy(monkeypatch):
+    from nsmcp import powershell as powershell_module
+
+    monkeypatch.setattr(powershell_module, "_policy", powershell_module._policy)
+    return powershell_module
+
+
+def test_sr5_scriptpin_and_uitvoeringsbeleid_reach_the_starter(tmp_path, restore_script_policy):
+    forget_identities()
+    path = _relative_config(tmp_path, scriptpin={"Verzamel.ps1": "a" * 64}, uitvoeringsbeleid="AllSigned")
+    build_server_from_config(path)
+    policy = restore_script_policy.script_policy()
+    assert policy.pins == {"verzamel.ps1": "a" * 64}
+    assert policy.execution_policy == "AllSigned"
+
+
+@pytest.mark.parametrize(
+    "scriptpin",
+    [
+        {"Verzamel.ps1": "A" * 64},
+        {"Verzamel.ps1": "a" * 63},
+        {"..\\Verzamel.ps1": "a" * 64},
+        {"Verzamel.ps1": "a" * 64, "verzamel.PS1": "b" * 64},
+        {},
+        ["Verzamel.ps1"],
+    ],
+    ids=["upper-hex", "short", "path", "duplicate-name", "empty", "not-an-object"],
+)
+def test_sr5_a_malformed_scriptpin_is_refused(tmp_path, restore_script_policy, scriptpin):
+    path = _relative_config(tmp_path, scriptpin=scriptpin)
+    with pytest.raises(ConfigError, match="scriptpin"):
+        build_server_from_config(path)
+
+
+def test_sr5_an_unknown_uitvoeringsbeleid_is_refused(tmp_path, restore_script_policy):
+    path = _relative_config(tmp_path, uitvoeringsbeleid="Unrestricted")
+    with pytest.raises(ConfigError, match="uitvoeringsbeleid"):
+        build_server_from_config(path)
+
+
+def test_sr5_without_the_keys_the_policy_is_the_documented_default(tmp_path, restore_script_policy):
+    forget_identities()
+    build_server_from_config(_relative_config(tmp_path))
+    policy = restore_script_policy.script_policy()
+    assert policy.pins is None
+    assert policy.execution_policy == "Bypass"

@@ -130,11 +130,15 @@ stderr (`[codekanaal] sso-presenter-protocol-oud`), zonder code en zonder doelna
 
 **Het configuratiebestand is een code-uitvoerknop.** `verzamelscript` en
 `handelen.schrijfscript` zijn vrije paden en worden gestart met
-`-ExecutionPolicy Bypass -File`. Er is geen hash-pin en geen
-handtekeningcontrole. Wie dat bestand kan schrijven, draait willekeurige
-PowerShell met de rechten van het serveraccount. Behandel het
-configuratiebestand daarom met dezelfde zorg als een geplande taak: alleen de
-beheerder mag eraan schrijven.
+`-ExecutionPolicy <uitvoeringsbeleid> -File` (standaard `Bypass`). Sinds 1.0.2 kan
+de configuratie per script een sha256 vastleggen (`scriptpin`): dan start het
+product een script alleen als zijn bytes, en die van elk gepind script in
+dezelfde map, vlak voor de start gelijk zijn aan de pin. Zonder `scriptpin` wordt
+er niets gecontroleerd. Er is geen handtekeningcontrole door het product zelf;
+`uitvoeringsbeleid: AllSigned` laat die aan Windows. Wie het configuratiebestand
+kan schrijven, kan ook de pin aanpassen en draait dan willekeurige PowerShell met
+de rechten van het serveraccount. Behandel het configuratiebestand daarom met
+dezelfde zorg als een geplande taak: alleen de beheerder mag eraan schrijven.
 
 **De identiteit van de aanroeper is zelfverklaard.** De clientnaam komt uit de
 MCP-handshake, wordt per sessie vastgepind en getoetst aan een lijst geleende

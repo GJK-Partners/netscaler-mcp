@@ -281,6 +281,33 @@ die het product niet kan lezen, een bulletin dat twee keer voorkomt, of een CVE 
 één bulletin (of twee keer in één bulletin) staat. Zo'n pakket telt niets dubbel en verlaagt
 geen vloer; elk antwoord zegt dat het kennispakket onbruikbaar is.
 
+### De scripts vastpinnen (`scriptpin`) en het uitvoeringsbeleid (`uitvoeringsbeleid`)
+
+Het product start PowerShell-scripts: het verzamelscript, het schrijfscript, de faserunner en de
+kleine SSH-scripts naast de runner (die de runner op naam inleest). Wie die bestanden kan
+vervangen, draait zijn eigen PowerShell met de rechten van de server. Daarom kunt u per script de
+sha256 vastleggen:
+
+```powershell
+python -m nsmcp.powershell --pin "C:\GJK\netscaler-mcp\verzamel.ps1" "C:\GJK\runner\Invoke-GjkUpgradeFase.ps1" "C:\GJK\runner\GjkUpgrade-Ssh.ps1"
+```
+
+Dat drukt het blok af dat u in de configuratie zet: `"scriptpin": {"verzamel.ps1": "<sha256>",
+...}`, met de kale bestandsnaam als sleutel. Wat u daarna ziet:
+
+- **`scriptpin` aanwezig:** vlak voor elke start leest het product de bytes van het script en van
+  elk gepind script in dezelfde map. Wijkt er een af, of heeft het script dat gestart zou worden
+  geen pin, dan start er geen proces; het antwoord noemt de bestandsnaam en dat het script van
+  zijn pin afwijkt.
+- **Geen `scriptpin`:** er wordt niets gecontroleerd, zoals in eerdere versies. Het
+  configuratiebestand en de scriptmappen zijn dan de enige bescherming.
+
+Na een update van een script berekent u de pin opnieuw. `uitvoeringsbeleid` kiest het
+PowerShell-uitvoeringsbeleid waarmee het product zijn scripts start: `Bypass` (standaard; de
+scripts van het product zijn niet gesigneerd, en een beleid van de machine zou ze anders
+tegenhouden), `AllSigned` of `RemoteSigned` (Windows beslist dan zelf, voor wie de scripts
+signeert).
+
 ### De drie profielen
 
 | Profiel | Betekenis |

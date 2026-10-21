@@ -51,6 +51,7 @@ from nsmcp.handelen import (
 )
 from nsmcp.knowledge import KnowledgePin
 from nsmcp.mcp_server import DEFAULT_CHAPTERS, build_server
+from nsmcp.powershell import DEFAULT_EXECUTION_POLICY, EXECUTION_POLICIES, ScriptPolicy
 from nsmcp.profile import Profile, load_profile
 from nsmcp.retention import Retention
 from nsmcp.target import Target, TargetError, _build_object_pairs_hook, _forbidden_keys, load_targets
@@ -84,6 +85,8 @@ _OPTIONAL_FIELDS = {
     "onderhoud",
     "bewaren",
     "kennispin",
+    "scriptpin",
+    "uitvoeringsbeleid",
 }
 _ALLOWED_FIELDS = _REQUIRED_FIELDS | _OPTIONAL_FIELDS
 
@@ -1082,6 +1085,43 @@ def _check_provenance_dir(provenance_dir: Path, export_dir: Path) -> None:
             raise ConfigError(refusal)
 
 
+_SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+
+
+def _script_policy(raw: dict) -> ScriptPolicy:
+    """SR-5 (1.0.2): `scriptpin` (file name -> sha256, lower-case hex, from
+    `python -m nsmcp.powershell --pin`) and `uitvoeringsbeleid` (one of
+    `EXECUTION_POLICIES`). Absent `scriptpin`: no check, as before - named in
+    the documentation, never a silent pass of a broken pin."""
+    pins = None
+    if "scriptpin" in raw:
+        value = raw["scriptpin"]
+        if not isinstance(value, dict) or not value:
+            raise ConfigError("scriptpin moet een niet-leeg object zijn: bestandsnaam -> sha256")
+        pins = {}
+        for name, digest in value.items():
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or name != name.strip()
+                or any(sep in name for sep in ("/", "\\", ":"))
+                or name in (".", "..")
+            ):
+                raise ConfigError(f"scriptpin: een sleutel moet een kale bestandsnaam zijn: {name!r}")
+            if not isinstance(digest, str) or not _SHA256_HEX.fullmatch(digest):
+                raise ConfigError(f"scriptpin: de pin van {name!r} is geen sha256 (64 kleine hex-tekens)")
+            key = name.casefold()
+            if key in pins:
+                raise ConfigError(f"scriptpin: {name!r} staat er twee keer in (hoofdletters tellen niet)")
+            pins[key] = digest
+    policy = DEFAULT_EXECUTION_POLICY
+    if "uitvoeringsbeleid" in raw:
+        policy = raw["uitvoeringsbeleid"]
+        if policy not in EXECUTION_POLICIES:
+            raise ConfigError(f"onbekend uitvoeringsbeleid: {policy!r}; toegestaan: {', '.join(EXECUTION_POLICIES)}")
+    return ScriptPolicy(pins=pins, execution_policy=policy)
+
+
 PSEUDONYM_TABLE_NAME = "openheid-vertaaltabel.json"
 
 
@@ -1245,6 +1285,7 @@ def build_server_from_config(path: Path) -> FastMCP:
     # floor and CVE statement on it says `[niet vastgesteld]` (see
     # `build_server(knowledge_pin=...)`).
     knowledge_pin = _kennispin(raw["kennispin"]) if "kennispin" in raw else None
+    script_policy = _script_policy(raw)
     targets_path = _config_path(raw["doelen"], "doelen", base) if "doelen" in raw else None
     collect_script = _config_path(raw["verzamelscript"], "verzamelscript", base) if "verzamelscript" in raw else None
 
@@ -1490,6 +1531,7 @@ def build_server_from_config(path: Path) -> FastMCP:
         export_dir,
         knowledge_path,
         pseudonym_table_path=pseudonym_table_path,
+        script_policy=script_policy,
         targets_path=targets_path,
         collect_script=collect_script,
         disclosure=disclosure,

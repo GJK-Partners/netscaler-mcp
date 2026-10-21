@@ -3098,3 +3098,26 @@ def test_withholding_fails_closed_when_the_tail_is_not_where_the_message_puts_it
     assert str(withheld) == SCRIPT_OUTPUT_NOT_SHOWN
     assert withheld.evidence_dir == slot
     assert withheld.script_output is None
+
+
+# --- SR-5 (1.0.2): the collector against its pin, on the real start path ---
+
+
+def test_sr5_a_collector_that_differs_from_its_pin_is_not_started_and_the_scan_says_so(tmp_path, monkeypatch):
+    from nsmcp import powershell as powershell_module
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    monkeypatch.setattr(powershell_module, "_policy", powershell_module._policy)
+    script = tmp_path / "beheer" / "verzamel.ps1"
+    script.parent.mkdir()
+    script.write_text("Write-Host 'aangepast'\n", encoding="ascii")
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": "0" * 64}))
+    started = []
+    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kw: started.append(argv))
+    export_dir = tmp_path / "export"
+    with pytest.raises(CollectError) as refused:
+        collect(chain_target(), export_dir, script)
+    assert started == []
+    message = str(refused.value)
+    assert "wijkt af van zijn pin" in message, message
+    assert str(tmp_path) not in message

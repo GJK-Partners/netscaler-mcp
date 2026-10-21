@@ -181,7 +181,7 @@ from nsmcp.mgmt_plane import mgmt_plane
 from nsmcp.names import entity_names
 from nsmcp.overzicht import overview
 from nsmcp.permissions import allow_all
-from nsmcp.powershell import PowerShellMissing
+from nsmcp.powershell import PowerShellMissing, ScriptPolicy, set_script_policy
 from nsmcp.preflight import (
     FREE_SPACE_FIELD,
     FREE_SPACE_RESOURCE,
@@ -1028,7 +1028,12 @@ def build_server(
     live_run=None,
     knowledge_pin: KnowledgePin | None = None,
     provenance_dir: Path | None = None,
+    script_policy: ScriptPolicy | None = None,
 ):
+    # SR-5 (1.0.2): how this server starts PowerShell - the pins of
+    # `scriptpin` and the configured execution policy. Set for EVERY server
+    # built, so a server without them starts from the documented default.
+    set_script_policy(script_policy if script_policy is not None else ScriptPolicy())
     # action_script, fixture_dir en action_run worden hier alleen
     # aangenomen en doorgegeven - de schrijvende tools die ze gebruiken
     # staan verderop geregistreerd (_act), onder een chapters-poort net als hieronder.

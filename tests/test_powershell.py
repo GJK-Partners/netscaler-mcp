@@ -227,3 +227,129 @@ def test_the_timeout_label_names_the_same_absolute_path(monkeypatch, tmp_path):
     assert label.lower().endswith("-noprofile")
     assert "system32\\windowspowershell\\v1.0\\powershell.exe" in label.lower()
     assert not label.lower().startswith("powershell.exe")
+
+
+# ---------------------------------------------------------------------------
+# SR-5 (1.0.2): a hash pin per script, checked on the bytes right before the
+# process starts, and the execution policy as an explicit setting.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def restore_policy(monkeypatch):
+    """The script policy is process state (one server per process); every
+    test here puts the previous one back."""
+    from nsmcp import powershell as powershell_module
+
+    monkeypatch.setattr(powershell_module, "_policy", powershell_module._policy)
+    return powershell_module
+
+
+def _scripts(tmp_path: Path) -> tuple[Path, Path]:
+    main = tmp_path / "scripts" / "Verzamel.ps1"
+    main.parent.mkdir()
+    main.write_bytes(b"Write-Host 'verzamel'\r\n")
+    sibling = tmp_path / "scripts" / "Transport.ps1"
+    sibling.write_bytes(b"function Transport { }\r\n")
+    return main, sibling
+
+
+def _sha(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _spy_popen(monkeypatch):
+    started = []
+
+    class _Process:
+        pass
+
+    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kw: started.append(argv) or _Process())
+    return started
+
+
+def test_sr5_a_script_that_differs_from_its_pin_is_never_started(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
+
+    main, sibling = _scripts(tmp_path)
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": "0" * 64, "transport.ps1": _sha(sibling)}))
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ScriptPinMismatch) as refused:
+        start_powershell(["-NoProfile", "-File", str(main)])
+    assert started == []
+    message = str(refused.value)
+    assert "Verzamel.ps1" in message and str(tmp_path) not in message, message
+
+
+def test_sr5_an_unpinned_script_is_refused_once_pins_are_configured(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
+
+    main, sibling = _scripts(tmp_path)
+    set_script_policy(ScriptPolicy(pins={"transport.ps1": _sha(sibling)}))
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ScriptPinMismatch, match="geen pin"):
+        start_powershell(["-File", str(main)])
+    assert started == []
+
+
+def test_sr5_a_changed_pinned_sibling_refuses_the_start_too(tmp_path, monkeypatch, restore_policy):
+    """The runner dot-sources its transport by NAME from its own directory;
+    a pinned sibling that changed stops the start as well."""
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
+
+    main, sibling = _scripts(tmp_path)
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(main), "transport.ps1": _sha(sibling)}))
+    sibling.write_bytes(b"function Transport { Write-Host 'anders' }\r\n")
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ScriptPinMismatch, match="Transport.ps1"):
+        start_powershell(["-File", str(main)])
+    assert started == []
+
+
+def test_sr5_matching_pins_start_the_script(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    main, sibling = _scripts(tmp_path)
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(main), "transport.ps1": _sha(sibling)}))
+    started = _spy_popen(monkeypatch)
+    start_powershell(["-File", str(main)])
+    assert len(started) == 1
+
+
+def test_sr5_without_pins_the_start_is_unchanged(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    main, _sibling = _scripts(tmp_path)
+    set_script_policy(ScriptPolicy())
+    started = _spy_popen(monkeypatch)
+    start_powershell(["-File", str(main)])
+    assert len(started) == 1
+
+
+@pytest.mark.parametrize("policy", ["Bypass", "AllSigned", "RemoteSigned"])
+def test_sr5_every_script_head_carries_the_configured_execution_policy(tmp_path, restore_policy, policy):
+    from nsmcp.handelen import script_command
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+    from nsmcp.target import CertAgreement, Target
+
+    set_script_policy(ScriptPolicy(execution_policy=policy))
+    target = Target(name="lab", address="192.0.2.10", credential_target="T/x", agreement=CertAgreement.CHAIN)
+    for head in (
+        collect_module.build_arguments(target, tmp_path, tmp_path / "v.ps1"),
+        script_command(tmp_path / "s.ps1", []),
+    ):
+        index = head.index("-ExecutionPolicy")
+        assert head[index + 1] == policy, head
+
+
+def test_sr5_the_pin_command_prints_the_pins_of_the_given_scripts(tmp_path, capsys):
+    import json
+
+    from nsmcp.powershell import main as pin_main
+
+    main_script, sibling = _scripts(tmp_path)
+    assert pin_main(["--pin", str(main_script), str(sibling)]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed == {"scriptpin": {"Verzamel.ps1": _sha(main_script), "Transport.ps1": _sha(sibling)}}

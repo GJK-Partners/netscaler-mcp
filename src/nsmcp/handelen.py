@@ -73,7 +73,7 @@ from pathlib import Path
 from nsmcp.answer import Answer, Certainty, Finding
 from nsmcp.backup import BACKUP_LEVEL, backup_name
 from nsmcp.collect import _stop_child_process
-from nsmcp.powershell import PowerShellMissing, powershell_path, start_powershell
+from nsmcp.powershell import PowerShellMissing, check_script_pins, powershell_path, script_policy, start_powershell
 from nsmcp.upgrade import is_safe_run_name, runner_current_build, runner_floor, runner_package
 from nsmcp.upgrade_plan import PHASE_NAMES
 
@@ -554,7 +554,7 @@ def build_arguments(
     allowlist: Allowlist,
 ) -> list[str]:
     clean = validate(tool, arguments, target=target, allowlist=allowlist)
-    head = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)]
+    head = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", script_policy().execution_policy, "-File", str(script)]
     if tool == "certificaat_klaarzetten":
         name = clean["certnaam"]
         body = [
@@ -1258,6 +1258,10 @@ def upgrade_command(runner: Path, script_arguments: list[str]) -> list[str]:
     to launch a DETACHED child with. Falls back to `sys.executable` only if
     the attribute is ever absent (non-CPython)."""
     runner = Path(runner)
+    # SR-5 (1.0.2): the runner and every pinned script beside it (its
+    # transport, dot-sourced by name) against `scriptpin`, right before the
+    # argv is handed to a process starter.
+    check_script_pins(runner)
     if runner.suffix.lower() == ".py":
         interpreter = getattr(sys, "_base_executable", None) or sys.executable
         return [interpreter, str(runner), *script_arguments]
@@ -1269,7 +1273,7 @@ def upgrade_command(runner: Path, script_arguments: list[str]) -> list[str]:
         "-NoProfile",
         "-NonInteractive",
         "-ExecutionPolicy",
-        "Bypass",
+        script_policy().execution_policy,
         "-File",
         str(runner),
         *script_arguments,
@@ -1383,7 +1387,15 @@ def build_live_measure_arguments(
 def script_command(script: Path, script_arguments: list[str]) -> list[str]:
     """The PowerShell arguments that run `script` - the same head
     `build_arguments()` gives the write script."""
-    return ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script), *script_arguments]
+    return [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        script_policy().execution_policy,
+        "-File",
+        str(script),
+        *script_arguments,
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -1738,6 +1738,9 @@ def test_config_keys_and_cli_usage_are_frozen():
         "onderhoud",
         "bewaren",
         "kennispin",
+        # SR-5 (1.0.2)
+        "scriptpin",
+        "uitvoeringsbeleid",
     }
     # The `onderhoud` key surface is configuration the
     # customer types, exactly like the three sets above, and was the only

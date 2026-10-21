@@ -476,6 +476,8 @@ Configuration keys (Dutch, verbatim):
 | `handelen` | no | object with `schrijfscript`, `fixturemap`, `codekanaal` and `toegestaan`; without it the seven writing tools do not exist at all (see "What it does not do" above) |
 | `handelen.codekanaal` | yes, inside `handelen` | object naming a `soort`: `{"soort": "venster"}` or `{"soort": "bestand", "pad": "<absolute path>"}` - where the confirmation code is shown to the operator. An unknown `soort` is refused with the kinds this version has; the file path must be absolute, must not be a directory and may not sit inside a directory the product itself reads |
 | `openheid` | no | `"volledig"` (default), `"beperkt"` or `"minimaal"` - see below |
+| `scriptpin` | no | `{"<script file name>": "<sha256>", ...}` - with it, a PowerShell script is started only when its bytes and those of every pinned script in the same directory match, right before the start; a script without a pin is then refused. Without the field nothing is checked. `python -m nsmcp.powershell --pin <script> ...` prints the block |
+| `uitvoeringsbeleid` | no | the PowerShell execution policy the scripts start with: `"Bypass"` (default - the product's scripts are unsigned), `"AllSigned"` or `"RemoteSigned"` |
 | `kennispin` | no | `{"versie": "<package version>", "digest": "<sha256>"}` - the knowledge package the operator approved. A package that differs in version or content is refused; without the field the package loads, but every floor and CVE verdict says `[niet vastgesteld]` (reason: `kennispakket niet gepind in de configuratie`). `python -m nsmcp.knowledge --digest <kennispad>` prints the block |
 
 ```json

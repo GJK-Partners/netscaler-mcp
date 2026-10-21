@@ -807,3 +807,26 @@ def test_a_missing_save_script_is_an_honest_error_not_a_start(tmp_path):
             run=lambda a, t: calls.append(a),
         )
     assert calls == []
+
+
+# --- SR-5 (1.0.2): the faserunner and its transport against their pins -----
+
+
+def test_sr5_the_runner_command_is_refused_when_its_transport_changed(tmp_path, monkeypatch):
+    import hashlib
+
+    from nsmcp import powershell as powershell_module
+    from nsmcp.handelen import upgrade_command
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
+
+    monkeypatch.setattr(powershell_module, "_policy", powershell_module._policy)
+    runner = tmp_path / "Invoke-GjkUpgradeFase.ps1"
+    runner.write_text("# runner\n", encoding="ascii")
+    transport = tmp_path / "GjkUpgrade-Ssh.ps1"
+    transport.write_text("# transport\n", encoding="ascii")
+    pins = {path.name.casefold(): hashlib.sha256(path.read_bytes()).hexdigest() for path in (runner, transport)}
+    set_script_policy(ScriptPolicy(pins=pins))
+    assert upgrade_command(runner, ["-WatIs"])
+    transport.write_text("# transport, aangepast\n", encoding="ascii")
+    with pytest.raises(ScriptPinMismatch, match="GjkUpgrade-Ssh.ps1"):
+        upgrade_command(runner, ["-WatIs"])

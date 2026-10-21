@@ -34,13 +34,115 @@ the crash out, and only the second is settled here.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import subprocess
+import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 
 class PowerShellMissing(Exception):
     """Windows PowerShell is not where Windows says it is. Never silent."""
+
+
+class ScriptPinMismatch(PowerShellMissing):
+    """SR-5 (1.0.2): a script this product would start does not match its
+    pin, or carries none while pins are configured. A subclass of
+    `PowerShellMissing` on purpose: every caller already turns that into
+    "no process was started" with a reason, and that is what this is. The
+    message names the FILE NAME only, never a local path."""
+
+
+# The execution policies a configuration may name (`uitvoeringsbeleid`).
+# `Bypass` is the default because the product's own scripts are not signed;
+# `AllSigned`/`RemoteSigned` hand the decision back to Windows for an operator
+# who signs them. Never `Unrestricted` or `Undefined`: those say nothing.
+EXECUTION_POLICIES = ("Bypass", "AllSigned", "RemoteSigned")
+DEFAULT_EXECUTION_POLICY = "Bypass"
+
+
+@dataclass(frozen=True)
+class ScriptPolicy:
+    """How this product starts its PowerShell scripts (SR-5, 1.0.2).
+
+    `pins`: file name (case-folded) -> sha256 of the bytes, or None when the
+    configuration carries no `scriptpin` - then nothing is checked, as
+    before, and the documentation says so. With pins, a script is started
+    only when its own bytes AND those of every pinned script in the same
+    directory (the runner dot-sources its transport by name) match, and a
+    script without a pin is refused.
+
+    Process state on purpose: one server per process, and the ONE place that
+    starts PowerShell (`start_powershell`, `handelen.upgrade_command`) reads
+    it right before the start. `build_server` sets it for every server it
+    builds."""
+
+    pins: Mapping[str, str] | None = None
+    execution_policy: str = DEFAULT_EXECUTION_POLICY
+
+
+_policy = ScriptPolicy()
+
+
+def set_script_policy(policy: ScriptPolicy) -> None:
+    global _policy
+    _policy = policy
+
+
+def script_policy() -> ScriptPolicy:
+    return _policy
+
+
+def file_sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def check_script_pins(script: Path) -> None:
+    """Raises `ScriptPinMismatch` unless `script` may be started under the
+    current policy. Reads the bytes now, right before the start."""
+    pins = _policy.pins
+    if pins is None:
+        return
+    script = Path(script)
+    name = script.name
+    expected = pins.get(name.casefold())
+    if expected is None:
+        raise ScriptPinMismatch(
+            f"het script {name} heeft geen pin in scriptpin, terwijl scriptpin is ingesteld; er wordt geen"
+            " proces gestart"
+        )
+    to_check = [(name, script, expected)]
+    try:
+        siblings = list(script.parent.iterdir())
+    except OSError:
+        siblings = []
+    for sibling in siblings:
+        pinned = pins.get(sibling.name.casefold())
+        if pinned is not None and sibling.name.casefold() != name.casefold() and sibling.is_file():
+            to_check.append((sibling.name, sibling, pinned))
+    for shown, path, pinned in to_check:
+        try:
+            measured = file_sha256(path)
+        except OSError as exc:
+            raise ScriptPinMismatch(
+                f"het script {shown} kon niet gelezen worden voor de pincontrole ({exc.__class__.__name__});"
+                " er wordt geen proces gestart"
+            ) from None
+        if measured != pinned:
+            raise ScriptPinMismatch(
+                f"het script {shown} wijkt af van zijn pin in scriptpin (sha256 {measured[:12]}... in plaats"
+                f" van {pinned[:12]}...); er wordt geen proces gestart"
+            )
+
+
+def _file_argument(arguments: list[str]) -> Path | None:
+    for index, argument in enumerate(arguments[:-1]):
+        if argument == "-File":
+            return Path(arguments[index + 1])
+    return None
 
 
 def powershell_path() -> Path:
@@ -73,6 +175,9 @@ def start_powershell(arguments: list[str]) -> subprocess.Popen[str]:
     first would mean asking the working directory a question this module
     exists to stop asking.
     """
+    script = _file_argument(arguments)
+    if script is not None:
+        check_script_pins(script)
     executable = powershell_path()
     if not executable.is_absolute():
         raise PowerShellMissing(f"Windows PowerShell-pad {executable} is niet absoluut; er wordt geen proces gestart")
@@ -86,3 +191,26 @@ def start_powershell(arguments: list[str]) -> subprocess.Popen[str]:
         encoding="utf-8",
         errors="replace",
     )
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`python -m nsmcp.powershell --pin <script> ...`: the `scriptpin`
+    object for the given scripts, to paste into the configuration."""
+    arguments = sys.argv[1:] if argv is None else argv
+    if len(arguments) < 2 or arguments[0] != "--pin":
+        print("Gebruik: python -m nsmcp.powershell --pin <script.ps1> [...]", file=sys.stderr)
+        return 2
+    pins = {}
+    for name in arguments[1:]:
+        path = Path(name)
+        try:
+            pins[path.name] = file_sha256(path)
+        except OSError as exc:
+            print(f"Fout: {path.name} kon niet gelezen worden ({exc.__class__.__name__})", file=sys.stderr)
+            return 1
+    print(json.dumps({"scriptpin": pins}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised through main() in the tests
+    raise SystemExit(main())
