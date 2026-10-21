@@ -51,6 +51,58 @@
 #>
 Set-StrictMode -Version Latest
 
+# SR-6 (1.0.2): de INHOUD van Posh-SSH 3.2.7, niet alleen de versie. Dezelfde
+# methode en dezelfde gemeten waarde als scripts\Get-GjkPoshSshManifest.ps1
+# ($gemeten daar); tests\test_runner_script.py houdt de twee waarden gelijk.
+$script:GjkPoshSshManifestGemeten = '0f92952a5d8e156c40c1831f8a9d4fe7e8c58252d9b40ff3bf6895ef29f3e3d1'
+
+function _GjkPoshSshManifest {
+    <#  De manifestwaarde van een modulemap: elk bestand (ook verborgen) behalve
+        PSGetModuleInfo.xml in de map zelf, sha256 per bestand, relatief pad met
+        '/', ordinaal gesorteerd, regels '<sha256>  <pad>' met LF, en de sha256
+        over die regels als UTF-8 zonder BOM. Leeg bij een lege map. #>
+    param([Parameter(Mandatory = $true)] [string] $Modulemap)
+    $basis = [System.IO.Path]::GetFullPath($Modulemap).TrimEnd('\')
+    $paden = New-Object System.Collections.Generic.List[string]
+    $volledig = @{}
+    foreach ($item in @(Get-ChildItem -LiteralPath $basis -Recurse -Force | Where-Object { -not $_.PSIsContainer })) {
+        $relatief = $item.FullName.Substring($basis.Length).TrimStart('\').Replace('\', '/')
+        if ([string]::Equals($relatief, 'PSGetModuleInfo.xml', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+        $paden.Add($relatief)
+        $volledig[$relatief] = $item.FullName
+    }
+    if ($paden.Count -eq 0) { return '' }
+    $gesorteerd = $paden.ToArray()
+    [System.Array]::Sort($gesorteerd, [System.StringComparer]::Ordinal)
+    $tekst = New-Object System.Text.StringBuilder
+    foreach ($relatief in $gesorteerd) {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $stroom = [System.IO.File]::Open($volledig[$relatief], [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        try { $digest = $sha.ComputeHash($stroom) } finally { $stroom.Dispose(); $sha.Dispose() }
+        $hex = ([System.BitConverter]::ToString($digest) -replace '-', '').ToLowerInvariant()
+        $null = $tekst.Append($hex + '  ' + $relatief).Append("`n")
+    }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { $digest = $sha.ComputeHash($utf8.GetBytes($tekst.ToString())) } finally { $sha.Dispose() }
+    return ([System.BitConverter]::ToString($digest) -replace '-', '').ToLowerInvariant()
+}
+
+function _GjkToetsPoshSshInhoud {
+    <#  [FOUT] en exit 3 als een van de gegeven modulemappen niet de gemeten
+        inhoud van Posh-SSH 3.2.7 draagt. Noemt alleen de versie en de twee
+        waarden, nooit een pad uit het gebruikersprofiel. #>
+    param([string[]] $Mappen)
+    foreach ($map in $Mappen) {
+        $waarde = ''
+        try { $waarde = _GjkPoshSshManifest -Modulemap $map } catch { $waarde = '' }
+        if ($waarde -ne $script:GjkPoshSshManifestGemeten) {
+            Write-Host ('[FOUT] de inhoud van Posh-SSH 3.2.7 wijkt af van het gemeten manifest (verwacht ' + $script:GjkPoshSshManifestGemeten + ', gemeten ' + $(if ($waarde) { $waarde } else { 'niet te berekenen' }) + '); dit transport laadt deze module niet')
+            exit 3
+        }
+    }
+}
+
 function Assert-GjkPoshSsh {
     <#  Laadt PRECIES Posh-SSH 3.2.7: de versie waartegen de hostsleutelpin
         hieronder gemeten is (New-SSHMemoryKnownHost, -KnownHost,
@@ -58,6 +110,9 @@ function Assert-GjkPoshSsh {
         het modulepad, en een al geladen module van elke versie ging door
         (gemeten met een nep-module 9.9.9). Ontbreekt 3.2.7, of is er al een
         andere versie geladen: [FOUT] en exit 3.
+        Sinds 1.0.2 (SR-6) ook de INHOUD: elke kopie van 3.2.7 die geladen is
+        of op het modulepad staat (Import-Module laadt de eerste) moet het
+        gemeten manifest dragen; anders [FOUT] en exit 3, voor er iets laadt.
         Deze functie installeert NIETS - dat is niet het werk van de runner. #>
     $vereist = '3.2.7'
     $geladen = @(Get-Module -Name 'Posh-SSH')
@@ -67,12 +122,15 @@ function Assert-GjkPoshSsh {
             Write-Host ('[FOUT] Posh-SSH ' + (($anders | ForEach-Object { $_.Version.ToString() }) -join ', ') + ' is al geladen; dit transport vraagt precies Posh-SSH ' + $vereist)
             exit 3
         }
+        _GjkToetsPoshSshInhoud -Mappen @($geladen | ForEach-Object { $_.ModuleBase })
         return
     }
-    if (-not (Get-Module -ListAvailable -Name 'Posh-SSH' | Where-Object { $_.Version -eq [version]$vereist })) {
+    $kopieen = @(Get-Module -ListAvailable -Name 'Posh-SSH' | Where-Object { $_.Version -eq [version]$vereist })
+    if ($kopieen.Count -eq 0) {
         Write-Host ('[FOUT] Posh-SSH ontbreekt: versie ' + $vereist + ' is niet gevonden')
         exit 3
     }
+    _GjkToetsPoshSshInhoud -Mappen @($kopieen | ForEach-Object { $_.ModuleBase })
     Import-Module -Name 'Posh-SSH' -RequiredVersion $vereist -ErrorAction Stop | Out-Null
 }
 

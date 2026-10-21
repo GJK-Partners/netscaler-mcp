@@ -404,6 +404,48 @@ def test_the_transport_refuses_a_posh_ssh_of_another_version_that_is_already_loa
     assert "DOORGELATEN" not in proc.stdout
 
 
+def _nep_posh_ssh_327(tmp_path: Path) -> Path:
+    """A module named Posh-SSH with the PINNED version, but other content:
+    the case the version pin cannot see (SR-6, 1.0.2)."""
+    root = tmp_path / "nep-327"
+    map_ = root / "Posh-SSH" / posh_ssh_pin()
+    map_.mkdir(parents=True)
+    (map_ / "Posh-SSH.psd1").write_text(
+        "@{ RootModule = 'Posh-SSH.psm1'; ModuleVersion = '"
+        + posh_ssh_pin()
+        + "'; GUID = '00000000-0000-4000-8000-000000000002'; FunctionsToExport = @() }\n",
+        encoding="ascii",
+    )
+    (map_ / "Posh-SSH.psm1").write_text("# nep-module met de gepinde versie, andere inhoud\n", encoding="ascii")
+    return root
+
+
+def test_sr6_a_posh_ssh_of_the_pinned_version_with_other_content_is_refused(tmp_path):
+    modules = _nep_posh_ssh_327(tmp_path)
+    proc = _transport_command(
+        f"$env:PSModulePath = '{modules};' + $env:PSModulePath\nAssert-GjkPoshSsh\nWrite-Host 'DOORGELATEN'\n"
+    )
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert "[FOUT]" in proc.stdout and "manifest" in proc.stdout, proc.stdout
+    assert "DOORGELATEN" not in proc.stdout
+    assert str(tmp_path) not in proc.stdout
+
+
+def test_sr6_an_already_loaded_posh_ssh_of_the_pinned_version_with_other_content_is_refused(tmp_path):
+    psd1 = _nep_posh_ssh_327(tmp_path) / "Posh-SSH" / posh_ssh_pin() / "Posh-SSH.psd1"
+    proc = _transport_command(f"Import-Module -Name '{psd1}'\nAssert-GjkPoshSsh\nWrite-Host 'DOORGELATEN'\n")
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert "manifest" in proc.stdout, proc.stdout
+    assert "DOORGELATEN" not in proc.stdout
+
+
+def test_sr6_the_transport_and_the_manifest_script_carry_the_same_measured_value():
+    manifest = (REPO / "scripts" / "Get-GjkPoshSshManifest.ps1").read_text(encoding="ascii")
+    transport = TRANSPORT_ECHT.read_text(encoding="ascii")
+    gemeten = re.search(r"\$gemeten = '([0-9a-f]{64})'", manifest).group(1)
+    assert f"$script:GjkPoshSshManifestGemeten = '{gemeten}'" in transport
+
+
 def test_every_posh_ssh_import_in_the_transport_names_the_exact_version():
     bron = TRANSPORT_ECHT.read_text(encoding="ascii")
     imports = [regel for regel in bron.splitlines() if "Import-Module" in regel and "Posh-SSH" in regel]

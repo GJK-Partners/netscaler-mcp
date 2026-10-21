@@ -92,12 +92,16 @@ het product niet; dat is een beheereis:
   daar mag schrijven, kiest welke "Posh-SSH 3.2.7" het SSH-transport laadt. Dat geldt ook voor de
   modulemap in het eigen profiel van dat account (de CurrentUser-scope,
   `Documents\WindowsPowerShell\Modules`): die wordt als eerste doorzocht, is door dat account zelf
-  te beschrijven en kan door mapomleiding in een gesynchroniseerde documentenmap liggen. De pin
-  toetst de versie, geen inhoud of herkomst van de module. De inhoud is wel achteraf te toetsen met
-  `scripts\Get-GjkPoshSshManifest.ps1`: een sha256-manifest over de gewone modulebestanden (niet
-  wat achter een directory-junction ligt, geen alternate data streams), vergeleken
-  met de waarde die over Posh-SSH 3.2.7 uit de PowerShell Gallery is gemeten (CI doet dat bij elke
-  run); de faserunner doet dat niet bij elke aanroep;
+  te beschrijven en kan door mapomleiding in een gesynchroniseerde documentenmap liggen. Sinds
+  1.0.2 toetst het SSH-transport (`Assert-GjkPoshSsh`, bij elke start van de faserunner, de live
+  meting en config_opslaan) ook de inhoud: elke kopie van Posh-SSH 3.2.7 die geladen is of op het
+  modulepad staat, moet hetzelfde sha256-manifest dragen als `scripts\Get-GjkPoshSshManifest.ps1`
+  meet over de gewone modulebestanden (niet wat achter een directory-junction ligt, geen alternate
+  data streams), met de waarde die over Posh-SSH 3.2.7 uit de PowerShell Gallery is gemeten.
+  Wijkt een kopie af, dan laadt het transport niets en stopt het met `[FOUT]` en exitcode 3; de
+  live meting wordt dan een leesgat met die reden. Een module in het eigen profiel wordt niet
+  geweigerd zolang de inhoud klopt; wie daar kan schrijven, kan na de toets en voor het laden
+  nog wisselen (een kort venster);
 - een herkomstmap naast de exportmap, onder een bovenmap die de aanleverende partij ook kan
   beschrijven, is geen onafhankelijke vertrouwensgrens. De server start dan wel (de herkomstmap
   ligt niet ín de exportmap), maar het herkomstbewijs is niet sterker dan die gedeelde bovenmap;
