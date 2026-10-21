@@ -343,8 +343,10 @@ route dat kindproces neemt, volgt uit de configuratie en niet uit een mislukking
   "live gelezen via stat/system via het verzamelscript".
 
 Is er geen doel of geen verzamelscript ingesteld, dan wordt er niets gelezen en zegt de
-bewijsregel "niet gelezen: <reden>"; er staat dan geen route bij. Een route die wel liep maar geen
-getal opleverde, staat er als "live gelezen via <route>, geen bruikbare waarde".
+bewijsregel "niet gelezen: <reden>"; er staat dan geen route bij. Dat geldt ook als het proces niet
+kon starten (een script dat van zijn pin afwijkt, geen PowerShell, geen tijdelijke map): dan zegt
+de bewijsregel "niet gelezen: het verzamelscript is niet gestart: <reden>". Een route die wel liep
+maar geen getal opleverde, staat er als "live gelezen via <route>, geen bruikbare waarde".
 Mislukt de gekozen route, dan probeert het product de andere route niet stilletjes alsnog: toets 8
 wordt `niet beoordeeld` met de reden erbij (geen sessie, een afwijkende hostsleutel, de
 tijdslimiet van 120 seconden, geen geheel getal). Wat het product nooit doet, is er stil groen van

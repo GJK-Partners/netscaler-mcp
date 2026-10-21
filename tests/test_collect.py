@@ -1653,7 +1653,7 @@ def test_a_single_resource_read_asks_the_script_for_exactly_that_resource(tmp_pa
         _live_manifest(out, "stat/system", {"disk1avail": "9000"})
         return 0, ""
 
-    row, gap = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
+    row, gap, _ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
 
     assert gap is None
     assert row == {"disk1avail": "9000"}
@@ -1705,7 +1705,7 @@ def test_a_script_that_does_not_know_the_argument_is_a_read_gap_never_a_value(tm
     def run(arguments, timeout_s):
         return 1, "A parameter cannot be found that matches parameter name 'OnlyResources'."
 
-    row, gap = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
+    row, gap, _ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
 
     assert row is None
     assert gap is not None
@@ -1727,7 +1727,7 @@ def test_a_run_without_an_object_file_is_a_read_gap(tmp_path, script):
         )
         return 0, ""
 
-    row, gap = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
+    row, gap, _ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
 
     assert row is None and gap is not None
 
@@ -1736,14 +1736,14 @@ def test_a_run_without_a_manifest_is_a_read_gap(tmp_path, script):
     def run(arguments, timeout_s):
         return 0, ""
 
-    row, gap = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
+    row, gap, _ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
 
     assert row is None and gap is not None
     assert "manifest" in gap.reason
 
 
 def test_a_missing_script_is_a_read_gap_before_anything_runs(tmp_path):
-    row, gap = read_single_resource(chain_target(), "stat/system", tmp_path / "bestaat-niet.ps1", timeout_s=60)
+    row, gap, _ran = read_single_resource(chain_target(), "stat/system", tmp_path / "bestaat-niet.ps1", timeout_s=60)
 
     assert row is None and gap is not None
     assert "verzamelscript" in gap.reason
@@ -1764,7 +1764,7 @@ def test_the_credential_target_never_leaks_into_the_read_gap(tmp_path, script):
     def run(arguments, timeout_s):
         return 1, (f"Kan niet inloggen op {target.address} met {target.credential_target} ({target.fingerprint})")
 
-    row, gap = read_single_resource(target, "stat/system", script, timeout_s=60, run=run)
+    row, gap, _ran = read_single_resource(target, "stat/system", script, timeout_s=60, run=run)
 
     assert row is None and gap is not None
     for known in (target.address, target.credential_target, target.fingerprint):
@@ -1779,7 +1779,7 @@ def test_a_timeout_is_a_read_gap_and_not_an_exception(tmp_path, script):
     def run(arguments, timeout_s):
         raise CollectError("de scan is na 60 seconden afgebroken; de vorige gegevens blijven gelden")
 
-    row, gap = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
+    row, gap, _ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
 
     assert row is None and gap is not None
     assert "afgebroken" in gap.reason
@@ -1801,7 +1801,7 @@ def test_a_resource_the_manifest_calls_unusable_is_a_read_gap(tmp_path, script):
         )
         return 0, ""
 
-    row, gap = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
+    row, gap, _ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
 
     assert row is None and gap is not None
     assert "RBAC_DENIED" in gap.reason
@@ -3121,3 +3121,58 @@ def test_sr5_a_collector_that_differs_from_its_pin_is_not_started_and_the_scan_s
     message = str(refused.value)
     assert "wijkt af van zijn pin" in message, message
     assert str(tmp_path) not in message
+
+
+# --- 1.0.2, second round: a live read whose process never started -------
+#
+# Measured in the review of the first 1.0.2 build: a pin mismatch, a missing
+# PowerShell or a failed temporary directory came back as an ordinary read
+# gap, and check 8 then said "live gelezen via stat/system via het
+# verzamelscript, geen bruikbare waarde" - a live read that never happened.
+# The third value says whether a process ran.
+
+
+def test_a_live_read_whose_script_differs_from_its_pin_says_it_did_not_start(tmp_path, script, monkeypatch):
+    from nsmcp import powershell as powershell_module
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    monkeypatch.setattr(powershell_module, "_policy", powershell_module._policy)
+    set_script_policy(ScriptPolicy(pins={script.name.casefold(): "0" * 64}))
+    started = []
+    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kw: started.append(argv))
+    row, gap, ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60)
+    assert started == []
+    assert row is None and ran is False
+    assert gap.reason.startswith("het verzamelscript is niet gestart: "), gap.reason
+    assert "wijkt af van zijn pin" in gap.reason
+    assert str(tmp_path) not in gap.reason
+
+
+def test_a_live_read_without_powershell_says_it_did_not_start(tmp_path, script, monkeypatch):
+    monkeypatch.setenv("SystemRoot", str(tmp_path / "geen-windows"))
+    row, gap, ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60)
+    assert row is None and ran is False
+    assert gap.reason.startswith("het verzamelscript is niet gestart: "), gap.reason
+    assert str(tmp_path) not in gap.reason
+
+
+def test_a_live_read_without_a_temporary_directory_says_it_did_not_start(tmp_path, script, monkeypatch):
+    import tempfile
+
+    def refuse(*args, **kwargs):
+        raise PermissionError(13, "geweigerd", str(tmp_path / "tijdelijk"))
+
+    monkeypatch.setattr(tempfile, "mkdtemp", refuse)
+    row, gap, ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=lambda a, t: (0, ""))
+    assert row is None and ran is False
+    assert gap.reason.startswith("het verzamelscript is niet gestart: "), gap.reason
+    assert str(tmp_path) not in gap.reason
+
+
+def test_a_live_read_that_ran_and_timed_out_still_says_it_ran(tmp_path, script):
+    def run(arguments, timeout_s):
+        raise CollectError("de verzameling duurde langer dan 60 seconden en is afgebroken")
+
+    row, gap, ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=run)
+    assert row is None and ran is True
+    assert "niet gestart" not in gap.reason

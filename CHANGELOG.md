@@ -39,9 +39,12 @@ operator notices first is listed under "Changed".
   and a gap in the binding read is "niet beoordeeld". A test keeps the headers
   answer and the TLS baseline from contradicting each other.
 - Check 8 of `status_update_preflight` no longer claims a live read that did not
-  happen: "niet gelezen: <reden>" without a route, "live gelezen via <route>,
-  geen bruikbare waarde" for a read without a number, and the measurement only
-  when there is one.
+  happen: "niet gelezen: <reden>" without a route - also when the process could
+  not start (on the collector route "het verzamelscript is niet gestart:
+  <reden>": a script that differs from its pin, no PowerShell, no temporary
+  directory) -,
+  "live gelezen via <route>, geen bruikbare waarde" for a read that ran without
+  a number, and the measurement only when there is one.
 - Check 3 of `status_update_preflight` names the HA states in words instead of
   printing internal objects.
 - `beveiliging_beheervlak` gives no certificate PASS while the certificate

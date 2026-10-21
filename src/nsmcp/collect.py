@@ -116,6 +116,17 @@ class CollectError(Exception):
         return CollectError(text, evidence_dir=self.evidence_dir)
 
 
+# 1.0.2: how a reason starts when the collector process never ran.
+NOT_STARTED = "het verzamelscript is niet gestart: "
+
+
+class CollectNotStarted(CollectError):
+    """1.0.2: the collector process never started - a script that does not
+    match its pin, no PowerShell, an OS error at the start. A subclass, so
+    every caller of `CollectError` keeps its behaviour; `read_single_resource`
+    tells it apart from a run that started and then failed."""
+
+
 def build_arguments(target: Target, out_dir: Path, script_path: Path) -> list[str]:
     arguments = [
         "-NoProfile",
@@ -198,20 +209,23 @@ def _run_powershell(arguments: list[str], timeout_s: int, stop: SwapGate | None 
     of the combined text keeps carrying the most meaningful material,
     whichever stream the script actually filled.
     """
+    # 1.0.2: the three ways the process never starts raise
+    # `CollectNotStarted`, so a live read can say "niet gestart" instead of
+    # naming a route that never ran.
     try:
         process = start_powershell(arguments)
     except ScriptPinMismatch as exc:
         # 1.0.2: the message names the file name only.
-        raise CollectError(f"het verzamelscript is niet gestart: {exc}") from None
+        raise CollectNotStarted(f"{NOT_STARTED}{exc}") from None
     except PowerShellMissing:
         # The merge keeps the absolute starter AND the masking of the OS error: the
         # PowerShellMissing text names the absolute install path, which is a
         # local machine path an answer must never carry, so the kind is
         # stated instead of the exception - see `_os_error_kind`.
-        raise CollectError("kon PowerShell niet starten (Windows PowerShell niet gevonden)") from None
+        raise CollectNotStarted("kon PowerShell niet starten (Windows PowerShell niet gevonden)") from None
     except OSError as exc:
         # Never `{exc}` - see `_os_error_kind`.
-        raise CollectError(f"kon PowerShell niet starten ({_os_error_kind(exc)})") from None
+        raise CollectNotStarted(f"kon PowerShell niet starten ({_os_error_kind(exc)})") from None
 
     elapsed_s = 0.0
     while True:
@@ -1694,7 +1708,7 @@ def phase_summary(reports: list[PhaseReport]) -> str:
 
 def read_single_resource(
     target: Target, resource: str, script_path: Path, timeout_s: int, run=None
-) -> tuple[dict | None, ReadGap | None]:
+) -> tuple[dict | None, ReadGap | None, bool]:
     """ONE resource, live, through the SAME separate process as a scan.
 
     Not a second scan route and not a second credential: the same script, the
@@ -1717,11 +1731,21 @@ def read_single_resource(
     - the SAME manifest/status/shape discipline every other read in this
     product passes - rather than by parsing the object file here. A second
     reader would be a second place for that discipline to drift.
+
+    1.0.2: the third value says whether a process RAN. A missing script, a
+    temporary directory that could not be made and a process that never
+    started (`CollectNotStarted`: a pin that does not match, no PowerShell)
+    give False and a reason that starts with `NOT_STARTED`; the caller then
+    names no route. A timeout, an exit code or an unusable result ran.
     """
     if not script_path.exists():
-        return None, ReadGap(
-            source=resource,
-            reason=f"het verzamelscript is niet gevonden op {script_path}; er is niet live gelezen",
+        return (
+            None,
+            ReadGap(
+                source=resource,
+                reason=f"het verzamelscript is niet gevonden op {script_path}; er is niet live gelezen",
+            ),
+            False,
         )
     if run is not None:
         runner = run
@@ -1733,21 +1757,33 @@ def read_single_resource(
     try:
         work_dir = Path(tempfile.mkdtemp(prefix="nsmcp-live-"))
     except OSError as exc:
-        return None, ReadGap(source=resource, reason=f"kon geen tijdelijke uitvoermap aanmaken: {exc}")
+        # The kind, never `{exc}`: that names the local temporary directory.
+        return (
+            None,
+            ReadGap(
+                source=resource,
+                reason=f"{NOT_STARTED}kon geen tijdelijke uitvoermap aanmaken ({_os_error_kind(exc)})",
+            ),
+            False,
+        )
     try:
         arguments = build_arguments(target, work_dir, script_path) + ["-OnlyResources", resource]
         try:
             code, error_text = runner(arguments, timeout_s)
+        except CollectNotStarted as exc:
+            text = _short_report(str(exc), target)
+            reason = text if text.startswith(NOT_STARTED) else f"{NOT_STARTED}{text}"
+            return None, ReadGap(source=resource, reason=reason), False
         except CollectError as exc:
-            # A timeout, a cancelled child process, PowerShell that will not
-            # start: all of them are an absence with a reason here, never an
-            # exception the caller has to catch. The pre-flight would lose its
-            # other eight checks over one that raised.
-            return None, ReadGap(source=resource, reason=_short_report(str(exc), target))
+            # A timeout, a cancelled child process: an absence with a reason
+            # here, never an exception the caller has to catch. The pre-flight
+            # would lose its other eight checks over one that raised.
+            return None, ReadGap(source=resource, reason=_short_report(str(exc), target)), True
         except OSError as exc:
-            return None, ReadGap(
-                source=resource,
-                reason=f"de live lezing kon niet gestart worden: {_scrub_error_text(str(exc), target)}",
+            return (
+                None,
+                ReadGap(source=resource, reason=f"{NOT_STARTED}{_scrub_error_text(str(exc), target)}"),
+                False,
             )
         if code != 0:
             # The one place a script that does not know `-OnlyResources` ends
@@ -1755,31 +1791,43 @@ def read_single_resource(
             # code. The scan script is CONFIGURED and sits outside this
             # product, so the product cannot force that support - what it does
             # is never make a silent green of it.
-            return None, ReadGap(
-                source=resource,
-                reason=(f"de live lezing stopte met exitcode {code}: {_short_report(error_text, target)}"),
+            return (
+                None,
+                ReadGap(
+                    source=resource,
+                    reason=(f"de live lezing stopte met exitcode {code}: {_short_report(error_text, target)}"),
+                ),
+                True,
             )
         export = load_export(work_dir)
         if export.manifest_missing:
-            return None, ReadGap(
-                source=resource,
-                reason=(
-                    "de live lezing liep af zonder bruikbaar export-manifest; dat is een"
-                    " mislukte lezing, geen lege waarde"
+            return (
+                None,
+                ReadGap(
+                    source=resource,
+                    reason=(
+                        "de live lezing liep af zonder bruikbaar export-manifest; dat is een"
+                        " mislukte lezing, geen lege waarde"
+                    ),
                 ),
+                True,
             )
         row, gap = export.single(resource)
         if gap is not None:
-            return None, gap
+            return None, gap, True
         if row is None:
-            return None, ReadGap(
-                source=resource,
-                reason=(
-                    "de live lezing meldt deze resource als gelezen maar droeg er geen object"
-                    " voor; een lege lezing is geen waarde"
+            return (
+                None,
+                ReadGap(
+                    source=resource,
+                    reason=(
+                        "de live lezing meldt deze resource als gelezen maar droeg er geen object"
+                        " voor; een lege lezing is geen waarde"
+                    ),
                 ),
+                True,
             )
-        return row, None
+        return row, None, True
     finally:
         # Nothing of this run survives the call: the temporary directory goes,
         # and the export directory was never touched.

@@ -3312,3 +3312,41 @@ def test_sr8_the_drive_type_check_says_a_local_disk_is_local(tmp_path):
     from nsmcp.start import _drive_is_remote
 
     assert _drive_is_remote(Path(str(tmp_path)).drive) is False
+
+
+def test_b3_a_collector_that_cannot_start_claims_no_live_read_through_a_real_session(
+    tmp_path, monkeypatch, restore_script_policy
+):
+    """1.0.2, second round, measured in the review: on the collector route a
+    process that never started (here: the script differs from its pin) still
+    gave "live gelezen via stat/system via het verzamelscript"."""
+    import asyncio
+    import subprocess
+
+    forget_identities()
+    _real_export(tmp_path)
+    _real_knowledge(tmp_path)
+    script = tmp_path / "verzamel.ps1"
+    script.write_text("# verzamel\n", encoding="ascii")
+    targets = tmp_path / "doelen.json"
+    targets.write_text(json.dumps({"doelen": [_DOEL]}), encoding="utf-8")
+    doc = base_config(tmp_path, profiel="afgeschermd", doelen=str(targets), verzamelscript=str(script))
+    doc["scriptpin"] = {"verzamel.ps1": "0" * 64}
+    server = build_server_from_config(write(tmp_path, doc))
+    started = []
+    monkeypatch.setattr(subprocess, "Popen", lambda argv, **kw: started.append(argv))
+
+    async def scenario():
+        async with create_connected_server_and_client_session(
+            server, client_info=types.Implementation(name="claude-code", version="1.0")
+        ) as client:
+            return await client.call_tool("status_update_preflight", {})
+
+    result = asyncio.run(scenario())
+    assert started == []
+    assert result.isError is False
+    text = "\n".join(b.text for b in result.content if hasattr(b, "text"))
+    regel8 = text[text.index("- 8. ") :].split("\n- ", 1)[0]
+    assert "niet gelezen: het verzamelscript is niet gestart: " in regel8, regel8
+    assert "live gelezen" not in regel8, regel8
+    assert str(tmp_path) not in regel8

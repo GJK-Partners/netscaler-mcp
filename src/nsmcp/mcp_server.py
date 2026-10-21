@@ -2054,11 +2054,12 @@ def build_server(
             # hangs for a quarter of an hour on it would hold up the eight
             # checks that need no appliance at all. A timeout is a ReadGap
             # here, never an exception - see read_single_resource.
-            row, gap = read_single_resource(
+            row, gap, ran = read_single_resource(
                 target, FREE_SPACE_RESOURCE, collect_script, timeout_s=LIVE_MEASURE_TIMEOUT_S, run=run
             )
             if gap is not None:
-                return None, gap, FREE_SPACE_ROUTE_COLLECTOR
+                # 1.0.2: a process that never started names no route.
+                return None, gap, FREE_SPACE_ROUTE_COLLECTOR if ran else None
             raw = row.get(FREE_SPACE_FIELD)
             try:
                 # A NITRO statistic arrives as text. `int(...)` is the shape
