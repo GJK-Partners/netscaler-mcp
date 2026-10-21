@@ -1082,6 +1082,26 @@ def _check_provenance_dir(provenance_dir: Path, export_dir: Path) -> None:
             raise ConfigError(refusal)
 
 
+PSEUDONYM_TABLE_NAME = "openheid-vertaaltabel.json"
+
+
+def _check_pseudonym_table_dir(table: Path, export_dir: Path) -> None:
+    """SR-7 (1.0.2): the pseudonym table may not lie in the export map nor in
+    the directory that holds it. Both are refused with the remedy; a path
+    that cannot be compared is refused too."""
+    refusal = (
+        f"bij openheid 'beperkt' staat de vertaaltabel naast het configuratiebestand (of in"
+        f" onderhoud.ledgermap), en die map is de exportmap of de map eromheen ({export_dir!r}) - die kan"
+        " schrijven wie de export aanlevert; zet het configuratiebestand in een eigen beheermap: "
+        f"{table!r}"
+    )
+    try:
+        if _lies_within(table, export_dir) or _comparable(table.parent) == _comparable(export_dir.parent):
+            raise ConfigError(refusal)
+    except (ValueError, OSError):
+        raise ConfigError(f"kan niet vaststellen dat de vertaaltabel buiten de exportmap ligt: {table!r}") from None
+
+
 def _check_export_boundaries(
     export_dir: Path,
     *,
@@ -1455,9 +1475,21 @@ def build_server_from_config(path: Path) -> FastMCP:
         _require_printable_targets(doelen_in_bestand)
         _require_one_target_per_address(doelen_in_bestand)
 
+    # SR-7 (1.0.2): the pseudonym table and its lock in the management
+    # directory - the same choice as the provenance map above (the ledger
+    # map, or the configuration's own directory) - and never in or around
+    # the export map, which whoever supplies an export may write. Only
+    # 'beperkt' uses the table, so only there is that refused.
+    pseudonym_table_path = (
+        Path(onderhoud.ledgermap) if onderhoud is not None else path.resolve().parent
+    ) / PSEUDONYM_TABLE_NAME
+    if disclosure is Disclosure.LIMITED:
+        _check_pseudonym_table_dir(pseudonym_table_path, export_dir)
+
     return build_server(
         export_dir,
         knowledge_path,
+        pseudonym_table_path=pseudonym_table_path,
         targets_path=targets_path,
         collect_script=collect_script,
         disclosure=disclosure,

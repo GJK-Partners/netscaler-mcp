@@ -666,14 +666,19 @@ def test_no_openheid_field_builds_with_default_volledig(tmp_path, monkeypatch):
 
 
 def test_openheid_beperkt_is_passed_to_build_server(tmp_path, monkeypatch):
-    _real_export(tmp_path)
+    # SR-7 (1.0.2): at 'beperkt' the configuration may not sit in the
+    # directory around the export map, so the export lives one level down.
+    _real_export(tmp_path / "aanlevering")
     _real_knowledge(tmp_path)
     seen = _spy_on_build_server(monkeypatch)
 
-    path = write(tmp_path, base_config(tmp_path, openheid="beperkt"))
+    path = write(
+        tmp_path, base_config(tmp_path, openheid="beperkt", exportmap=str(tmp_path / "aanlevering" / "export"))
+    )
     build_server_from_config(path)
 
     assert seen["disclosure"] is Disclosure.LIMITED
+    assert seen["pseudonym_table_path"] == tmp_path.resolve() / "openheid-vertaaltabel.json"
 
 
 def test_the_kennispin_reaches_build_server_and_its_absence_is_none(tmp_path, monkeypatch):
@@ -1328,7 +1333,16 @@ def test_handelen_with_openheid_beperkt_starts_and_registers_the_writing_tools(t
     handelen = _handelen(tmp_path)
     handelen["toegestaan"] = {"lab": {"certificaat_klaarzetten": {"certnaam": ["cert-2027"]}}}
     seen = _spy_on_build_server(monkeypatch)
-    server = start.build_server_from_config(_config(tmp_path, openheid="beperkt", handelen=handelen))
+    # SR-7 (1.0.2): the export map one level down, away from the
+    # configuration's directory (where the pseudonym table lives).
+    config = _config(tmp_path, openheid="beperkt", handelen=handelen)
+    import shutil
+
+    shutil.copytree(tmp_path / "export", tmp_path / "aanlevering" / "export")
+    body = json.loads(config.read_text(encoding="utf-8"))
+    body["exportmap"] = str(tmp_path / "aanlevering" / "export")
+    config.write_text(json.dumps(body), encoding="utf-8")
+    server = start.build_server_from_config(config)
     assert seen["disclosure"] is Disclosure.LIMITED
     assert seen["allowlist"].targets() == ("lab",)
     assert seen["allowlist"].entry("lab", "certificaat_klaarzetten") == {"certnaam": ("cert-2027",)}
@@ -3032,3 +3046,51 @@ def test_sr8_a_local_extended_spelling_stays_accepted(tmp_path):
     doc["exportmap"] = extended
     path.write_text(json.dumps(doc), encoding="utf-8")
     assert build_server_from_config(path)
+
+
+# --------------------------------------------------------------------------
+# SR-7 (1.0.2): the pseudonym table lives in the management directory
+# --------------------------------------------------------------------------
+#
+# Measured in the review: the table and its lock sat beside the export
+# (`export_dir.parent`), in the directory whoever supplies an export may
+# write - a pseudonym rewritten there points a confirmed write at another
+# allowed object.
+
+
+def test_sr7_at_beperkt_the_table_is_never_in_the_directory_around_the_export(tmp_path):
+    _real_export(tmp_path)
+    _real_knowledge(tmp_path)
+    path = write(tmp_path, base_config(tmp_path, openheid="beperkt"))
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    message = str(refused.value)
+    assert "vertaaltabel" in message and "exportmap" in message, message
+
+
+def test_sr7_at_beperkt_the_table_sits_beside_the_configuration(tmp_path):
+    forget_identities()
+    supplied = tmp_path / "aanlevering"
+    supplied.mkdir()
+    _real_export(supplied)
+    beheer = tmp_path / "beheer"
+    beheer.mkdir()
+    _real_knowledge(beheer)
+    doc = {"profiel": "dienst", "exportmap": str(supplied / "export"), "kennispad": str(beheer / "kennis.json")}
+    doc["openheid"] = "beperkt"
+    config = beheer / "config.json"
+    config.write_text(json.dumps(doc), encoding="utf-8")
+    server = build_server_from_config(config)
+
+    import asyncio
+
+    async def scenario():
+        async with create_connected_server_and_client_session(
+            server, client_info=types.Implementation(name="claude-code", version="1.0")
+        ) as client:
+            return await client.call_tool("certificaat_wat_verloopt_er", {"horizon_dagen": 3650})
+
+    result = asyncio.run(scenario())
+    assert result.isError is False, result
+    assert (beheer / "openheid-vertaaltabel.json").is_file()
+    assert not (supplied / "openheid-vertaaltabel.json").exists()

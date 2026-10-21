@@ -589,6 +589,15 @@ class PseudonymTableBroken(ToolError):
     """
 
 
+class PseudonymTableLocked(ToolError):
+    """SR-7 (1.0.2): the lock next to the pseudonym table could not be taken -
+    it could not be opened (measured in the review: a DIRECTORY at the lock
+    path gave a PermissionError) or another process kept it past the time
+    limit. A ToolError, so the operator reads WHY; it used to reach the
+    model as the generic "Onverwachte fout". Names the lock path (the
+    operator's own configuration) and never table content."""
+
+
 class PseudonymSpaceExhausted(ToolError):
     """`_next_free_pseudonym()` could not find a free candidate within
     `_MAX_PSEUDONYM_ATTEMPTS` tries.
@@ -733,14 +742,24 @@ class _ProcessLock:
         self._handle = None
 
     def __enter__(self) -> _ProcessLock:
-        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-        self._handle = open(self._lock_path, "a+b")
-        if os.fstat(self._handle.fileno()).st_size == 0:
-            # msvcrt.locking requires a byte to lock; a freshly created lock
-            # file is 0 bytes. The content itself carries no meaning - this
-            # file is never the pseudonym table itself.
-            self._handle.write(b"0")
-            self._handle.flush()
+        try:
+            self._lock_path.parent.mkdir(parents=True, exist_ok=True)
+            self._handle = open(self._lock_path, "a+b")
+            if os.fstat(self._handle.fileno()).st_size == 0:
+                # msvcrt.locking requires a byte to lock; a freshly created lock
+                # file is 0 bytes. The content itself carries no meaning - this
+                # file is never the pseudonym table itself.
+                self._handle.write(b"0")
+                self._handle.flush()
+        except OSError as err:
+            if self._handle is not None:
+                self._handle.close()
+                self._handle = None
+            raise PseudonymTableLocked(
+                f"het slot naast de vertaaltabel ({self._lock_path}) kon niet geopend worden"
+                f" ({err.__class__.__name__}); staat daar een map of ontbreekt het schrijfrecht? Herstel dat"
+                " en stel de vraag opnieuw"
+            ) from err
         deadline = time.monotonic() + _PROCESS_LOCK_TIMEOUT_S
         while True:
             try:
@@ -750,7 +769,7 @@ class _ProcessLock:
             except OSError as err:
                 if time.monotonic() >= deadline:
                     self._handle.close()
-                    raise TimeoutError(
+                    raise PseudonymTableLocked(
                         f"kon het cross-process slot op {self._lock_path} niet verkrijgen binnen "
                         f"{_PROCESS_LOCK_TIMEOUT_S}s - een ander proces houdt de vertaaltabel vast"
                     ) from err
@@ -922,6 +941,15 @@ def _validate_loaded_table(raw: dict, path: Path, current_names: set[str]) -> di
                 "naam (leeg of geen tekst); dit bestand is de enige sleutel naar de echte namen en "
                 "wordt daarom nooit overschreven - herstel het bestand of zet het aan de kant en "
                 "stel de vraag opnieuw"
+            )
+        if not value.isprintable():
+            # SR-7 (1.0.2): measured in the review, a value with a line break
+            # ("x\n- forged line [vastgesteld]") was accepted. No real object
+            # name carries a control or separator character.
+            raise PseudonymTableBroken(
+                f"de vertaaltabel op {path} draagt op {_entry_ref(position)} een echte naam met een "
+                "stuurteken of regeleinde; dit bestand wordt daarom nooit overschreven - herstel het "
+                "bestand of zet het aan de kant en stel de vraag opnieuw"
             )
         # fullmatch, not match+`$` - otherwise a key with a trailing newline
         # (e.g. "object-01\n") slips through the pattern test.

@@ -728,7 +728,10 @@ weigert de server te starten zodra er toch een `handelen`-sectie in de configura
 lezende gereedschappen werken in alle drie de standen gewoon.
 
 In de stand `beperkt` houdt het product de koppeling tussen pseudoniem en echte naam bij in
-het bestand `openheid-vertaaltabel.json`, naast de exportmap. Dat bestand is uw enige
+het bestand `openheid-vertaaltabel.json`, naast het configuratiebestand (of in
+`onderhoud.ledgermap` als die is ingesteld) en nooit in of naast de exportmap: wie de export
+aanlevert, kan die map schrijven. Staat het configuratiebestand in de map rond de exportmap, dan
+weigert de server bij `beperkt` te starten; zet het dan in een eigen beheermap. Dat bestand is uw enige
 decodeersleutel: alleen daarmee vertaalt u eerdere rapportages terug naar echte namen. Bij
 nieuwe namen verrijkt het product de tabel en schrijft het bestand opnieuw; bestaande
 toewijzingen veranderen daarbij nooit, en een kapotte tabel wordt nooit overschreven of stil
@@ -1229,7 +1232,8 @@ enkele stand: een weigering noemt alleen nog een redencode en de waarde die u ze
 
 In de stand `beperkt` staat naast de vertaaltabel ook `openheid-vertaaltabel.json.lock`: het
 slotbestand dat voorkomt dat twee processen tegelijk in de vertaaltabel schrijven. Dit is een
-ander slot dan het scan-slotbestand hierboven.
+ander slot dan het scan-slotbestand hierboven. Kan het product dat slot niet openen (er staat
+bijvoorbeeld een map met die naam), dan zegt het antwoord dat, met het pad.
 
 ## Onderhoud: de firmware-upgraderoute
 

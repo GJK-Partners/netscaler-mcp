@@ -559,11 +559,17 @@ against). Three levels:
 | `beperkt` | pseudonyms (`object-01`, ...) with real counts, days, severity and actions |
 | `minimaal` | aggregates only: counts, worst remaining term, a typed action line - no names and no pseudonyms |
 
-`beperkt` keeps its pseudonym table in a local file next to the export
-(`openheid-vertaaltabel.json`). That file is the customer-held decode key:
-it is itself sensitive, it never leaves the operator, and a broken or
-suspicious table is refused visibly - never silently repaired or
-overwritten. Age/origin stamps and the visibility of read gaps survive
+`beperkt` keeps its pseudonym table in a local file
+(`openheid-vertaaltabel.json`) beside the configuration file, or in
+`onderhoud.ledgermap` when that is configured - never in or beside the
+export map, which whoever supplies an export may write: a configuration in
+the directory around the export map is refused at start at `beperkt`. That
+file is the customer-held decode key: it is itself sensitive, it never leaves
+the operator, and a broken or suspicious table (a value with a control
+character included) is refused visibly - never silently repaired or
+overwritten. A lock next to it that cannot be opened is a refusal with its
+reason, not a generic error. The table carries no integrity pin: it grows
+with every new name, so a pin in the configuration cannot follow it. Age/origin stamps and the visibility of read gaps survive
 every level; in `minimaal` the count of read gaps remains.
 
 The seven writing tools sit UNDER this switch, not outside it. Everything
