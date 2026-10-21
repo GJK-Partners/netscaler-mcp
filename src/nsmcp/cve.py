@@ -517,7 +517,7 @@ _SOURCE_PREDICATES = {
 
 # Conditions built out of OTHER conditions. CTX696939 makes CVE-2026-19490
 # depend on a Gateway/AAA vserver AND a SAML action from 14.1-43.56 /
-# 13.1-61.28 onward. B8 (1.0.2): CTX697174 and the older band of CTX697191
+# 13.1-61.28 onward. 1.0.2: CTX697174 and the older band of CTX697191
 # state "SAML SP or IdP" - a SAML action (the appliance as service provider)
 # OR a SAML IdP profile (the appliance as identity provider). Both halves
 # keep their own evidence in the answer, joined by " OF ".

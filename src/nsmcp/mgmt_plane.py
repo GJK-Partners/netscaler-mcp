@@ -149,7 +149,7 @@ class DimensionResult:
     instances: tuple[str, ...] = ()
     unread: tuple[str, ...] = ()
     reason: str = ""
-    # B5 (1.0.2): read gaps that are not a whole unreadable source - the
+    # 1.0.2: read gaps that are not a whole unreadable source - the
     # parent cross-check of a binding file (`Export.binding_parents`) - as
     # the export names them, so they stand under NIET VASTGESTELD as such.
     gaps: tuple[ReadGap, ...] = ()
@@ -283,7 +283,7 @@ def _decide(
     if instances:
         return DimensionResult(name, "FAIL", evidence, tuple(instances), tuple(unread), detail, gaps)
     if unread or gaps:
-        # B5 (1.0.2): a PASS over a known gap in its own source is no PASS -
+        # 1.0.2: a PASS over a known gap in its own source is no PASS -
         # the instance that would fail it can sit in exactly what was unread.
         named = [*unread, *(gap.source for gap in gaps)]
         reason = "verdict-sturende bron niet bruikbaar gelezen: " + ", ".join(dict.fromkeys(named))
@@ -414,7 +414,7 @@ def _certificate(export) -> DimensionResult:
     if gap is not None:
         unread.append(CERT_BINDING)
         bindings = []
-    # B5 (1.0.2): a vserver the binding file has no parent entry for has
+    # 1.0.2: a vserver the binding file has no parent entry for has
     # UNREAD certificate bindings - the default certificate may hang there.
     parent_gaps = export.binding_parents(CERT_BINDING).gaps if gap is None else ()
     instances: list[str] = []
@@ -596,7 +596,7 @@ def names_in_mgmt_sources(export) -> tuple[str, ...]:
                 vserver = field_text(row, "vservername")
                 if vserver:
                     names.add(vserver)
-        # B5 (1.0.2): the parent names a cross-check gap can print.
+        # 1.0.2: the parent names a cross-check gap can print.
         names.update(export.binding_parents(CERT_BINDING).names)
     names.add(DEFAULT_MGMT_CERT)
     return tuple(sorted(names))

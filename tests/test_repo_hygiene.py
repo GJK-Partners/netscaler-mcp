@@ -1354,7 +1354,7 @@ def test_ci_checks_the_content_of_posh_ssh_after_installing_it():
 
 
 # ---------------------------------------------------------------------------
-# H-3 (1.0.2): the needle guards run in CI on push and tag runs
+# 1.0.2: the needle guards run in CI on push and tag runs
 # ---------------------------------------------------------------------------
 #
 # Without a needle list the hygiene guards skip, and in CI they skipped every

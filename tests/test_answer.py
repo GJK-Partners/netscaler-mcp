@@ -649,7 +649,7 @@ def test_safe_text_is_the_public_name_for_the_same_capping_and_flattening():
     assert "afgekapt" in result
 
 
-# --- SR-9 (1.0.2): the character filter of every rendered field ------------
+# --- 1.0.2: the character filter of every rendered field ------------
 
 
 @pytest.mark.parametrize(

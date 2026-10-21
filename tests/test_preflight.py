@@ -1356,7 +1356,7 @@ def test_check_five_on_an_export_without_the_certificate_use_sources(tmp_path):
     assert results == {"zonder": ("onbekend", NOT_ASSESSED), "met": ("los", NO_BLOCKER)}
 
 
-# --- B1 (1.0.2): check 5 counts its horizon from today --------------------
+# --- 1.0.2: check 5 counts its horizon from today --------------------
 #
 # The evidence said "horizon 30 dagen vanaf nu" while the judgement read the
 # raw `daystoexpiration` - the count AT THE SCAN. Measured: an export 56 days
@@ -1407,7 +1407,7 @@ def test_b1_check_five_is_not_assessed_without_a_readable_export_date(tmp_path):
     assert "leeftijd van de export" in check.reason
 
 
-# --- B3 (1.0.2): the evidence of check 8 follows what really ran -----------
+# --- 1.0.2: the evidence of check 8 follows what really ran -----------
 #
 # Measured: without a target and without a collect script the evidence said
 # "stat/system via het verzamelscript, live gelezen" and the reason "de live
@@ -1459,7 +1459,7 @@ def test_b3_the_answer_without_a_target_claims_no_live_read(preflight_export, kn
     assert "niet gelezen: er is geen doel ingesteld" in regel8
 
 
-# --- B4 (1.0.2): no internal object in the customer answer ------------------
+# --- 1.0.2: no internal object in the customer answer ------------------
 #
 # Measured: check 3 put a dataclass into an f-string -
 # "rolverdeling HaDimension(label='rolverdeling', state=..., evidence=...".

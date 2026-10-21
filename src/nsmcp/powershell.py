@@ -49,7 +49,7 @@ class PowerShellMissing(Exception):
 
 
 class ScriptPinMismatch(PowerShellMissing):
-    """SR-5 (1.0.2): a script this product would start does not match its
+    """1.0.2: a script this product would start does not match its
     pin, or carries none while pins are configured. A subclass of
     `PowerShellMissing` on purpose: every caller already turns that into
     "no process was started" with a reason, and that is what this is. The
@@ -66,7 +66,7 @@ DEFAULT_EXECUTION_POLICY = "Bypass"
 
 @dataclass(frozen=True)
 class ScriptPolicy:
-    """How this product starts its PowerShell scripts (SR-5, 1.0.2).
+    """How this product starts its PowerShell scripts (1.0.2).
 
     `pins`: file name (case-folded) -> sha256 of the bytes, or None when the
     configuration carries no `scriptpin` - then nothing is checked, as

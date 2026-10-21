@@ -60,7 +60,7 @@ GLOBAL_HTTP_RESPONSES = ("RES_DEFAULT", "RES_OVERRIDE", "HTTPQUIC_RES_DEFAULT", 
 
 def test_the_real_export_has_no_bound_hsts_and_no_rewrite_headers():
     # Before 1.0.2 this pinned "aanwezig en gebonden [vastgesteld]" - the
-    # false green of B2. See the B2 tests at the end of this file.
+    # false green fixed in 1.0.2. See the HSTS tests at the end of this file.
     export = load_export(FIXTURE)
     text = stamp_data(headers_answer(export, KNOWLEDGE), export.collected_at, TODAY, export.target_name).to_text()
 
@@ -405,7 +405,7 @@ def _export(
     return load_export(root)
 
 
-# --- B2 (1.0.2): HSTS is only "aanwezig en gebonden" when a vserver binds it --
+# --- 1.0.2: HSTS is only "aanwezig en gebonden" when a vserver binds it --
 #
 # Measured in the public test of 1.0.0: on the shipped lab export every
 # sslvserver carries hsts DISABLED and no sslprofile; the only profiles with

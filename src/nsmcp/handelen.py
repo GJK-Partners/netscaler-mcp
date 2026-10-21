@@ -1258,7 +1258,7 @@ def upgrade_command(runner: Path, script_arguments: list[str]) -> list[str]:
     to launch a DETACHED child with. Falls back to `sys.executable` only if
     the attribute is ever absent (non-CPython)."""
     runner = Path(runner)
-    # SR-5 (1.0.2): the runner and every pinned script beside it (its
+    # 1.0.2: the runner and every pinned script beside it (its
     # transport, dot-sourced by name) against `scriptpin`, right before the
     # argv is handed to a process starter.
     check_script_pins(runner)

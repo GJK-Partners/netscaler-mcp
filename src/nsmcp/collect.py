@@ -201,7 +201,7 @@ def _run_powershell(arguments: list[str], timeout_s: int, stop: SwapGate | None 
     try:
         process = start_powershell(arguments)
     except ScriptPinMismatch as exc:
-        # SR-5 (1.0.2): the message names the file name only.
+        # 1.0.2: the message names the file name only.
         raise CollectError(f"het verzamelscript is niet gestart: {exc}") from None
     except PowerShellMissing:
         # The merge keeps the absolute starter AND the masking of the OS error: the
@@ -279,7 +279,7 @@ def _scrub_error_text(error_text: str, target: Target) -> str:
 
 
 _STDERR_TAIL_LINES = 10
-# SR-11 (1.0.2): one line of the tail is cut at this many characters, with a
+# 1.0.2: one line of the tail is cut at this many characters, with a
 # visible note - the review probe put 3000 characters in one line.
 _STDERR_LINE_CHARS = 400
 _NO_ERROR_LINE = "geen foutregel"
@@ -319,7 +319,7 @@ def _short_report(error_text: str, target: Target) -> str:
     lines = [line.strip() for line in scrubbed.splitlines() if line.strip()]
     if not lines:
         return _NO_ERROR_LINE
-    # SR-11 (1.0.2): every character that is invisible or moves text around
+    # 1.0.2: every character that is invisible or moves text around
     # (ESC, a bidi override, a zero-width space) becomes visible, a long line
     # is cut with a note, and the lines left out are COUNTED - the same
     # "... (N regels ingekort)" the writing tools say (`_from_script`); the

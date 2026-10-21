@@ -670,7 +670,7 @@ def test_no_openheid_field_builds_with_default_volledig(tmp_path, monkeypatch):
 
 
 def test_openheid_beperkt_is_passed_to_build_server(tmp_path, monkeypatch):
-    # SR-7 (1.0.2): at 'beperkt' the configuration may not sit in the
+    # 1.0.2: at 'beperkt' the configuration may not sit in the
     # directory around the export map, so the export lives one level down.
     _real_export(tmp_path / "aanlevering")
     _real_knowledge(tmp_path)
@@ -1337,7 +1337,7 @@ def test_handelen_with_openheid_beperkt_starts_and_registers_the_writing_tools(t
     handelen = _handelen(tmp_path)
     handelen["toegestaan"] = {"lab": {"certificaat_klaarzetten": {"certnaam": ["cert-2027"]}}}
     seen = _spy_on_build_server(monkeypatch)
-    # SR-7 (1.0.2): the export map one level down, away from the
+    # 1.0.2: the export map one level down, away from the
     # configuration's directory (where the pseudonym table lives).
     config = _config(tmp_path, openheid="beperkt", handelen=handelen)
     import shutil
@@ -1512,7 +1512,7 @@ def test_a_code_file_inside_a_directory_the_product_reads_is_refused(tmp_path):
             )
 
 
-# SR-8 (1.0.2): the two network spellings of the local disk are refused at
+# 1.0.2: the two network spellings of the local disk are refused at
 # the start as network paths, before containment is compared; the tests
 # below therefore expect THAT refusal for them.
 _NETWORK_SPELLINGS = frozenset({"unc-uitgebreid", "beheershare"})
@@ -1563,7 +1563,7 @@ def test_a_code_file_path_that_cannot_be_compared_is_refused(tmp_path):
     with pytest.raises(start.ConfigError) as refused:
         start.build_server_from_config(_config(tmp_path, handelen=_handelen(tmp_path, _bestand(tmp_path, code_file))))
     message = str(refused.value)
-    # SR-8 (1.0.2): the colon of "Fout:" after the drive letter is refused
+    # 1.0.2: the colon of "Fout:" after the drive letter is refused
     # first; still over this field, still quoted.
     assert message.startswith("handelen.codekanaal.pad draagt een dubbele punt na de schijfletter"), message
     assert message.endswith(f": {str(code_file)!r}"), message
@@ -2857,7 +2857,7 @@ def test_an_export_map_with_a_nul_character_is_refused_over_the_export_map_itsel
     export = f"{root / 'export'}\x00\nFout: niets aan de hand"
     body["exportmap"] = export
     message = _start_refusal(root, body)
-    # SR-8 (1.0.2): the colon of "Fout:" after the drive letter is refused
+    # 1.0.2: the colon of "Fout:" after the drive letter is refused
     # first; still over the export map itself, still quoted.
     assert message.startswith("exportmap draagt een dubbele punt na de schijfletter"), message
     assert message.endswith(f": {export!r}"), message
@@ -2925,7 +2925,7 @@ def test_the_sso_presenter_in_a_map_the_product_itself_reads_or_writes_is_refuse
 
 
 def test_b3_preflight_without_a_target_claims_no_live_read_through_a_real_session(tmp_path):
-    """B3 (1.0.2), measured in the public test: no target, no collect script,
+    """1.0.2, measured in the public test: no target, no collect script,
     and the evidence of check 8 still said "live gelezen"."""
     forget_identities()
     _real_export(tmp_path)
@@ -2952,7 +2952,7 @@ def test_b3_preflight_without_a_target_claims_no_live_read_through_a_real_sessio
 
 
 # --------------------------------------------------------------------------
-# SR-8 + B6 (1.0.2): where a configured path points
+# 1.0.2: where a configured path points
 # --------------------------------------------------------------------------
 #
 # Measured in the public test and the security review of 1.0.0: a relative
@@ -3053,7 +3053,7 @@ def test_sr8_a_local_extended_spelling_stays_accepted(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# SR-7 (1.0.2): the pseudonym table lives in the management directory
+# 1.0.2: the pseudonym table lives in the management directory
 # --------------------------------------------------------------------------
 #
 # Measured in the review: the table and its lock sat beside the export
@@ -3101,7 +3101,7 @@ def test_sr7_at_beperkt_the_table_sits_beside_the_configuration(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# SR-5 (1.0.2): scriptpin and uitvoeringsbeleid in the configuration
+# 1.0.2: scriptpin and uitvoeringsbeleid in the configuration
 # --------------------------------------------------------------------------
 
 

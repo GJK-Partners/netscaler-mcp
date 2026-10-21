@@ -4110,7 +4110,7 @@ def test_the_reading_advice_fails_closed_without_a_configured_allowlist(tmp_path
     assert ADVICE_CAN not in text
 
 
-# --- SR-11 (1.0.2): the failure answer of status_ververs ---------------------
+# --- 1.0.2: the failure answer of status_ververs ---------------------
 #
 # The probe of the security review of 1.0.0: a collector that fails with
 # hostile output put up to ten raw lines - an ESC sequence, footer

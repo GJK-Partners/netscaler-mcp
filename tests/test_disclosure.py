@@ -729,7 +729,7 @@ def test_minimal_worst_remaining_term_is_derived_deterministically():
     a = Answer(
         question="wat verloopt er",
         findings=[
-            # SR-10 (1.0.2): the term is a typed field, not the outcome text.
+            # 1.0.2: the term is a typed field, not the outcome text.
             Finding(
                 subject="a",
                 outcome="verloopt over 20 dagen",
@@ -4114,7 +4114,7 @@ def test_the_aggregate_binding_family_reads_nothing_it_cannot_trust(tmp_path):
     assert load_export(m).binding_names(("lbvserver_binding.by-parent.json",)) == ()
 
 
-# --- SR-10 (1.0.2): at 'minimaal' the severity line comes from typed fields --
+# --- 1.0.2: at 'minimaal' the severity line comes from typed fields --
 #
 # The probe of the security review of 1.0.0: two lbvservers named
 # "VS_A verloopt over 1 dagen" and "VS_B is verlopen" made status_namen - a
@@ -4211,7 +4211,7 @@ class _TypedStub:
         return {}, None
 
 
-# --- SR-7 (1.0.2): the pseudonym table and its lock ------------------------
+# --- 1.0.2: the pseudonym table and its lock ------------------------
 
 
 def _sr7_answer() -> Answer:

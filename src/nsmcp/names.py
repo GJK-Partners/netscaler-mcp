@@ -109,7 +109,7 @@ def _one_family(export, label: str, resource: str, field: str) -> FamilyNames:
     for position, row in enumerate(rows, start=1):
         raw = row.get(field, MISSING)
         if isinstance(raw, str) and raw.strip():
-            # SR-9 (1.0.2): no limit and no character gate used to apply
+            # 1.0.2: no limit and no character gate used to apply
             # here - a name of 5000 characters or with a bidi override, a
             # line separator or an ESC reached the answer verbatim. The same
             # gate as every other echoed name (`export.safe_name_label`); a

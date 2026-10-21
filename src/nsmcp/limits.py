@@ -122,7 +122,7 @@ def exceeds_depth(value, limit: int = MAX_JSON_DEPTH) -> bool:
     return False
 
 
-# SR-9 (1.0.2). The Unicode categories that are invisible or that move text
+# 1.0.2. The Unicode categories that are invisible or that move text
 # around without being text: control characters (Cc - ESC, NUL, NEL, ...),
 # format characters (Cf - zero-width space, the bidi overrides and isolates,
 # a byte-order mark), the line and paragraph separators (Zl, Zp) and lone

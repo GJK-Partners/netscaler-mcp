@@ -573,7 +573,7 @@ def _check_3_ha(export) -> Check:
             "config/hanode",
             f"{gaps[0].source}: {gaps[0].reason}",
         )
-    # B4 (1.0.2): the state WORD of each dimension, never the dataclass itself.
+    # 1.0.2: the state WORD of each dimension, never the dataclass itself.
     evidence = (
         f"config/hanode, {result.node_count} node(s); rolverdeling {result.roles.state}, sync {result.sync.state}"
     )
@@ -811,7 +811,7 @@ def _check_5_certificates(export, cert_horizon_days: int = CERT_MARGIN_DAYS, *, 
             f" hieronder toetst vandaag nog tegen de vaste marge van {CERT_MARGIN_DAYS} dagen,"
             " niet tegen dit venster"
         )
-    # B1 (1.0.2): `daystoexpiration` counts from the SCAN. "Vanaf nu" is
+    # 1.0.2: `daystoexpiration` counts from the SCAN. "Vanaf nu" is
     # only true once the age of the export is taken off - the same age as
     # the data line under the answer (`expiry.age_of`).
     age_days, age_reason = age_of(export, today)
@@ -1102,7 +1102,7 @@ def _check_8_free_space(
 ) -> Check:
     """Check 8 on the value the caller read live, or did not.
 
-    B3 (1.0.2): the evidence says what really happened. `route` is None when
+    1.0.2: the evidence says what really happened. `route` is None when
     no read ran at all (no target, no collect script, more than one target
     without a name): then "niet gelezen: <reden>" and no route. A read that
     ran without a usable value names its route and "geen bruikbare waarde";

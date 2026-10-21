@@ -1738,7 +1738,7 @@ def test_config_keys_and_cli_usage_are_frozen():
         "onderhoud",
         "bewaren",
         "kennispin",
-        # SR-5 (1.0.2)
+        # 1.0.2
         "scriptpin",
         "uitvoeringsbeleid",
     }

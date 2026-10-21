@@ -30,8 +30,8 @@ class ExportStub:
     file_hashes = {"bindings/sslservicegroup_sslcertkey_binding.by-parent.json": "stub"}
 
     # Collected today (UTC): the counts in these rows are the counts of
-    # today, so the age correction (B1, 1.0.2) is zero. A stub without a
-    # date is a different case, pinned by the B1 tests at the end.
+    # today, so the age correction (1.0.2) is zero. A stub without a
+    # date is a different case, pinned by the 1.0.2 tests at the end.
     collected_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def status(self, resource):
@@ -1591,7 +1591,7 @@ def test_the_empty_sentence_is_never_said_over_an_unread_source():
     assert answer.findings == []
 
 
-# --- B1 (1.0.2): the days count from today, not from the moment of the scan ---
+# --- 1.0.2: the days count from today, not from the moment of the scan ---
 #
 # Measured in the public test of 1.0.0: `daystoexpiration` is the appliance's
 # count AT THE SCAN, and the answer repeated it unchanged - "verloopt over 817

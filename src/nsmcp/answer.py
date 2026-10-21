@@ -123,7 +123,7 @@ def _safe(value: str) -> str:
     return text.replace("\n", " ")
 
 
-# SR-9 (1.0.2): what a NAME subject longer than `NAME_ECHO_MAX_LEN` ends with.
+# 1.0.2: what a NAME subject longer than `NAME_ECHO_MAX_LEN` ends with.
 NAME_CUT_NOTE = " ...(naam afgekapt)"
 
 
@@ -241,7 +241,7 @@ class Finding:
     # the "niet gevonden" finding beside the candidate line. Add a flagged
     # finding without such a companion and that stops holding.
     only_in_full: bool = False
-    # SR-10 (1.0.2). The remaining term of a certificate, TYPED, for the
+    # 1.0.2. The remaining term of a certificate, TYPED, for the
     # severity line at 'minimaal' (`disclosure._minimal`). That line used to
     # be a regex over `outcome` - and an outcome carries object names, so a
     # vserver called "VS_A verloopt over 1 dagen" steered the verdict of a

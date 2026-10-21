@@ -215,7 +215,7 @@ def test_predicate_vocabulary_is_frozen():
             "heeft_http2_profiel",
             "heeft_tcp_timestamp_profiel",
             "heeft_lb_oracle_of_dns",
-            # B8 (1.0.2): "SAML SP or IdP".
+            # 1.0.2: "SAML SP or IdP".
             "heeft_saml_action_of_idp",
         }
     )

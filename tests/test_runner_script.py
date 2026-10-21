@@ -406,7 +406,7 @@ def test_the_transport_refuses_a_posh_ssh_of_another_version_that_is_already_loa
 
 def _nep_posh_ssh_327(tmp_path: Path) -> Path:
     """A module named Posh-SSH with the PINNED version, but other content:
-    the case the version pin cannot see (SR-6, 1.0.2)."""
+    the case the version pin cannot see (1.0.2)."""
     root = tmp_path / "nep-327"
     map_ = root / "Posh-SSH" / posh_ssh_pin()
     map_.mkdir(parents=True)

@@ -269,7 +269,7 @@ def header_coverage(export) -> tuple[HeaderResult, ...]:
             if field_text(vserver, "sslprofile").casefold() in hsts_profile_names
         )
     )
-    # B2 (1.0.2): a profile is only evidence of HSTS on traffic when a vserver
+    # 1.0.2: a profile is only evidence of HSTS on traffic when a vserver
     # binds it. The built-in profiles exist on every appliance, so an unbound
     # built-in one says nothing at all; an own profile that nobody binds is
     # "wel gedefinieerd, niet gebonden"; and a gap in the binding read is

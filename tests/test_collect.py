@@ -3100,7 +3100,7 @@ def test_withholding_fails_closed_when_the_tail_is_not_where_the_message_puts_it
     assert withheld.script_output is None
 
 
-# --- SR-5 (1.0.2): the collector against its pin, on the real start path ---
+# --- 1.0.2: the collector against its pin, on the real start path ---
 
 
 def test_sr5_a_collector_that_differs_from_its_pin_is_not_started_and_the_scan_says_so(tmp_path, monkeypatch):

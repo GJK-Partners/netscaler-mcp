@@ -51,7 +51,7 @@
 #>
 Set-StrictMode -Version Latest
 
-# SR-6 (1.0.2): de INHOUD van Posh-SSH 3.2.7, niet alleen de versie. Dezelfde
+# 1.0.2: de INHOUD van Posh-SSH 3.2.7, niet alleen de versie. Dezelfde
 # methode en dezelfde gemeten waarde als scripts\Get-GjkPoshSshManifest.ps1
 # ($gemeten daar); tests\test_runner_script.py houdt de twee waarden gelijk.
 $script:GjkPoshSshManifestGemeten = '0f92952a5d8e156c40c1831f8a9d4fe7e8c58252d9b40ff3bf6895ef29f3e3d1'
@@ -110,7 +110,7 @@ function Assert-GjkPoshSsh {
         het modulepad, en een al geladen module van elke versie ging door
         (gemeten met een nep-module 9.9.9). Ontbreekt 3.2.7, of is er al een
         andere versie geladen: [FOUT] en exit 3.
-        Sinds 1.0.2 (SR-6) ook de INHOUD: elke kopie van 3.2.7 die geladen is
+        Sinds 1.0.2 ook de INHOUD: elke kopie van 3.2.7 die geladen is
         of op het modulepad staat (Import-Module laadt de eerste) moet het
         gemeten manifest dragen; anders [FOUT] en exit 3, voor er iets laadt.
         Deze functie installeert NIETS - dat is niet het werk van de runner. #>

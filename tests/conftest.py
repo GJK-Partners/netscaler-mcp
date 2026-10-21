@@ -140,7 +140,7 @@ def built_server(tmp_path: Path) -> BuiltServer:
 def expiry_text_today(days_at_scan: int, scan_day: str) -> str:
     """The expiry outcome a session answer must carry TODAY for a
     certificate the export saw at `days_at_scan` on `scan_day` (YYYY-MM-DD):
-    the days count from today, minus the age of the export (B1, 1.0.2)."""
+    the days count from today, minus the age of the export (1.0.2)."""
     from datetime import UTC, date, datetime
 
     remaining = days_at_scan - (datetime.now(UTC).date() - date.fromisoformat(scan_day)).days

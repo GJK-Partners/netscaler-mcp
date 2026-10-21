@@ -590,7 +590,7 @@ class PseudonymTableBroken(ToolError):
 
 
 class PseudonymTableLocked(ToolError):
-    """SR-7 (1.0.2): the lock next to the pseudonym table could not be taken -
+    """1.0.2: the lock next to the pseudonym table could not be taken -
     it could not be opened (measured in the review: a DIRECTORY at the lock
     path gave a PermissionError) or another process kept it past the time
     limit. A ToolError, so the operator reads WHY; it used to reach the
@@ -943,7 +943,7 @@ def _validate_loaded_table(raw: dict, path: Path, current_names: set[str]) -> di
                 "stel de vraag opnieuw"
             )
         if not value.isprintable():
-            # SR-7 (1.0.2): measured in the review, a value with a line break
+            # 1.0.2: measured in the review, a value with a line break
             # ("x\n- forged line [vastgesteld]") was accepted. No real object
             # name carries a control or separator character.
             raise PseudonymTableBroken(
@@ -1435,7 +1435,7 @@ def _minimal(answer: Answer, tool: str) -> str:
     `Certainty.ESTABLISHED`/`NOT_ESTABLISHED` is the only source of truth
     here - not `len(...)`, not the content of an outcome text.
     """
-    # SR-10 (1.0.2): from the typed fields of the finding, never from its
+    # 1.0.2: from the typed fields of the finding, never from its
     # outcome text (that text carries object names).
     days = [b.days_left for b in answer.findings if b.days_left is not None and not b.expired]
     already_expired = any(b.expired for b in answer.findings)

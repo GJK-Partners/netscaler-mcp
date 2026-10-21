@@ -73,7 +73,7 @@ def test_the_changelog_carries_that_same_version():
     assert "## [1.0.1]" in changelog
 
 
-# --- B7 (1.0.2): the MCP handshake names the product version ---------------
+# --- 1.0.2: the MCP handshake names the product version ---------------
 #
 # Measured in the public test: `initialize` answered
 # serverInfo.version = "1.29.0", the version of the mcp library.

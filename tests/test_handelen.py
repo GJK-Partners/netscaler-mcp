@@ -809,7 +809,7 @@ def test_a_missing_save_script_is_an_honest_error_not_a_start(tmp_path):
     assert calls == []
 
 
-# --- SR-5 (1.0.2): the faserunner and its transport against their pins -----
+# --- 1.0.2: the faserunner and its transport against their pins -----
 
 
 def test_sr5_the_runner_command_is_refused_when_its_transport_changed(tmp_path, monkeypatch):

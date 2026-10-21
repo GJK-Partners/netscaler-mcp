@@ -27,7 +27,7 @@ def test_the_real_export_fails_on_exposure_transport_and_rbac():
     assert "Vraag: staat het beheer van deze doos open" in text
     assert "- blootstelling: FAIL [vastgesteld]" in text
     assert "- transport: FAIL [vastgesteld]" in text
-    # B5 (1.0.2): the certificate bindings of VSRV-001 are not in the export.
+    # 1.0.2: the certificate bindings of VSRV-001 are not in the export.
     assert "- certificaat: NIET BEOORDEELD [niet vastgesteld]" in text
     assert "- RBAC: FAIL [vastgesteld]" in text
 
@@ -640,7 +640,7 @@ def test_an_empty_but_successfully_read_singleton_is_niet_beoordeeld_never_pass(
     assert any("config/systemparameter" in u for u in result["RBAC"].unread)
 
 
-# --- B5 (1.0.2): no PASS over a known gap in the certificate bindings -------
+# --- 1.0.2: no PASS over a known gap in the certificate bindings -------
 #
 # Measured in the public test: "certificaat: PASS [vastgesteld] -
 # ns-server-certificate hangt aan geen enkele gelezen vserver", while

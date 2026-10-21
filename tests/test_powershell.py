@@ -230,7 +230,7 @@ def test_the_timeout_label_names_the_same_absolute_path(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# SR-5 (1.0.2): a hash pin per script, checked on the bytes right before the
+# 1.0.2: a hash pin per script, checked on the bytes right before the
 # process starts, and the execution policy as an explicit setting.
 # ---------------------------------------------------------------------------
 

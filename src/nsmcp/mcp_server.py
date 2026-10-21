@@ -1031,7 +1031,7 @@ def build_server(
     provenance_dir: Path | None = None,
     script_policy: ScriptPolicy | None = None,
 ):
-    # SR-5 (1.0.2): how this server starts PowerShell - the pins of
+    # 1.0.2: how this server starts PowerShell - the pins of
     # `scriptpin` and the configured execution policy. Set for EVERY server
     # built, so a server without them starts from the documented default.
     set_script_policy(script_policy if script_policy is not None else ScriptPolicy())
@@ -1081,7 +1081,7 @@ def build_server(
     # same starter and the same polite stop the write script gets. A test
     # hands in a stub, exactly like `run` for the collector.
     server = FastMCP("netscaler-mcp", log_level=_FASTMCP_LOG_LEVEL)
-    # B7 (1.0.2): FastMCP takes no version, and the low-level server then
+    # 1.0.2: FastMCP takes no version, and the low-level server then
     # reports the version of the mcp library in `initialize`. The product
     # version goes in its place (`serverInfo.version`).
     server._mcp_server.version = __version__
@@ -1761,7 +1761,7 @@ def build_server(
                             # still learns WHY the scan did not run.
                             exc = exc.without_script_output()
                         diagnosis = phase_summary(phase_report(exc.evidence_dir, export_dir))
-                        # SR-11 (1.0.2): the failure is not a bare f-string any
+                        # 1.0.2: the failure is not a bare f-string any
                         # more. The error and the phase lines (both can carry
                         # text the collector wrote) go through the one text
                         # filter, line by line, and the product's own two stamp
@@ -1914,7 +1914,7 @@ def build_server(
             whole number - each a ReadGap with its reason, and never a second
             attempt through the collector.
 
-            The third value says whether a read process really ran (B3,
+            The third value says whether a read process really ran (
             1.0.2): a missing script, an invalid pin or a process that did
             not start is "niet gelezen", never "live gelezen"."""
             script = sibling_script(onderhoud, LIVE_MEASURE_SCRIPT)
@@ -2004,7 +2004,7 @@ def build_server(
                             " de andere acht toetsen komen wel uit de export"
                         ),
                     ),
-                    None,  # B3: no read ran, so no route to name
+                    None,  # no read ran, so no route to name (1.0.2)
                 )
             if not gekozen and len(targets) > 1:
                 # Without `doel` (one pre-flight answer about the appliance
@@ -2021,7 +2021,7 @@ def build_server(
                             " stellen"
                         ),
                     ),
-                    None,  # B3: no read ran, so no route to name
+                    None,  # no read ran, so no route to name (1.0.2)
                 )
             target = targets[gekozen] if gekozen else next(iter(targets.values()))
             if onderhoud is not None and target.ssh_hostsleutel_vingerafdruk:
@@ -2036,10 +2036,10 @@ def build_server(
                             "er is geen verzamelscript ingesteld, dus deze server kan de vrije ruimte niet live lezen"
                         ),
                     ),
-                    None,  # B3: no read ran, so no route to name
+                    None,  # no read ran, so no route to name (1.0.2)
                 )
             if not Path(collect_script).is_file():
-                # B3 (1.0.2): checked here as well as in read_single_resource,
+                # 1.0.2: checked here as well as in read_single_resource,
                 # so a missing script is "niet gelezen" without a route.
                 return (
                     None,

@@ -5805,7 +5805,7 @@ def test_the_open_measurements_are_visible_in_the_suite():
     assert "FIPS" in text and "DNS over HTTPS" in text
 
 
-# --- B8 (1.0.2): "SAML SP of IdP" as one condition ---------------------------
+# --- 1.0.2: "SAML SP of IdP" as one condition ---------------------------
 #
 # CTX697174 (and the older band of CTX697191) state "SAML SP or IdP". The
 # product knew both halves apart and only an AND composite, so a knowledge

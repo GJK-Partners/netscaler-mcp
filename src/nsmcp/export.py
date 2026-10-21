@@ -1343,7 +1343,7 @@ _UNSAFE_NAME_CHAR = re.compile(r"[\x00-\x1f\x7f]")
 
 def has_unsafe_name_char(text: str) -> bool:
     """True when `text` carries a character a name may not echo: an ASCII
-    control character (`_UNSAFE_NAME_CHAR`) or, since 1.0.2 (SR-9), any
+    control character (`_UNSAFE_NAME_CHAR`) or, since 1.0.2, any
     other control, format, line- or paragraph-separator character
     (`limits.is_hidden_character`: a bidi override, a zero-width space, NEL)."""
     return _UNSAFE_NAME_CHAR.search(text) is not None or any(is_hidden_character(c) for c in text)
@@ -1357,7 +1357,7 @@ def has_unsafe_name_char(text: str) -> bool:
 # subject string). 128 is chosen to stay clear of every real name measured
 # while still bounding a pathological string - the same length
 # `_TARGET_NAME_MAX_LEN` above uses for the same reason. The value lives in
-# `limits.py` since 1.0.2 (SR-9), imported above under this same name.
+# `limits.py` since 1.0.2, imported above under this same name.
 
 
 def safe_name_label(row: dict, field: str, position: int) -> str:

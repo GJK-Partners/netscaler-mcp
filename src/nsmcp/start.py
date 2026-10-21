@@ -225,7 +225,7 @@ def load_config(path: Path) -> dict:
 
 
 def _code_path_text(value) -> Path:
-    """handelen.codekanaal.pad: SR-8's refusals, then `_check_code_path`
+    """handelen.codekanaal.pad: the refusals of `_refuse_remote_or_stream`, then `_check_code_path`
     (which keeps requiring an absolute path - never resolved for it)."""
     text = _require_text(value, "handelen.codekanaal.pad")
     _refuse_remote_or_stream(text, "handelen.codekanaal.pad")
@@ -343,7 +343,7 @@ def _code_channel(value, forbidden_dirs: list[Path]):
 def _onderhoud_path(value, field: str, base: Path | None) -> Path:
     """`_config_path` when the caller knows the configuration's directory;
     a direct caller without it (a test) keeps the old reading, with the
-    SR-8 refusals all the same."""
+    refusals of `_refuse_remote_or_stream` all the same."""
     if base is not None:
         return _config_path(value, field, base)
     text = _require_text(value, field)
@@ -827,7 +827,7 @@ def _without_extended_prefix(text: str) -> str:
     return text
 
 
-# SR-8 + B6 (1.0.2). Where a configured path may point. Measured on 1.0.0: a
+# 1.0.2. Where a configured path may point. Measured on 1.0.0: a
 # relative path followed the working directory of the MCP host (one config,
 # two exports, depending on who started it - and the client configuration
 # from the manual did not start at all); a UNC export map turned every
@@ -842,7 +842,7 @@ _LOCAL_VOLUME_GUID = re.compile(r"^\\\\\?\\Volume\{[0-9A-Fa-f-]{36}\}(\\|$)")
 
 
 def _refuse_remote_or_stream(text: str, field: str) -> None:
-    """Refuses the spellings of SR-8 in `text` (operator text, `!r`-quoted)."""
+    """Refuses the spellings described above in `text` (operator text, `!r`-quoted)."""
     if os.name != "nt":
         return
     spelled = text.replace("/", "\\")
@@ -873,7 +873,7 @@ def _refuse_remote_or_stream(text: str, field: str) -> None:
 
 
 def _config_path(value, field: str, base: Path) -> Path:
-    """The path of `field` as the server uses it: SR-8's refusals first, then
+    """The path of `field` as the server uses it: `_refuse_remote_or_stream` first, then
     a relative path resolved against `base` (the directory of the
     configuration file), never against the working directory."""
     text = _require_text(value, field)
@@ -891,7 +891,7 @@ def _config_path(value, field: str, base: Path) -> Path:
 
 def _relative_note(value, base: Path) -> str:
     """For a refusal over a path that was written RELATIVE: where it was
-    resolved (B6). Empty for an absolute path."""
+    resolved. Empty for an absolute path."""
     if isinstance(value, str) and not _is_absolute_path(Path(value.strip())):
         return f" (relatief pad, opgelost tegen de map van het configuratiebestand {base}, niet tegen de werkmap)"
     return ""
@@ -1089,7 +1089,7 @@ _SHA256_HEX = re.compile(r"[0-9a-f]{64}")
 
 
 def _script_policy(raw: dict) -> ScriptPolicy:
-    """SR-5 (1.0.2): `scriptpin` (file name -> sha256, lower-case hex, from
+    """1.0.2: `scriptpin` (file name -> sha256, lower-case hex, from
     `python -m nsmcp.powershell --pin`) and `uitvoeringsbeleid` (one of
     `EXECUTION_POLICIES`). Absent `scriptpin`: no check, as before - named in
     the documentation, never a silent pass of a broken pin."""
@@ -1126,7 +1126,7 @@ PSEUDONYM_TABLE_NAME = "openheid-vertaaltabel.json"
 
 
 def _check_pseudonym_table_dir(table: Path, export_dir: Path) -> None:
-    """SR-7 (1.0.2): the pseudonym table may not lie in the export map nor in
+    """1.0.2: the pseudonym table may not lie in the export map nor in
     the directory that holds it. Both are refused with the remedy; a path
     that cannot be compared is refused too."""
     refusal = (
@@ -1516,7 +1516,7 @@ def build_server_from_config(path: Path) -> FastMCP:
         _require_printable_targets(doelen_in_bestand)
         _require_one_target_per_address(doelen_in_bestand)
 
-    # SR-7 (1.0.2): the pseudonym table and its lock in the management
+    # 1.0.2: the pseudonym table and its lock in the management
     # directory - the same choice as the provenance map above (the ledger
     # map, or the configuration's own directory) - and never in or around
     # the export map, which whoever supplies an export may write. Only
