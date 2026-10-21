@@ -40,6 +40,8 @@ PREDICATES = frozenset(
         # Proxy) OR AAA virtual server" is not answered by either half alone.
         "heeft_gateway_of_aaa_vserver",
         "heeft_gateway_of_aaa_met_saml_action",
+        # B8 (1.0.2): "SAML SP or IdP" (CTX697174, CTX697191).
+        "heeft_saml_action_of_idp",
         "heeft_http2_profiel",
         "heeft_tcp_timestamp_profiel",
         "heeft_lb_oracle_of_dns",

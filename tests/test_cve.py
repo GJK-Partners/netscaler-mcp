@@ -5803,3 +5803,38 @@ def test_the_open_measurements_are_visible_in_the_suite():
     assert doc.is_file(), "de openstaande metingen horen op schrift te staan"
     text = doc.read_text(encoding="utf-8")
     assert "FIPS" in text and "DNS over HTTPS" in text
+
+
+# --- B8 (1.0.2): "SAML SP of IdP" as one condition ---------------------------
+#
+# CTX697174 (and the older band of CTX697191) state "SAML SP or IdP". The
+# product knew both halves apart and only an AND composite, so a knowledge
+# package had to fall back on `altijd`.
+
+
+def test_b8_the_or_composite_is_a_known_predicate():
+    assert "heeft_saml_action_of_idp" in PREDICATES
+    assert "heeft_saml_action_of_idp" in EVALUATED_PREDICATES
+
+
+def test_b8_the_lab_export_has_neither_half_and_names_both():
+    export = load_export(Path(__file__).parent / "fixtures" / "lab-export-vpx-20260826")
+    outcome, evidence = evaluate_predicate(export, "heeft_saml_action_of_idp")
+    assert outcome == "niet gevonden", evidence
+    assert " OF " in evidence
+    assert "samlaction" in evidence.lower() and "samlidpprofile" in evidence.lower()
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "add authentication samlIdPProfile IDP_1 -samlIdPCertName idp_cert",
+        "add authentication samlAction SAML_ACT_1 -samlIdPCertName idp_cert",
+    ],
+    ids=["only-idp-profile", "only-saml-action"],
+)
+def test_b8_either_half_alone_makes_the_condition_present(tmp_path, line):
+    export = load_export(_export(tmp_path, "NetScaler NS14.1: Build 72.57.nc", {}, running_config=[line]))
+    outcome, evidence = evaluate_predicate(export, "heeft_saml_action_of_idp")
+    assert outcome == "aanwezig", evidence
+    assert " OF " in evidence
