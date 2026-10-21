@@ -1132,7 +1132,7 @@ def test_the_evidence_of_check_eight_names_the_route_of_the_live_read(preflight_
     acht = next(
         c for c in preflight_checks(preflight_export, knowledge, 9000, 1081, free_space_route=route) if c.number == 8
     )
-    assert acht.evidence.startswith(f"{route}, live gelezen; vendorvloer")
+    assert acht.evidence.startswith(f"live gelezen via {route}; vendorvloer")
     leeg = next(
         c for c in preflight_checks(preflight_export, knowledge, None, 1081, free_space_route=route) if c.number == 8
     )
@@ -1142,14 +1142,14 @@ def test_the_evidence_of_check_eight_names_the_route_of_the_live_read(preflight_
 
 def test_without_a_route_the_collector_route_is_named(preflight_export, knowledge):
     acht = next(c for c in preflight_checks(preflight_export, knowledge, 9000, 1081) if c.number == 8)
-    assert acht.evidence.startswith(f"{FREE_SPACE_ROUTE_COLLECTOR}, live gelezen")
+    assert acht.evidence.startswith(f"live gelezen via {FREE_SPACE_ROUTE_COLLECTOR}")
 
 
 def test_the_answer_carries_the_route_it_was_given(preflight_export, knowledge):
     tekst = preflight_answer(
         preflight_export, knowledge, 9000, 1081, gap=None, free_space_route=FREE_SPACE_ROUTE_SSH
     ).to_text()
-    assert "df -k /var over SSH, live gelezen" in tekst
+    assert "live gelezen via df -k /var over SSH" in tekst
 
 
 def test_the_read_script_output_gives_a_whole_number_only():
@@ -1405,3 +1405,55 @@ def test_b1_check_five_is_not_assessed_without_a_readable_export_date(tmp_path):
     check = _check_5_certificates(export, today=date(2026, 10, 21))
     assert check.word == NOT_ASSESSED
     assert "leeftijd van de export" in check.reason
+
+
+# --- B3 (1.0.2): the evidence of check 8 follows what really ran -----------
+#
+# Measured: without a target and without a collect script the evidence said
+# "stat/system via het verzamelscript, live gelezen" and the reason "de live
+# lezing ... leverde geen bruikbare waarde", while nothing was read at all.
+
+
+def test_b3_no_read_says_not_read_with_the_reason_and_names_no_route():
+    from nsmcp.preflight import _check_8_free_space
+
+    reden = "er is geen doel ingesteld, dus de vrije ruimte is niet live te lezen"
+    acht = _check_8_free_space(None, 1081, None, reden)
+    assert acht.word == NOT_ASSESSED
+    assert acht.evidence.startswith(f"niet gelezen: {reden}")
+    assert "live gelezen" not in acht.evidence
+    assert "live lezing" not in acht.reason
+    assert FREE_SPACE_ROUTE_COLLECTOR not in acht.evidence
+    assert FREE_SPACE_ROUTE_SSH not in acht.evidence
+
+
+@pytest.mark.parametrize("route", [FREE_SPACE_ROUTE_COLLECTOR, FREE_SPACE_ROUTE_SSH])
+def test_b3_a_failed_read_names_the_route_that_ran_and_no_value(route):
+    from nsmcp.preflight import _check_8_free_space
+
+    acht = _check_8_free_space(None, 1081, route, "het meetscript stopte met exitcode 1")
+    assert acht.word == NOT_ASSESSED
+    assert acht.evidence.startswith(f"live gelezen via {route}, geen bruikbare waarde")
+    assert "gemeten" not in acht.evidence
+    assert "exitcode 1" in acht.reason
+
+
+@pytest.mark.parametrize("route", [FREE_SPACE_ROUTE_COLLECTOR, FREE_SPACE_ROUTE_SSH])
+def test_b3_a_successful_read_names_the_route_and_the_measurement(route):
+    from nsmcp.preflight import _check_8_free_space
+
+    acht = _check_8_free_space(9000, 1081, route)
+    assert acht.word == NO_BLOCKER
+    assert acht.evidence.startswith(f"live gelezen via {route}")
+    assert "gemeten 9000 MB" in acht.evidence
+
+
+def test_b3_the_answer_without_a_target_claims_no_live_read(preflight_export, knowledge):
+    from nsmcp.answer import ReadGap
+
+    gap = ReadGap(source="stat/system", reason="er is geen doel ingesteld, dus de vrije ruimte is niet live te lezen")
+    text = preflight_answer(preflight_export, knowledge, None, 1081, gap, free_space_route=None).to_text()
+    regel8 = text[text.index("- 8. ") :].split("\n- ", 1)[0]
+    assert "live gelezen" not in regel8
+    assert "live lezing" not in regel8
+    assert "niet gelezen: er is geen doel ingesteld" in regel8

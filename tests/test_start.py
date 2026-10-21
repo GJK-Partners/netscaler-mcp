@@ -2882,3 +2882,30 @@ def test_the_sso_presenter_in_a_map_the_product_itself_reads_or_writes_is_refuse
     }
     message = _start_refusal(root, body)
     assert message.startswith(_REFUSED_CODE_DIR), message
+
+
+def test_b3_preflight_without_a_target_claims_no_live_read_through_a_real_session(tmp_path):
+    """B3 (1.0.2), measured in the public test: no target, no collect script,
+    and the evidence of check 8 still said "live gelezen"."""
+    forget_identities()
+    _real_export(tmp_path)
+    _real_knowledge(tmp_path)
+    server = build_server_from_config(write(tmp_path, base_config(tmp_path)))
+
+    import asyncio
+
+    async def scenario():
+        async with create_connected_server_and_client_session(
+            server, client_info=types.Implementation(name="claude-code", version="1.0")
+        ) as client:
+            return await client.call_tool("status_update_preflight", {})
+
+    result = asyncio.run(scenario())
+
+    assert result.isError is False
+    text = "\n".join(b.text for b in result.content if hasattr(b, "text"))
+    regel8 = text[text.index("- 8. ") :].split("\n- ", 1)[0]
+    assert "niet gelezen: er is geen doel ingesteld" in regel8
+    assert "live gelezen" not in regel8
+    assert "live lezing" not in regel8
+    assert "verzamelscript, live" not in text

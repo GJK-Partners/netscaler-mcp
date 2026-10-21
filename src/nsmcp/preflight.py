@@ -1094,16 +1094,40 @@ def free_space_from_script(exit_code, stdout) -> tuple[int | None, str]:
     return int(matches[0].group("mb")), ""
 
 
-def _check_8_free_space(free_var_mb, bundle_mb, route: str = FREE_SPACE_ROUTE_COLLECTOR) -> Check:
+def _check_8_free_space(
+    free_var_mb, bundle_mb, route: str | None = FREE_SPACE_ROUTE_COLLECTOR, gap_reason: str = ""
+) -> Check:
+    """Check 8 on the value the caller read live, or did not.
+
+    B3 (1.0.2): the evidence says what really happened. `route` is None when
+    no read ran at all (no target, no collect script, more than one target
+    without a name): then "niet gelezen: <reden>" and no route. A read that
+    ran without a usable value names its route and "geen bruikbare waarde";
+    only a measurement says "gemeten"."""
     bundle = bundle_mb if bundle_mb else ASSUMED_BUNDLE_MB
     aanname = "" if bundle_mb else f" (aangenomen bundelgrootte {ASSUMED_BUNDLE_MB} MB)"
     eigen_vloer = own_floor_mb(bundle)
-    bewijs = (
-        f"{route}, live gelezen; vendorvloer {VENDOR_FLOOR_MB} MB + bundel"
-        f" {bundle} MB + uitpakkosten {bundle} MB = {eigen_vloer} MB{aanname}"
+    vloer = (
+        f"vendorvloer {VENDOR_FLOOR_MB} MB + bundel {bundle} MB + uitpakkosten {bundle} MB = {eigen_vloer} MB{aanname}"
     )
+    if route is None:
+        reden = gap_reason or "er is geen live lezing gedaan"
+        return Check(
+            8,
+            NAME_8,
+            NOT_ASSESSED,
+            f"niet gelezen: {reden}; {vloer}",
+            f"geen lezing gedaan: {reden}",
+        )
     if free_var_mb is None:
-        return Check(8, NAME_8, NOT_ASSESSED, bewijs, f"de live lezing ({route}) leverde geen bruikbare waarde")
+        return Check(
+            8,
+            NAME_8,
+            NOT_ASSESSED,
+            f"live gelezen via {route}, geen bruikbare waarde; {vloer}",
+            f"de live lezing via {route} leverde geen bruikbare waarde" + (f": {gap_reason}" if gap_reason else ""),
+        )
+    bewijs = f"live gelezen via {route}; {vloer}"
     if free_var_mb < VENDOR_FLOOR_MB:
         return Check(
             8, NAME_8, BLOCKER, f"{bewijs}; gemeten {free_var_mb} MB", f"onder de vendorvloer van {VENDOR_FLOOR_MB} MB"
@@ -1300,7 +1324,8 @@ def preflight_checks(
     bundle_mb,
     *,
     cert_horizon_days: int = CERT_MARGIN_DAYS,
-    free_space_route: str = FREE_SPACE_ROUTE_COLLECTOR,
+    free_space_route: str | None = FREE_SPACE_ROUTE_COLLECTOR,
+    free_space_gap_reason: str = "",
     today: date | None = None,
 ) -> tuple[Check, ...]:
     """`cert_horizon_days` is keyword-only and defaults to `CERT_MARGIN_DAYS`,
@@ -1321,7 +1346,7 @@ def preflight_checks(
         _check_5_certificates(export, cert_horizon_days, today=today),
         _check_6_build(export, knowledge),
         _check_7_form_factor(export),
-        _check_8_free_space(free_var_mb, bundle_mb, free_space_route),
+        _check_8_free_space(free_var_mb, bundle_mb, free_space_route, free_space_gap_reason),
         _check_9_rollback(export),
     )
 
@@ -1346,9 +1371,16 @@ def _heading_finding(checks) -> Finding | None:
 
 
 def preflight_answer(
-    export, knowledge, free_var_mb, bundle_mb, gap, *, free_space_route: str = FREE_SPACE_ROUTE_COLLECTOR
+    export, knowledge, free_var_mb, bundle_mb, gap, *, free_space_route: str | None = FREE_SPACE_ROUTE_COLLECTOR
 ) -> Answer:
-    checks = preflight_checks(export, knowledge, free_var_mb, bundle_mb, free_space_route=free_space_route)
+    checks = preflight_checks(
+        export,
+        knowledge,
+        free_var_mb,
+        bundle_mb,
+        free_space_route=free_space_route,
+        free_space_gap_reason=gap.reason if gap is not None else "",
+    )
     findings = [
         Finding(
             subject=f"{c.number}. {c.name}",

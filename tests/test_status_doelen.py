@@ -511,6 +511,12 @@ def test_the_preflight_measures_the_given_doel_instead_of_giving_up_on_two_targe
     assert error is False, text
     assert "krijgt geen doelnaam mee" not in text
     assert "staat niet naast de faserunner; er is niet live gelezen" in text
+    # B3 (1.0.2): no read process ran, so the evidence names no route and
+    # never says "live gelezen via".
+    for answer in (without, text):
+        regel8 = answer[answer.index("- 8. ") :].split("\n- ", 1)[0]
+        assert "niet gelezen: " in regel8
+        assert "live gelezen via" not in regel8
 
 
 # ---------------------------------------------------------------------------

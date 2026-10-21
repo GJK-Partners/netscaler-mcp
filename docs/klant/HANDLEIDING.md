@@ -268,13 +268,16 @@ route dat kindproces neemt, volgt uit de configuratie en niet uit een mislukking
   `Invoke-GjkLiveMeting.ps1` naast de faserunner. Dat gebruikt hetzelfde transport als de runner:
   de gepinde hostsleutel, de SSH-gebruiker uit `onderhoud.ssh_gebruiker`, het credential-target uit
   `doelen`, en dezelfde meting `df -k /var` als fase R1. De SSH-gebruiker moet dus `shell` mogen
-  uitvoeren, net als voor de upgraderoute. De bewijsregel zegt dan "df -k /var over SSH, live
-  gelezen".
+  uitvoeren, net als voor de upgraderoute. De bewijsregel zegt dan "live gelezen via df -k /var
+  over SSH".
 - **Via het verzamelscript**, in elk ander geval: langs hetzelfde aparte proces als een scan, met
   hetzelfde doel en hetzelfde credential uit `doelen`. Het product vraagt het verzamelscript
   daarvoor om een enkele resource, met het argument `-OnlyResources`. De bewijsregel zegt dan
-  "stat/system via het verzamelscript, live gelezen".
+  "live gelezen via stat/system via het verzamelscript".
 
+Is er geen doel of geen verzamelscript ingesteld, dan wordt er niets gelezen en zegt de
+bewijsregel "niet gelezen: <reden>"; er staat dan geen route bij. Een route die wel liep maar geen
+getal opleverde, staat er als "live gelezen via <route>, geen bruikbare waarde".
 Mislukt de gekozen route, dan probeert het product de andere route niet stilletjes alsnog: toets 8
 wordt `niet beoordeeld` met de reden erbij (geen sessie, een afwijkende hostsleutel, de
 tijdslimiet van 120 seconden, geen geheel getal). Wat het product nooit doet, is er stil groen van

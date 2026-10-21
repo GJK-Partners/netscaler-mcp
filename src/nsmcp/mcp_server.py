@@ -1884,42 +1884,62 @@ def build_server(
             Fail closed in every direction: no script, a process that could
             not start, the time limit, a non-zero exit code, anything but one
             whole number - each a ReadGap with its reason, and never a second
-            attempt through the collector."""
+            attempt through the collector.
+
+            The third value says whether a read process really ran (B3,
+            1.0.2): a missing script, an invalid pin or a process that did
+            not start is "niet gelezen", never "live gelezen"."""
             script = sibling_script(onderhoud, LIVE_MEASURE_SCRIPT)
             if not script.is_file():
-                return None, ReadGap(
-                    source=FREE_SPACE_ROUTE_SSH,
-                    reason=(
-                        f"het meetscript {LIVE_MEASURE_SCRIPT} staat niet naast de faserunner; er is niet live gelezen"
+                return (
+                    None,
+                    ReadGap(
+                        source=FREE_SPACE_ROUTE_SSH,
+                        reason=(
+                            f"het meetscript {LIVE_MEASURE_SCRIPT} staat niet naast de faserunner; er is niet live gelezen"
+                        ),
                     ),
+                    False,
                 )
             try:
                 arguments = build_live_measure_arguments(target, onderhoud, forbidden_addresses=forbidden_addresses)
             except ValueError:
-                return None, ReadGap(
-                    source=FREE_SPACE_ROUTE_SSH,
-                    reason="de gepinde hostsleutel van dit doel is geen geldige vingerafdruk; er is niet live gelezen",
+                return (
+                    None,
+                    ReadGap(
+                        source=FREE_SPACE_ROUTE_SSH,
+                        reason="de gepinde hostsleutel van dit doel is geen geldige vingerafdruk; er is niet live gelezen",
+                    ),
+                    False,
                 )
             runner = live_run or default_runner
             try:
                 code, stdout, _stderr = runner(script_command(script, arguments), LIVE_MEASURE_TIMEOUT_S)
             except subprocess.TimeoutExpired:
-                return None, ReadGap(
-                    source=FREE_SPACE_ROUTE_SSH,
-                    reason=(
-                        f"de live lezing over SSH overschreed de tijdslimiet van {LIVE_MEASURE_TIMEOUT_S} seconden"
-                        " en is afgebroken"
+                return (
+                    None,
+                    ReadGap(
+                        source=FREE_SPACE_ROUTE_SSH,
+                        reason=(
+                            f"de live lezing over SSH overschreed de tijdslimiet van {LIVE_MEASURE_TIMEOUT_S} seconden"
+                            " en is afgebroken"
+                        ),
                     ),
+                    True,
                 )
             except ActionError as exc:
-                return None, ReadGap(
-                    source=FREE_SPACE_ROUTE_SSH,
-                    reason=f"de live lezing over SSH kon niet gestart worden: {_scrub_error_text(str(exc), target)}",
+                return (
+                    None,
+                    ReadGap(
+                        source=FREE_SPACE_ROUTE_SSH,
+                        reason=f"de live lezing over SSH kon niet gestart worden: {_scrub_error_text(str(exc), target)}",
+                    ),
+                    False,
                 )
             vrij, reden = free_space_from_script(code, stdout)
             if vrij is None:
-                return None, ReadGap(source=FREE_SPACE_ROUTE_SSH, reason=_scrub_ssh_text(reden, target))
-            return vrij, None
+                return None, ReadGap(source=FREE_SPACE_ROUTE_SSH, reason=_scrub_ssh_text(reden, target)), True
+            return vrij, None, True
 
         def _free_var_mb(gekozen: str = ""):
             """(vrije MB op /var, leesgat, route) - the one LIVE read of this
@@ -1956,7 +1976,7 @@ def build_server(
                             " de andere acht toetsen komen wel uit de export"
                         ),
                     ),
-                    FREE_SPACE_ROUTE_COLLECTOR,
+                    None,  # B3: no read ran, so no route to name
                 )
             if not gekozen and len(targets) > 1:
                 # Without `doel` (one pre-flight answer about the appliance
@@ -1973,12 +1993,12 @@ def build_server(
                             " stellen"
                         ),
                     ),
-                    FREE_SPACE_ROUTE_COLLECTOR,
+                    None,  # B3: no read ran, so no route to name
                 )
             target = targets[gekozen] if gekozen else next(iter(targets.values()))
             if onderhoud is not None and target.ssh_hostsleutel_vingerafdruk:
-                vrij, gap = _free_var_mb_over_ssh(target)
-                return vrij, gap, FREE_SPACE_ROUTE_SSH
+                vrij, gap, ran = _free_var_mb_over_ssh(target)
+                return vrij, gap, FREE_SPACE_ROUTE_SSH if ran else None
             if collect_script is None:
                 return (
                     None,
@@ -1988,7 +2008,18 @@ def build_server(
                             "er is geen verzamelscript ingesteld, dus deze server kan de vrije ruimte niet live lezen"
                         ),
                     ),
-                    FREE_SPACE_ROUTE_COLLECTOR,
+                    None,  # B3: no read ran, so no route to name
+                )
+            if not Path(collect_script).is_file():
+                # B3 (1.0.2): checked here as well as in read_single_resource,
+                # so a missing script is "niet gelezen" without a route.
+                return (
+                    None,
+                    ReadGap(
+                        source=FREE_SPACE_RESOURCE,
+                        reason="het verzamelscript is niet gevonden; er is niet live gelezen",
+                    ),
+                    None,
                 )
             # Two minutes, deliberately far below the 900 s of a full scan
             # (collect.collect): this is ONE resource, and a pre-flight that

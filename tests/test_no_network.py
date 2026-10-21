@@ -1147,7 +1147,7 @@ def test_status_update_preflight_reads_free_space_over_ssh_when_onderhoud_and_a_
     assert "-WatIs" not in arguments
     assert collector_calls == [], "de SSH-route mag de collector niet ook starten"
     assert "12345 MB" in text, text
-    assert "df -k /var over SSH, live gelezen" in text
+    assert "live gelezen via df -k /var over SSH" in text
 
 
 def test_without_a_pinned_host_key_the_collector_route_is_taken(tmp_path, loop, no_sockets):
