@@ -234,6 +234,8 @@ def _management(control, export, dimensions):
                     if single_gap is None:
                         gap = None
             gaps.append(gap or ReadGap(source=resource, reason=unread))
+        # B5 (1.0.2): the parent cross-check gaps of the dimension too.
+        gaps.extend(dimension.gaps)
     status = (
         "FAIL"
         if any(d.verdict == "FAIL" for d in chosen)

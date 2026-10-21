@@ -149,6 +149,10 @@ class DimensionResult:
     instances: tuple[str, ...] = ()
     unread: tuple[str, ...] = ()
     reason: str = ""
+    # B5 (1.0.2): read gaps that are not a whole unreadable source - the
+    # parent cross-check of a binding file (`Export.binding_parents`) - as
+    # the export names them, so they stand under NIET VASTGESTELD as such.
+    gaps: tuple[ReadGap, ...] = ()
 
 
 def _raw(row: dict, field: str):
@@ -273,18 +277,20 @@ def _int_gap_note(field: str, raw) -> str:
     return f"{field} niet gelezen als een geheel getal (gelezen: {shape_or_missing(raw)})"
 
 
-def _decide(name: str, evidence: str, instances: list[str], unread: list[str], detail: str) -> DimensionResult:
+def _decide(
+    name: str, evidence: str, instances: list[str], unread: list[str], detail: str, gaps: tuple[ReadGap, ...] = ()
+) -> DimensionResult:
     if instances:
-        return DimensionResult(name, "FAIL", evidence, tuple(instances), tuple(unread), detail)
-    if unread:
-        return DimensionResult(
-            name,
-            "NIET BEOORDEELD",
-            evidence,
-            (),
-            tuple(unread),
-            "verdict-sturende bron niet bruikbaar gelezen: " + ", ".join(unread),
-        )
+        return DimensionResult(name, "FAIL", evidence, tuple(instances), tuple(unread), detail, gaps)
+    if unread or gaps:
+        # B5 (1.0.2): a PASS over a known gap in its own source is no PASS -
+        # the instance that would fail it can sit in exactly what was unread.
+        named = [*unread, *(gap.source for gap in gaps)]
+        reason = "verdict-sturende bron niet bruikbaar gelezen: " + ", ".join(dict.fromkeys(named))
+        if not unread:
+            # Only a partial gap: say what WAS read, and why that is not a PASS.
+            reason = f"{detail}, maar niet alles is gelezen ({', '.join(dict.fromkeys(named))}); dus geen PASS"
+        return DimensionResult(name, "NIET BEOORDEELD", evidence, (), tuple(unread), reason, gaps)
     return DimensionResult(name, "PASS", evidence, (), (), detail)
 
 
@@ -408,6 +414,9 @@ def _certificate(export) -> DimensionResult:
     if gap is not None:
         unread.append(CERT_BINDING)
         bindings = []
+    # B5 (1.0.2): a vserver the binding file has no parent entry for has
+    # UNREAD certificate bindings - the default certificate may hang there.
+    parent_gaps = export.binding_parents(CERT_BINDING).gaps if gap is None else ()
     instances: list[str] = []
     for b in bindings:
         if not isinstance(b, dict):
@@ -437,6 +446,7 @@ def _certificate(export) -> DimensionResult:
         f"{DEFAULT_MGMT_CERT} gebonden aan productieverkeer"
         if instances
         else f"{DEFAULT_MGMT_CERT} hangt aan geen enkele gelezen vserver",
+        tuple(parent_gaps),
     )
 
 
@@ -537,6 +547,7 @@ def mgmt_plane(export, knowledge: Knowledge) -> Answer:
                     reason=f"bron voor {result.name} niet bruikbaar gelezen",
                 )
             )
+        read_gaps.extend(result.gaps)
     return Answer(
         question="staat het beheer van deze doos open",
         findings=findings,
@@ -585,5 +596,7 @@ def names_in_mgmt_sources(export) -> tuple[str, ...]:
                 vserver = field_text(row, "vservername")
                 if vserver:
                     names.add(vserver)
+        # B5 (1.0.2): the parent names a cross-check gap can print.
+        names.update(export.binding_parents(CERT_BINDING).names)
     names.add(DEFAULT_MGMT_CERT)
     return tuple(sorted(names))

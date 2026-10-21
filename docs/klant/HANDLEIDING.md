@@ -906,7 +906,10 @@ die niets met elkaar te maken hebben.
 uitspraken of het beheer van de appliance openstaat: blootstelling, transport,
 certificaat en RBAC. Elk van de vier is PASS, FAIL of NIET BEOORDEELD - en
 "niet beoordeeld" betekent dat een bron niet gelezen kon worden, nooit dat het
-in orde is.
+in orde is. Dat geldt ook voor een gat binnen een bron: ontbreken de
+certificaatbindingen van een vserver in de export, dan is "certificaat" NIET
+BEOORDEELD en staat dat gat onder NIET VASTGESTELD - het standaardcertificaat kan
+juist daar hangen.
 `beveiliging_headers` (hoofdstuk beveiliging) meldt per HTTP-securityheader of
 die aanwezig en gebonden, wel gedefinieerd maar niet gebonden, afwezig of niet
 beoordeeld is. Een rewrite-action telt alleen via een effectieve RESPONSE-binding.

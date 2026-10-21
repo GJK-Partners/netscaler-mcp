@@ -27,7 +27,8 @@ def test_the_real_export_fails_on_exposure_transport_and_rbac():
     assert "Vraag: staat het beheer van deze doos open" in text
     assert "- blootstelling: FAIL [vastgesteld]" in text
     assert "- transport: FAIL [vastgesteld]" in text
-    assert "- certificaat: PASS [vastgesteld]" in text
+    # B5 (1.0.2): the certificate bindings of VSRV-001 are not in the export.
+    assert "- certificaat: NIET BEOORDEELD [niet vastgesteld]" in text
     assert "- RBAC: FAIL [vastgesteld]" in text
 
 
@@ -637,3 +638,31 @@ def test_an_empty_but_successfully_read_singleton_is_niet_beoordeeld_never_pass(
         "een leeg maar succesvol gelezen object mag nooit stil verdwijnen"
     )
     assert any("config/systemparameter" in u for u in result["RBAC"].unread)
+
+
+# --- B5 (1.0.2): no PASS over a known gap in the certificate bindings -------
+#
+# Measured in the public test: "certificaat: PASS [vastgesteld] -
+# ns-server-certificate hangt aan geen enkele gelezen vserver", while
+# rapport_dekking on the same export says the certificate bindings of
+# VSRV-001 were never read (its parent entry is missing from the binding
+# file). The default certificate could hang on exactly that vserver.
+
+
+def test_b5_the_certificate_dimension_is_not_assessed_over_an_unread_parent():
+    export = load_export(FIXTURE)
+    result = {d.name: d for d in mgmt_plane_result(export)}["certificaat"]
+    assert result.verdict == "NIET BEOORDEELD", result
+    text = stamp_data(mgmt_plane(export, _KNOWLEDGE), export.collected_at, TODAY, export.target_name).to_text()
+    assert "- certificaat: NIET BEOORDEELD [niet vastgesteld]" in text
+    gaps = text.split("NIET VASTGESTELD (geen stille aanname):", 1)[1].split("NIET BEOORDEELD IN DEZE VERSIE", 1)[0]
+    assert "VSRV-001" in gaps, gaps
+
+
+def test_b5_the_parent_names_in_the_gap_reach_the_masking_seam():
+    from nsmcp.disclosure import names_from_export
+    from nsmcp.mgmt_plane import names_in_mgmt_sources
+
+    export = load_export(FIXTURE)
+    assert "VSRV-001" in names_in_mgmt_sources(export)
+    assert "VSRV-001" in names_from_export(export)
