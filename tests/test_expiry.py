@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,11 @@ class ExportStub:
     # servicegroup file has a hash, and every object source other than the
     # certificates answers an empty list.
     file_hashes = {"bindings/sslservicegroup_sslcertkey_binding.by-parent.json": "stub"}
+
+    # Collected today (UTC): the counts in these rows are the counts of
+    # today, so the age correction (B1, 1.0.2) is zero. A stub without a
+    # date is a different case, pinned by the B1 tests at the end.
+    collected_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def status(self, resource):
         return "OK"
@@ -324,7 +330,9 @@ def test_the_answer_sorts_on_impact_not_on_days():
 
     export = load_export(Path(__file__).parent / "fixtures" / "lab-export-vpx-20260826")
     answer = stamp_data(
-        what_expires(export, Knowledge(version="a8", date="2026-08-26", age_days=0, missing=False), 3650),
+        what_expires(
+            export, Knowledge(version="a8", date="2026-08-26", age_days=0, missing=False), 3650, today=date(2026, 8, 26)
+        ),
         export.collected_at,
         date(2026, 8, 26),
         export.target_name,
@@ -1581,3 +1589,71 @@ def test_the_empty_sentence_is_never_said_over_an_unread_source():
         ExportStub([], gap=ReadGap(source="config/sslcertkey", reason="RBAC_DENIED")), FRESH, horizon_days=90
     )
     assert answer.findings == []
+
+
+# --- B1 (1.0.2): the days count from today, not from the moment of the scan ---
+#
+# Measured in the public test of 1.0.0: `daystoexpiration` is the appliance's
+# count AT THE SCAN, and the answer repeated it unchanged - "verloopt over 817
+# dagen" from an export 56 days old, while 761 days remained. The horizon
+# filter then counted from the scan as well.
+
+
+class _DatedStub(ExportStub):
+    def __init__(self, certs, collected_at):
+        super().__init__(certs)
+        self.collected_at = collected_at
+
+
+def test_b1_a_certificate_inside_the_horizon_from_today_is_listed():
+    """Export 56 days old, a certificate at daystoexpiration=100 at the scan:
+    44 days remain today, so it falls INSIDE a horizon of 90 days."""
+    from datetime import date
+
+    stub = _DatedStub([{"certkey": "cert_b1", "daystoexpiration": 100}], "2026-08-26T10:00:00.0000000Z")
+    answer = what_expires(stub, FRESH, horizon_days=90, today=date(2026, 10, 21))
+    text = answer.to_text()
+    assert "cert_b1: verloopt over 44 dagen (notice)" in text
+    assert "verloopt over 100 dagen" not in text
+    assert "gerekend vanaf vandaag, export van 56 dagen oud" in text
+
+
+def test_b1_the_class_follows_the_corrected_days():
+    """A certificate the scan saw at 60 days is past its date 61 days later."""
+    from datetime import date
+
+    stub = _DatedStub([{"certkey": "cert_weg", "daystoexpiration": 60}], "2026-08-21T10:00:00Z")
+    finding = what_expires(stub, FRESH, horizon_days=90, today=date(2026, 10, 21)).findings[0]
+    assert finding.outcome.startswith("is verlopen")
+    assert finding.certainty is Certainty.ESTABLISHED
+
+
+def test_b1_the_lab_export_counts_from_today():
+    """The shipped lab export (2026-08-26), read on 2026-10-21 (56 days):
+    CERT-009 carries daystoexpiration=817, so 761 days remain."""
+    from datetime import date
+
+    from nsmcp.export import load_export
+
+    export = load_export(Path(__file__).parent / "fixtures" / "lab-export-vpx-20260826")
+    text = what_expires(export, FRESH, 3650, today=date(2026, 10, 21)).to_text()
+    assert "CERT-009: verloopt over 761 dagen" in text
+    assert "verloopt over 817 dagen" not in text
+
+
+@pytest.mark.parametrize(
+    "collected_at",
+    [None, "", "geen datum", "2099-01-01T00:00:00Z"],
+    ids=["absent", "blank", "unreadable", "future"],
+)
+def test_b1_an_unreadable_export_date_is_not_established_never_the_raw_field(collected_at):
+    from datetime import date
+
+    stub = _DatedStub([{"certkey": "cert_x", "daystoexpiration": 100}], collected_at)
+    answer = what_expires(stub, FRESH, horizon_days=90, today=date(2026, 10, 21))
+    text = answer.to_text()
+    assert "verloopt over 100 dagen" not in text
+    finding = next(f for f in answer.findings if f.subject == "cert_x")
+    assert finding.certainty is Certainty.NOT_ESTABLISHED
+    assert "niet vast te stellen" in finding.outcome
+    assert "geen certificaat verloopt" not in text

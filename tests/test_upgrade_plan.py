@@ -328,7 +328,7 @@ def test_the_certificate_horizon_widens_with_the_soak_window(lab_export, knowled
     # in tests/test_preflight.py) to make the check show its evidence.
     import nsmcp.preflight as preflight_module
 
-    monkeypatch.setattr(preflight_module, "bucket", lambda days: "warning")
+    monkeypatch.setattr(preflight_module, "bucket_from_today", lambda days, age: "warning")
     tekst = upgrade_plan(lab_export, knowledge, soak_hours=36).to_text()
     verwacht_venster_dagen = math.ceil(36 / 24)
     verwachte_horizon = CERT_MARGIN_DAYS + verwacht_venster_dagen
@@ -353,7 +353,7 @@ def test_a_soak_below_the_minimum_still_uses_the_clamped_window_for_the_horizon(
     # in tests/test_preflight.py) to make the check show its evidence.
     import nsmcp.preflight as preflight_module
 
-    monkeypatch.setattr(preflight_module, "bucket", lambda days: "warning")
+    monkeypatch.setattr(preflight_module, "bucket_from_today", lambda days, age: "warning")
     tekst = upgrade_plan(lab_export, knowledge, soak_hours=0).to_text()
     verwachte_horizon = CERT_MARGIN_DAYS + math.ceil(MINIMUM_SOAK_HOURS / 24)
     assert f"horizon {verwachte_horizon} dagen vanaf nu" in tekst
@@ -378,7 +378,7 @@ def test_the_certificate_horizon_sentence_names_which_margin_the_judgement_uses(
     # in tests/test_preflight.py) to make the check show its evidence.
     import nsmcp.preflight as preflight_module
 
-    monkeypatch.setattr(preflight_module, "bucket", lambda days: "warning")
+    monkeypatch.setattr(preflight_module, "bucket_from_today", lambda days, age: "warning")
     tekst = upgrade_plan(lab_export, knowledge, soak_hours=36).to_text()
     assert f"vaste marge van {CERT_MARGIN_DAYS} dagen" in tekst, (
         "de bewijsregel noemt het bredere venster, maar zegt niet dat de toets eronder nog"

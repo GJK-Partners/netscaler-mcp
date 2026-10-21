@@ -3127,13 +3127,16 @@ def test_the_cs_chain_sentences_are_pinned():
 
 
 def test_the_expiry_sentences_are_pinned():
+    from datetime import date
+
     from nsmcp.expiry import binding_kind_names, what_expires
     from nsmcp.export import load_export
 
-    text = what_expires(load_export(_DOH_EXPORT), _knowledge(), 90).to_text()
+    export = load_export(_DOH_EXPORT)
+    text = what_expires(export, _knowledge(), 90, today=date.fromisoformat(export.collected_at[:10])).to_text()
     assert text.splitlines()[2:4] == [
         "- certificaten: geen certificaat verloopt binnen 90 dagen (9 certificaten gelezen) [vastgesteld]",
-        "    bewijs: config/sslcertkey",
+        "    bewijs: config/sslcertkey; gerekend vanaf vandaag, export van 0 dagen oud",
     ]
     assert binding_kind_names(("sslcertkey_crldistribution_binding", "X\ny_binding")) == (
         "sslcertkey_crldistribution_binding, een bindingssoort zonder de vorm van een resourcenaam"

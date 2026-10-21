@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 from nsmcp.answer import Answer, Certainty, Finding
 from nsmcp.config_drift import comparison_evidence, read_comparison, undecided_reason
@@ -60,7 +60,7 @@ from nsmcp.cve import (
     fips_platform,
     parse_build,
 )
-from nsmcp.expiry import THRESHOLDS, bucket, usage_per_certificate
+from nsmcp.expiry import THRESHOLDS, age_of, bucket_from_today, counted_from_today, usage_per_certificate
 from nsmcp.export import KEY_MISSING_TEXT, RUNNING_CONFIG_FILE, SAVED_CONFIG_FILE, shape_of
 from nsmcp.update_advice import as_pair, day, floor_for, public_bulletin_id
 
@@ -771,7 +771,7 @@ def _certificate_word(pairs) -> tuple[str, str]:
     return NO_BLOCKER, ""
 
 
-def _check_5_certificates(export, cert_horizon_days: int = CERT_MARGIN_DAYS) -> Check:
+def _check_5_certificates(export, cert_horizon_days: int = CERT_MARGIN_DAYS, *, today: date | None = None) -> Check:
     """`cert_horizon_days` is the BINDING INTERFACE DECISION between this
     module and `upgrade_plan.py`: `preflight_checks` itself
     carries no window, so its default reproduces today's behaviour exactly -
@@ -808,14 +808,32 @@ def _check_5_certificates(export, cert_horizon_days: int = CERT_MARGIN_DAYS) -> 
             f" hieronder toetst vandaag nog tegen de vaste marge van {CERT_MARGIN_DAYS} dagen,"
             " niet tegen dit venster"
         )
+    # B1 (1.0.2): `daystoexpiration` counts from the SCAN. "Vanaf nu" is
+    # only true once the age of the export is taken off - the same age as
+    # the data line under the answer (`expiry.age_of`).
+    age_days, age_reason = age_of(export, today)
+    if age_days is not None:
+        evidence = f"{evidence}; {counted_from_today(age_days)}"
     if _usage_per_certificate is None:
         return Check(5, NAME_5, NOT_ASSESSED, evidence, _USAGE_ABSENT)
     usage = {u.certkey: u.state for u in _usage_per_certificate(export)}
     certs, gap = export.objects("config/sslcertkey")
     if gap is not None:
         return Check(5, NAME_5, NOT_ASSESSED, evidence, gap.reason)
+    if age_days is None and certs:
+        return Check(
+            5,
+            NAME_5,
+            NOT_ASSESSED,
+            evidence,
+            f"de leeftijd van de export is niet vast te stellen ({age_reason}); daystoexpiration telt vanaf"
+            " de scan, dus hoeveel dagen er vanaf nu resten is niet vast te stellen",
+        )
     pairs = [
-        (usage.get(str(row.get("certkey") or row.get("name") or ""), "onbekend"), bucket(row.get("daystoexpiration")))
+        (
+            usage.get(str(row.get("certkey") or row.get("name") or ""), "onbekend"),
+            bucket_from_today(row.get("daystoexpiration"), age_days),
+        )
         for row in certs
     ]
     word, reason = _certificate_word(pairs)
@@ -1283,6 +1301,7 @@ def preflight_checks(
     *,
     cert_horizon_days: int = CERT_MARGIN_DAYS,
     free_space_route: str = FREE_SPACE_ROUTE_COLLECTOR,
+    today: date | None = None,
 ) -> tuple[Check, ...]:
     """`cert_horizon_days` is keyword-only and defaults to `CERT_MARGIN_DAYS`,
     so every existing caller (B3/`status_update_preflight`, and every test in
@@ -1299,7 +1318,7 @@ def preflight_checks(
         _check_2_classic_markers(export),
         _check_3_ha(export),
         _check_4_drift(export),
-        _check_5_certificates(export, cert_horizon_days),
+        _check_5_certificates(export, cert_horizon_days, today=today),
         _check_6_build(export, knowledge),
         _check_7_form_factor(export),
         _check_8_free_space(free_var_mb, bundle_mb, free_space_route),

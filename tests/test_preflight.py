@@ -1354,3 +1354,54 @@ def test_check_five_on_an_export_without_the_certificate_use_sources(tmp_path):
         check = _check_5_certificates(export)
         results[tag] = (state, check.word)
     assert results == {"zonder": ("onbekend", NOT_ASSESSED), "met": ("los", NO_BLOCKER)}
+
+
+# --- B1 (1.0.2): check 5 counts its horizon from today --------------------
+#
+# The evidence said "horizon 30 dagen vanaf nu" while the judgement read the
+# raw `daystoexpiration` - the count AT THE SCAN. Measured: an export 56 days
+# old moves every certificate 56 days further away than it is.
+
+_LAB_EXPORT_B1 = Path(__file__).parent / "fixtures" / "lab-export-vpx-20260826"
+
+
+def _lab_copy_with_days(tmp_path: Path, certkey: str, days: int, collected_at: str | None = None) -> Path:
+    export_dir = tmp_path / "lab"
+    shutil.copytree(_LAB_EXPORT_B1, export_dir)
+    path = export_dir / "objects" / "sslcertkey.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    for row in raw["sslcertkey"]:
+        if row["certkey"] == certkey:
+            row["daystoexpiration"] = days
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    if collected_at is not None:
+        manifest_path = export_dir / "export-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["collectedAtUtc"] = collected_at
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    seal_manifest(export_dir)
+    return export_dir
+
+
+def test_b1_check_five_counts_the_margin_from_today(tmp_path):
+    """CERT-009 is bound (VSRV-002, VSRV-003). At the scan (2026-08-26) it
+    had 60 days; on 2026-10-21 four remain - inside the 30-day margin."""
+    from datetime import date
+
+    from nsmcp.preflight import _check_5_certificates
+
+    export = load_export(_lab_copy_with_days(tmp_path, "CERT-009", 60))
+    check = _check_5_certificates(export, today=date(2026, 10, 21))
+    assert check.word == ATTENTION, (check.word, check.reason)
+    assert "export van 56 dagen oud" in check.evidence
+
+
+def test_b1_check_five_is_not_assessed_without_a_readable_export_date(tmp_path):
+    from datetime import date
+
+    from nsmcp.preflight import _check_5_certificates
+
+    export = load_export(_lab_copy_with_days(tmp_path, "CERT-009", 600, collected_at="2099-01-01T00:00:00Z"))
+    check = _check_5_certificates(export, today=date(2026, 10, 21))
+    assert check.word == NOT_ASSESSED
+    assert "leeftijd van de export" in check.reason

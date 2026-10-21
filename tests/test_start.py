@@ -25,7 +25,7 @@ from pathlib import Path
 
 import mcp.types as types
 import pytest
-from conftest import PATH_SPELLINGS, directory_link, seal_manifest, spelled
+from conftest import PATH_SPELLINGS, directory_link, expiry_text_today, seal_manifest, spelled
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -1312,7 +1312,7 @@ def test_service_config_answers_certificaat_wat_verloopt_er_through_a_real_sessi
 
     assert result.isError is False
     text = " ".join(b.text for b in result.content if hasattr(b, "text"))
-    assert "verloopt over 9 dagen" in text
+    assert expiry_text_today(9, "2026-08-20") in text
 
 
 def test_handelen_with_openheid_beperkt_starts_and_registers_the_writing_tools(tmp_path, monkeypatch):

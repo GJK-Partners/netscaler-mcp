@@ -15,6 +15,7 @@ import hashlib
 import json
 import re
 import shutil
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -255,7 +256,9 @@ def test_a_certificate_used_only_outside_the_bindings_is_gebonden_not_los():
 
 
 def test_the_expiry_list_names_the_use_outside_the_bindings():
-    answer = what_expires(load_export(SAML), K, 3650)
+    export = load_export(SAML)
+    # Counted on the export's own day: the days below are the days at the scan.
+    answer = what_expires(export, K, 3650, today=date.fromisoformat(export.collected_at[:10]))
     text = answer.to_text()
     assert answer.read_gaps == []
     assert (

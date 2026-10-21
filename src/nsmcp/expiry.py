@@ -11,8 +11,9 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 
-from nsmcp.answer import Answer, Certainty, Finding, NotAssessed, ReadGap
+from nsmcp.answer import Answer, Certainty, Finding, NotAssessed, ReadGap, export_age
 from nsmcp.cert_usage import absent_dimensions, other_usage
 from nsmcp.export import (
     KEY_MISSING_TEXT,
@@ -548,7 +549,48 @@ def bucket(days) -> str:
     return "unknown" if n is None else _classify(n)
 
 
-def what_expires(export, knowledge: Knowledge, horizon_days: int) -> Answer:
+def age_of(export, today: date | None = None) -> tuple[int | None, str | None]:
+    """(age in days, None) of `export` on `today`, or (None, reason).
+
+    `daystoexpiration` is the appliance's count AT THE SCAN. Every day the
+    export ages, the real remaining time shrinks by one; the age comes from
+    the same source as the data line under every answer
+    (`export.collected_at`, through `answer.export_age`). `today` defaults
+    to the UTC day, the frame that timestamp is in. A stub without the
+    attribute has no date: that is a reason, never an age of zero.
+    """
+    return export_age(getattr(export, "collected_at", None), today if today is not None else datetime.now(UTC).date())
+
+
+def remaining_days(raw, age_days: int | None) -> int | None:
+    """Days left TODAY: `daystoexpiration` minus the age of the export.
+    None when either side is unknown - never the raw field on its own."""
+    days = _to_days(raw)
+    if days is None or age_days is None:
+        return None
+    return days - age_days
+
+
+def bucket_from_today(raw, age_days: int | None) -> str:
+    """`bucket` on the corrected count; "unknown" when it cannot be made."""
+    n = remaining_days(raw, age_days)
+    return "unknown" if n is None else _classify(n)
+
+
+def counted_from_today(age_days: int) -> str:
+    """The clause every dated expiry line carries."""
+    return f"gerekend vanaf vandaag, export van {age_days} {'dag' if age_days == 1 else 'dagen'} oud"
+
+
+def what_expires(export, knowledge: Knowledge, horizon_days: int, *, today: date | None = None) -> Answer:
+    """The certificates that expire within `horizon_days` FROM TODAY.
+
+    `daystoexpiration` counts from the scan; it is corrected for the age of
+    the export (`age_of`) before the horizon, the class and the sort see
+    it. An export whose date is not readable gives every certificate with
+    a numeric field `niet vastgesteld`: the raw field is never shown as if
+    it counted from today."""
+    age_days, age_reason = age_of(export, today)
     certs, gap = export.objects(RESOURCE)
     read_gaps: list[ReadGap] = [gap] if gap else []
     findings: list[Finding] = []
@@ -561,7 +603,8 @@ def what_expires(export, knowledge: Knowledge, horizon_days: int) -> Answer:
     for c in certs:
         name = field_text(c, "certkey") or field_text(c, "name") or "(naamloos)"
         raw = c.get("daystoexpiration")
-        days = _to_days(raw)
+        scan_days = _to_days(raw)
+        days = remaining_days(raw, age_days)
         state = usage.get(name, Usage(name, "onbekend", (), "geen gebruiksstand berekend"))
         if state.state == "gebonden" and state.used_elsewhere:
             bound_to = f" aan {', '.join(state.used_by)}" if state.used_by else ""
@@ -588,6 +631,26 @@ def what_expires(export, knowledge: Knowledge, horizon_days: int) -> Answer:
         # treatment publickeysize gets one line up.
         signature = _signature_text(c)
         key_bits = f"sleutel {key_size} bits, {signature}"
+        if scan_days is not None and days is None:
+            # A numeric field, but no readable export date: how many of those
+            # days are already gone is not known. Fail-closed - listed
+            # whatever the horizon, never filtered on the scan's count.
+            rows.append(
+                (
+                    _impact_key(state, None),
+                    Finding(
+                        subject=name,
+                        outcome=f"vervaldatum vanaf vandaag niet vast te stellen{detail}",
+                        certainty=Certainty.NOT_ESTABLISHED,
+                        evidence=f"{RESOURCE}: daystoexpiration telt vanaf de scan; {key_bits}",
+                        reason=(
+                            f"de leeftijd van de export is niet vast te stellen ({age_reason}); hoeveel"
+                            " dagen sinds de scan al verstreken zijn is daarmee onbekend"
+                        ),
+                    ),
+                )
+            )
+            continue
         if days is None:
             # daystoexpiration is verdict-, level- AND sort-steering - a
             # gated field, per the constraints. Present-but-unreadable is
@@ -618,9 +681,9 @@ def what_expires(export, knowledge: Knowledge, horizon_days: int) -> Answer:
                     subject=name,
                     outcome=f"{outcome}{detail}",
                     certainty=Certainty.ESTABLISHED,
-                    # The parsed day count is already in `outcome` above; nothing
-                    # gained by also echoing the raw source value here.
-                    evidence=f"{RESOURCE}: {key_bits}",
+                    # The corrected day count is already in `outcome` above; the
+                    # evidence names how it was counted.
+                    evidence=f"{RESOURCE}: {key_bits}; {counted_from_today(age_days)}",
                     reason=state.reason,
                 ),
             )
@@ -636,7 +699,7 @@ def what_expires(export, knowledge: Knowledge, horizon_days: int) -> Answer:
                 subject="certificaten",
                 outcome=f"geen certificaat verloopt binnen {horizon_days} dagen ({read})",
                 certainty=Certainty.ESTABLISHED,
-                evidence=RESOURCE,
+                evidence=RESOURCE if age_days is None else f"{RESOURCE}; {counted_from_today(age_days)}",
                 subject_is_name=False,
             )
         )

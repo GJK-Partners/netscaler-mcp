@@ -55,7 +55,7 @@ from pathlib import Path
 
 import mcp.types as types
 import pytest
-from conftest import maintenance_config, provenance_dir_for, record_collected, seal_manifest
+from conftest import expiry_text_today, maintenance_config, provenance_dir_for, record_collected, seal_manifest
 from mcp.shared.memory import create_connected_server_and_client_session
 from upgrade_fase_harness import _anchor_target
 
@@ -448,7 +448,7 @@ def test_the_reading_tools_open_no_socket_through_a_real_session(tmp_path, loop,
     for name, (error, text) in answers.items():
         assert error is False, f"{name} gaf een fout terug: {text}"
 
-    assert "verloopt over 9 dagen" in answers["certificaat_wat_verloopt_er"][1]
+    assert expiry_text_today(9, "2026-08-20") in answers["certificaat_wat_verloopt_er"][1]
     assert VSERVER in answers["certificaat_wat_breekt_er"][1]
     assert "Terugleescontrole" in answers["certificaat_wat_moet_ik_doen"][1]
     assert "hoe staat de netscaler ervoor" in answers["status_overzicht"][1].lower()

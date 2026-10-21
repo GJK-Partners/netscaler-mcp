@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -3002,7 +3003,7 @@ def test_minimal_expired_certificate_stays_visible_next_to_other_terms(tmp_path)
         ],
     )
     knowledge = _real_knowledge()
-    answer = what_expires(export, knowledge, 365)
+    answer = what_expires(export, knowledge, 365, today=date.fromisoformat(export.collected_at[:10]))
 
     text = render(answer, Disclosure.MINIMAL, tool="certificaat_wat_verloopt_er")
     assert "er is al iets verlopen" in text

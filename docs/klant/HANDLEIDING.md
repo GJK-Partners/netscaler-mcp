@@ -717,6 +717,17 @@ een soort binding noemt die deze versie niet leest; de reden noemt die soort.
 Verloopt er binnen de horizon niets, dan zegt het antwoord dat in een zin met
 het aantal gelezen certificaten, in plaats van een lege lijst.
 
+De dagen tellen vanaf vandaag, niet vanaf het moment van de scan. De appliance
+noemt in de export het aantal dagen tot verloop op de dag van de scan; het
+product trekt de leeftijd van de export daar vanaf (dezelfde leeftijd als in de
+regel "Gegevens van ..." onder elk antwoord) en het bewijs zegt dat erbij:
+"gerekend vanaf vandaag, export van N dagen oud". Horizon, klasse en volgorde
+gaan over die gecorrigeerde dagen. Een certificaat dat bij een scan van 56 dagen
+geleden nog 100 dagen had, staat dus op 44 dagen. Is de datum van de export niet
+te lezen, dan is de vervaldatum per certificaat "niet vastgesteld"; het product
+toont dan nooit het ruwe getal alsof het vanaf vandaag telt. Hetzelfde geldt voor
+toets 5 van `status_update_preflight`.
+
 Wilt u weten wat het product NIET heeft kunnen lezen, gebruik dan
 `rapport_dekking` (hoofdstuk rapport): dat noemt per bron of hij gelezen is en
 of de kruiscontrole op de bindingen rondkwam. "2 van de 11 bindingsbestanden

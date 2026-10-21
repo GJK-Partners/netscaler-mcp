@@ -73,7 +73,7 @@ def test_what_expires_finds_the_three_real_lab_certificates_and_reads_the_cert_s
     the "onbekend" of ns-server-certificate, which this file binds to eight
     services."""
     export = _load()
-    answer = what_expires(export, _KNOWLEDGE, 3650)
+    answer = what_expires(export, _KNOWLEDGE, 3650, today=TODAY)
     answer = stamp_data(answer, export.collected_at, TODAY, export.target_name)
 
     assert answer.read_gaps == [], "sslcertkey_binding.by-parent.json is gelezen in de aggregate-vorm"

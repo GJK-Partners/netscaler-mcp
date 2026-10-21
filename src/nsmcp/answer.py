@@ -470,6 +470,14 @@ def _age(collected_at: str | None, today: date) -> tuple[str | None, int | None,
     return utc_day.isoformat(), days, None
 
 
+def export_age(collected_at: str | None, today: date) -> tuple[int | None, str | None]:
+    """(days, None) or (None, reason): the age of an export on `today`, by
+    the SAME rule as the data line under every answer (`_age`), so a count
+    corrected for the age of the export can never disagree with that line."""
+    _stamp_date, days, reason = _age(collected_at, today)
+    return days, reason
+
+
 def stamp_data(
     answer: Answer,
     collected_at: str | None,

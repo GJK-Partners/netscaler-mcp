@@ -282,7 +282,7 @@ does not.
 
 | Tool | Answer |
 |---|---|
-| `certificaat_wat_verloopt_er(horizon_dagen, doel)` | which certificates expire within the horizon (default 90 days), with evidence and read gaps |
+| `certificaat_wat_verloopt_er(horizon_dagen, doel)` | which certificates expire within the horizon (default 90 days), with evidence and read gaps; the days count from today: the age of the export is taken off the appliance's count at the scan, and an unreadable export date gives "niet vastgesteld" |
 | `certificaat_wat_breekt_er(certnaam, doel)` | which virtual servers fail if this certificate expires, also through the certificates it issues; the SSL services on the certificate are read from the certificate-side binding file, and a management service of the appliance itself (`nshttps-`, `nsrpcs-`) is named as the appliance's own management traffic; the use outside those bindings is named with object and role - a SAML action (IdP or signing certificate), a SAML IdP profile (IdP or SP certificate) and an SSL servicegroup (with its CA flag); a source of those that the export does not carry is reported as not established, never as "no use" |
 | `certificaat_wat_moet_ik_doen(certnaam, doel)` | the change, the rollback and the read-back check - only when the impact is established; a certificate that carries management traffic of the appliance itself gets no proposal (the built-in denylist), an SSL service gets its own manual step, and a use by a SAML object or an SSL servicegroup gets a manual step with the warning that `certificaat_vervangen` only rebinds a virtual server |
 | `certificaat_klaarzetten(certnaam, bevestiging)` | writing tool: stages a replacement certificate on the appliance without binding it |
