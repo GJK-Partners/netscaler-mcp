@@ -1,6 +1,6 @@
 # Beveiliging en datastromen
 
-**netscaler-mcp** · versie 1.0.1 · 21-10-2026
+**netscaler-mcp** · versie 1.0.2 · 21-10-2026
 
 Dit document beantwoordt de vragen die een IT-beheerder of security officer stelt voordat
 dit product een omgeving in mag: welke gegevens leest het product, waar blijven
@@ -450,7 +450,10 @@ Het product beschermt wat binnen zijn eigen grens ligt. Daarbuiten liggen vier z
 
 ## Verantwoording
 
-Versie 1.0.1, 21-10-2026 (inhoudelijk ongewijzigd sinds 1.0.0 van 2-9-2026). De claims in dit document zijn herleidbaar tot de broncode en de
+Versie 1.0.2, 21-10-2026. Gewijzigd sinds 1.0.1: in de stand `beperkt` staat de vertaaltabel naast
+het configuratiebestand (of in `onderhoud.ledgermap`), nooit naast de export; elk veld van een
+antwoord gaat door een tekenfilter; de PowerShell-scripts kunnen per script worden vastgepind
+(`scriptpin`). Zie de HANDLEIDING. De claims in dit document zijn herleidbaar tot de broncode en de
 testsuite van dit product, met drie benoemde uitzonderingen: het leesgedrag tegen
 de appliance zit in het vrijgegeven verzamelscript van GJK NetScaler Healthcheck 1.0 (zie
 "Verzamelen"); het schrijfgedrag tegen de appliance — de terugleescontrole, de

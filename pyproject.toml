@@ -1,6 +1,6 @@
 [project]
 name = "netscaler-mcp"
-version = "1.0.1"
+version = "1.0.2"
 description = "Vraag je NetScaler wat er verloopt, wat er dan breekt en wat je moet doen - met bewijs, en met een eerlijk 'dat kan ik niet vaststellen'."
 readme = "README.md"
 license = "Apache-2.0"

@@ -8,6 +8,91 @@ All notable changes to this project are documented here. The format follows
 
 Nothing yet.
 
+## [1.0.2] - 2026-10-21
+
+1.0.2 closes what a newcomer's test of the public release and an independent
+security review of it measured. One line per finding; the behaviour an
+operator notices first is listed under "Changed".
+
+### Changed
+- Relative paths in the configuration count from the directory of the
+  configuration file, not from the working directory of the process that
+  starts the server; a missing export map names the resolved path and that
+  directory. `config.example.json` now starts from any working directory and
+  from a client configuration without `cwd`.
+- At `openheid: beperkt` the pseudonym table and its lock live beside the
+  configuration file (or in `onderhoud.ledgermap`), never beside the export;
+  a configuration in the directory around the export map is refused at start.
+- On the shipped lab export, `beveiliging_headers` reports HSTS as
+  "niet beoordeeld" and `beveiliging_beheervlak` the certificate dimension as
+  "NIET BEOORDEELD" (both were a false PASS/"aanwezig en gebonden"), and every
+  expiry count is the count of today.
+
+### Fixed
+- Certificate expiry counts from today: `daystoexpiration` is the count at the
+  scan, and the expiry list and check 5 of `status_update_preflight` now take
+  the age of the export off it ("gerekend vanaf vandaag, export van N dagen
+  oud"); an unreadable export date gives "niet vastgesteld", never the raw field.
+- HSTS is "aanwezig en gebonden" only when a vserver binds a FrontEnd profile
+  with `hsts=ENABLED`, with the vserver names; an own profile nobody binds is
+  "wel gedefinieerd, niet gebonden", an unbound built-in profile does not count,
+  and a gap in the binding read is "niet beoordeeld". A test keeps the headers
+  answer and the TLS baseline from contradicting each other.
+- Check 8 of `status_update_preflight` no longer claims a live read that did not
+  happen: "niet gelezen: <reden>" without a route, "live gelezen via <route>,
+  geen bruikbare waarde" for a read without a number, and the measurement only
+  when there is one.
+- Check 3 of `status_update_preflight` names the HA states in words instead of
+  printing internal objects.
+- `beveiliging_beheervlak` gives no certificate PASS while the certificate
+  bindings of a vserver are missing from the export; the gap stands under
+  NIET VASTGESTELD, here and in the scorecard.
+- `initialize` reports the product version in `serverInfo.version`, not the
+  version of the mcp library.
+
+### Added
+- `heeft_saml_action_of_idp`: the condition "SAML SP or IdP" as one OR
+  composite of `heeft_saml_action` and `is_saml_idp`, with the evidence of both
+  halves, accepted in the knowledge package.
+- `scriptpin` (file name -> sha256, printed by `python -m nsmcp.powershell
+  --pin`): with it, a PowerShell script is started only when its bytes and those
+  of every pinned script in the same directory match, right before the start;
+  without it nothing is checked, as before. `uitvoeringsbeleid` chooses the
+  execution policy (`Bypass` by default, `AllSigned`, `RemoteSigned`).
+- The SSH transport checks the content of Posh-SSH 3.2.7 against the measured
+  manifest before it loads, not only the version; a deviation stops with
+  `[FOUT]` and exit code 3.
+
+### Security
+- Every field of every answer goes through one character filter: control,
+  format, line- and paragraph-separator characters (ESC, bidi overrides,
+  zero-width characters) become a visible "?". `status_namen` names a name
+  over 128 characters or with such a character by its position, and a name as
+  the subject of a finding is cut at 128 characters with a note.
+- At `openheid: minimaal` the severity line comes from typed fields of the
+  expiry list, never from outcome text, so an object name cannot steer it.
+- The failure answer of `status_ververs` filters the collector's lines, cuts a
+  long line, counts the lines it leaves out and ends with the product's own
+  knowledge and data lines.
+- Every path in the configuration refuses a network or device path (UNC, also
+  `\\?\UNC\`), a colon after the drive letter (an alternate data stream), a
+  drive- or root-relative path and a component ending in a dot or a space.
+- A lock beside the pseudonym table that cannot be opened is a refusal with
+  its reason, and a table value with a control character is refused.
+
+### CI
+- On push runs the hygiene guards get their list from the repository secret
+  `NSMCP_PRIVATE_NEEDLES` (written to a temporary file, never printed; a push
+  without the secret fails); pull requests run without it, and both suites
+  print every skip with its reason (`-rs`).
+
+### Documentation
+- The manual has an install chapter from GitHub and names
+  `config.example.json`, the lab export and the full path to the command; the
+  README Platform section names modules instead of line numbers that had
+  moved, the English README no longer ends in a Dutch internal chapter, and it
+  explains the "Unknown tool" error of an unregistered writing tool.
+
 ## [1.0.1] - 2026-10-21
 
 1.0.0 (tagged 2026-09-30) was published on 2026-10-21 and withdrawn the same
