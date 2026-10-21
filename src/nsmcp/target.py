@@ -213,6 +213,9 @@ def load_targets(path: Path) -> dict[str, Target]:
         raw = json.loads(raw_text, object_pairs_hook=_build_object_pairs_hook(TargetError))
     except json.JSONDecodeError as exc:
         raise TargetError(f"doelenbestand onleesbaar: {exc}") from None
+    except (RecursionError, MemoryError):
+        # 1.0.2: too deep for the parser is unreadable, never a traceback.
+        raise TargetError("doelenbestand onleesbaar: te diep genest") from None
 
     if not isinstance(raw, dict):
         raise TargetError(f"doelenbestand moet een object zijn met een sleutel 'doelen' (kreeg {type(raw).__name__})")

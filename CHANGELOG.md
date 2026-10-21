@@ -79,6 +79,8 @@ operator notices first is listed under "Changed".
   drive- or root-relative path and a component ending in a dot or a space.
 - A lock beside the pseudonym table that cannot be opened is a refusal with
   its reason, and a table value with a control character is refused.
+- A configuration file, targets file or pseudonym table nested deeper than the
+  JSON parser can follow is refused with a reason instead of a traceback.
 
 ### CI
 - On push runs the hygiene guards get their list from the repository secret

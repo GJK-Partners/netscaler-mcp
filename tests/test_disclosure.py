@@ -4244,3 +4244,10 @@ def test_sr7_a_table_value_with_a_control_character_is_refused_without_echo(tmp_
     message = str(refused.value)
     assert "forged line" not in message
     assert "stuurteken" in message, message
+
+
+def test_sr18_a_deeply_nested_pseudonym_table_is_refused_as_broken(tmp_path):
+    table = tmp_path / "tabel.json"
+    table.write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+    with pytest.raises(PseudonymTableBroken):
+        render(_sr7_answer(), Disclosure.LIMITED, tool="x", extra_names=("cert_echt",), pseudonym_table_path=table)

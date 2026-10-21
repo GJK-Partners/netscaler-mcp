@@ -1061,6 +1061,13 @@ def _load_table(path: Path, names: list[str]) -> dict[str, str]:
                     ) from exc
                 try:
                     raw = json.loads(raw_text)
+                except (RecursionError, MemoryError):
+                    # 1.0.2: too deep for the parser is a broken table too.
+                    raise PseudonymTableBroken(
+                        f"de vertaaltabel op {path} is te diep genest om te lezen; dit bestand is de enige"
+                        " sleutel naar de echte namen en wordt daarom nooit overschreven - herstel het bestand"
+                        " of zet het aan de kant en stel de vraag opnieuw"
+                    ) from None
                 except json.JSONDecodeError as exc:
                     # Only line/column, not str(exc) - some JSONDecodeError
                     # messages quote a loose character from the file

@@ -3152,3 +3152,26 @@ def test_sr5_without_the_keys_the_policy_is_the_documented_default(tmp_path, res
     policy = restore_script_policy.script_policy()
     assert policy.pins is None
     assert policy.execution_policy == "Bypass"
+
+
+# --------------------------------------------------------------------------
+# SR-18 (1.0.2): a deeply nested configuration or targets file is a "Fout:"
+# --------------------------------------------------------------------------
+
+_DEEP = "[" * 100000 + "]" * 100000
+
+
+def test_sr18_a_deeply_nested_configuration_is_a_config_error_not_a_traceback(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(_DEEP, encoding="utf-8")
+    with pytest.raises(ConfigError, match="configuratiebestand"):
+        load_config(path)
+
+
+def test_sr18_a_deeply_nested_targets_file_is_a_target_error_not_a_traceback(tmp_path):
+    from nsmcp.target import TargetError, load_targets
+
+    path = tmp_path / "doelen.json"
+    path.write_text(_DEEP, encoding="utf-8")
+    with pytest.raises(TargetError, match="doelenbestand"):
+        load_targets(path)

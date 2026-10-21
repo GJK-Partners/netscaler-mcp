@@ -180,6 +180,10 @@ def load_config(path: Path) -> dict:
         raw = json.loads(raw_text, object_pairs_hook=_build_object_pairs_hook(ConfigError))
     except json.JSONDecodeError as exc:
         raise ConfigError(f"configuratiebestand is geen geldige JSON: {exc}") from None
+    except (RecursionError, MemoryError):
+        # 1.0.2: a document nested deeper than the parser can follow used to
+        # end in a traceback instead of the promised "Fout: ..." line.
+        raise ConfigError("configuratiebestand is te diep genest om te lezen") from None
 
     if not isinstance(raw, dict):
         raise ConfigError(f"configuratiebestand moet een object zijn (kreeg {type(raw).__name__})")
