@@ -289,16 +289,19 @@ vervangen, draait zijn eigen PowerShell met de rechten van de server. Daarom kun
 sha256 vastleggen:
 
 ```powershell
-python -m nsmcp.powershell --pin "C:\GJK\netscaler-mcp\verzamel.ps1" "C:\GJK\runner\Invoke-GjkUpgradeFase.ps1" "C:\GJK\runner\GjkUpgrade-Ssh.ps1"
+python -m nsmcp.powershell --pin "C:\GJK\netscaler-mcp\verzamel.ps1" "C:\GJK\runner"
 ```
 
 Dat drukt het blok af dat u in de configuratie zet: `"scriptpin": {"verzamel.ps1": "<sha256>",
-...}`, met de kale bestandsnaam als sleutel. Wat u daarna ziet:
+...}`, met de kale bestandsnaam als sleutel. Een map staat voor elk script (`.ps1`, `.psm1`) erin;
+pin zo de hele map van de runner, want de runner, de live meting en `config_opslaan` lezen hun
+transport `GjkUpgrade-Ssh.ps1` op naam uit die map. Wat u daarna ziet:
 
 - **`scriptpin` aanwezig:** vlak voor elke start leest het product de bytes van het script en van
-  elk gepind script in dezelfde map. Wijkt er een af, of heeft het script dat gestart zou worden
-  geen pin, dan start er geen proces; het antwoord noemt de bestandsnaam en dat het script van
-  zijn pin afwijkt.
+  elk ander script (`.ps1`, `.psm1`) in dezelfde map. Wijkt er een af van zijn pin, of heeft het
+  script dat gestart zou worden of een script ernaast geen pin, dan start er geen proces; het
+  antwoord noemt de bestandsnaam en de reden. Een submap valt buiten deze controle; zet daar geen
+  scripts die het gestarte script inleest.
 - **Geen `scriptpin`:** er wordt niets gecontroleerd, zoals in eerdere versies. Het
   configuratiebestand en de scriptmappen zijn dan de enige bescherming.
 

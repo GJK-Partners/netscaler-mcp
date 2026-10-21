@@ -136,9 +136,11 @@ stderr (`[codekanaal] sso-presenter-protocol-oud`), zonder code en zonder doelna
 `handelen.schrijfscript` zijn vrije paden en worden gestart met
 `-ExecutionPolicy <uitvoeringsbeleid> -File` (standaard `Bypass`). Sinds 1.0.2 kan
 de configuratie per script een sha256 vastleggen (`scriptpin`): dan start het
-product een script alleen als zijn bytes, en die van elk gepind script in
-dezelfde map, vlak voor de start gelijk zijn aan de pin. Zonder `scriptpin` wordt
-er niets gecontroleerd. Er is geen handtekeningcontrole door het product zelf;
+product een script alleen als zijn bytes, en die van elk ander script (`.ps1`,
+`.psm1`) in dezelfde map, vlak voor de start gelijk zijn aan hun pin; een script
+zonder pin in die map weigert de start, want PowerShell kan het op naam inlezen
+(de SSH-scripts doen dat met hun transport). Zonder `scriptpin` wordt er niets
+gecontroleerd. Er is geen handtekeningcontrole door het product zelf;
 `uitvoeringsbeleid: AllSigned` laat die aan Windows. Wie het configuratiebestand
 kan schrijven, kan ook de pin aanpassen en draait dan willekeurige PowerShell met
 de rechten van het serveraccount. Behandel het configuratiebestand daarom met

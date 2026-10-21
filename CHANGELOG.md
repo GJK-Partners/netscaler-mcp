@@ -55,9 +55,12 @@ operator notices first is listed under "Changed".
   composite of `heeft_saml_action` and `is_saml_idp`, with the evidence of both
   halves, accepted in the knowledge package.
 - `scriptpin` (file name -> sha256, printed by `python -m nsmcp.powershell
-  --pin`): with it, a PowerShell script is started only when its bytes and those
-  of every pinned script in the same directory match, right before the start;
-  without it nothing is checked, as before. `uitvoeringsbeleid` chooses the
+  --pin`, also for a whole directory): with it, a PowerShell script is started
+  only when its bytes and those of every other script (`.ps1`, `.psm1`) in the
+  same directory match their pins, right before the start; an unpinned script
+  there refuses the start, because PowerShell can read a sibling by name (the
+  SSH scripts dot-source their transport). Without it nothing is checked, as
+  before. `uitvoeringsbeleid` chooses the
   execution policy (`Bypass` by default, `AllSigned`, `RemoteSigned`).
 - The SSH transport checks the content of Posh-SSH 3.2.7 against the measured
   manifest before it loads, not only the version; a deviation stops with

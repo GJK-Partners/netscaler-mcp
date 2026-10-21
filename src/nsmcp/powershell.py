@@ -71,9 +71,11 @@ class ScriptPolicy:
     `pins`: file name (case-folded) -> sha256 of the bytes, or None when the
     configuration carries no `scriptpin` - then nothing is checked, as
     before, and the documentation says so. With pins, a script is started
-    only when its own bytes AND those of every pinned script in the same
-    directory (the runner dot-sources its transport by name) match, and a
-    script without a pin is refused.
+    only when its own bytes AND those of every script in the same
+    directory (`SCRIPT_SUFFIXES`; the runner, the live measurement and
+    config_opslaan dot-source their transport by name from there) match
+    their pins. A script without a pin - the started one or any script
+    beside it - refuses the start.
 
     Process state on purpose: one server per process, and the ONE place that
     starts PowerShell (`start_powershell`, `handelen.upgrade_command`) reads
@@ -100,9 +102,25 @@ def file_sha256(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+# What counts as a script beside the started one: what PowerShell can
+# dot-source or import from that directory. Compared case-insensitively.
+SCRIPT_SUFFIXES = (".ps1", ".psm1")
+
+
+def _is_script(path: Path) -> bool:
+    return path.suffix.casefold() in SCRIPT_SUFFIXES
+
+
 def check_script_pins(script: Path) -> None:
     """Raises `ScriptPinMismatch` unless `script` may be started under the
-    current policy. Reads the bytes now, right before the start."""
+    current policy. Reads the bytes now, right before the start.
+
+    1.0.2: every script in the same directory needs a pin as well, not only
+    the ones that happen to carry one. The runner, the live measurement and
+    config_opslaan dot-source their SSH transport BY NAME from their own
+    directory; a pin on the runner alone let a replaced, unpinned transport
+    through without a word. A directory that cannot be listed refuses too:
+    what cannot be seen cannot be checked."""
     pins = _policy.pins
     if pins is None:
         return
@@ -116,13 +134,24 @@ def check_script_pins(script: Path) -> None:
         )
     to_check = [(name, script, expected)]
     try:
-        siblings = list(script.parent.iterdir())
-    except OSError:
-        siblings = []
+        siblings = sorted(script.parent.iterdir(), key=lambda path: path.name.casefold())
+    except OSError as exc:
+        raise ScriptPinMismatch(
+            f"de map van het script {name} kon niet gelezen worden voor de pincontrole"
+            f" ({exc.__class__.__name__}); er wordt geen proces gestart"
+        ) from None
     for sibling in siblings:
-        pinned = pins.get(sibling.name.casefold())
-        if pinned is not None and sibling.name.casefold() != name.casefold() and sibling.is_file():
-            to_check.append((sibling.name, sibling, pinned))
+        folded = sibling.name.casefold()
+        if folded == name.casefold() or not _is_script(sibling) or not sibling.is_file():
+            continue
+        pinned = pins.get(folded)
+        if pinned is None:
+            raise ScriptPinMismatch(
+                f"het script {sibling.name} naast {name} heeft geen pin in scriptpin; PowerShell kan het op naam"
+                " inlezen, dus er wordt geen proces gestart (pin de hele map met python -m nsmcp.powershell"
+                " --pin <map>)"
+            )
+        to_check.append((sibling.name, sibling, pinned))
     for shown, path, pinned in to_check:
         try:
             measured = file_sha256(path)
@@ -194,15 +223,30 @@ def start_powershell(arguments: list[str]) -> subprocess.Popen[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """`python -m nsmcp.powershell --pin <script> ...`: the `scriptpin`
-    object for the given scripts, to paste into the configuration."""
+    """`python -m nsmcp.powershell --pin <script-of-map> ...`: the `scriptpin`
+    object for the given scripts, to paste into the configuration. A
+    directory stands for every script in it (`SCRIPT_SUFFIXES`) - with
+    `scriptpin` set, every script beside a started one needs a pin."""
     arguments = sys.argv[1:] if argv is None else argv
     if len(arguments) < 2 or arguments[0] != "--pin":
-        print("Gebruik: python -m nsmcp.powershell --pin <script.ps1> [...]", file=sys.stderr)
+        print("Gebruik: python -m nsmcp.powershell --pin <script.ps1 of map> [...]", file=sys.stderr)
         return 2
-    pins = {}
+    paths: list[Path] = []
     for name in arguments[1:]:
         path = Path(name)
+        if path.is_dir():
+            try:
+                found = sorted(
+                    (p for p in path.iterdir() if _is_script(p) and p.is_file()), key=lambda p: p.name.casefold()
+                )
+            except OSError as exc:
+                print(f"Fout: de map {path.name} kon niet gelezen worden ({exc.__class__.__name__})", file=sys.stderr)
+                return 1
+            paths.extend(found)
+        else:
+            paths.append(path)
+    pins = {}
+    for path in paths:
         try:
             pins[path.name] = file_sha256(path)
         except OSError as exc:

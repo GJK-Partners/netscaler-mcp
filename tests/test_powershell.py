@@ -353,3 +353,152 @@ def test_sr5_the_pin_command_prints_the_pins_of_the_given_scripts(tmp_path, caps
     assert pin_main(["--pin", str(main_script), str(sibling)]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed == {"scriptpin": {"Verzamel.ps1": _sha(main_script), "Transport.ps1": _sha(sibling)}}
+
+
+# ---------------------------------------------------------------------------
+# 1.0.2, second round: with `scriptpin` set, an UNPINNED script beside the
+# started one refuses the start as well. Measured on the first 1.0.2 build:
+# the runner pinned and its transport (dot-sourced by name from the same
+# directory) not pinned -> the start went ahead and the transport was never
+# read. A pin that leaves the dot-sourced sibling out suggests a certainty
+# it does not give.
+# ---------------------------------------------------------------------------
+
+_REPO_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+
+
+def test_sr5_an_unpinned_sibling_script_refuses_the_start(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
+
+    main, _sibling = _scripts(tmp_path)
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(main)}))
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ScriptPinMismatch) as refused:
+        start_powershell(["-File", str(main)])
+    assert started == []
+    message = str(refused.value)
+    assert "Transport.ps1" in message and "geen pin" in message, message
+    assert str(tmp_path) not in message, message
+
+
+def test_sr5_an_unpinned_module_beside_the_script_refuses_the_start(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
+
+    main, sibling = _scripts(tmp_path)
+    module = main.parent / "Helpers.psm1"
+    module.write_bytes(b"function Help { }\r\n")
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(main), "transport.ps1": _sha(sibling)}))
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ScriptPinMismatch, match="Helpers.psm1"):
+        start_powershell(["-File", str(main)])
+    assert started == []
+
+
+def test_sr5_a_file_that_is_no_script_beside_it_does_not_need_a_pin(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    main, sibling = _scripts(tmp_path)
+    (main.parent / "README.md").write_text("uitleg\n", encoding="ascii")
+    (main.parent / "instellingen.json").write_text("{}\n", encoding="ascii")
+    (main.parent / "oud.ps1.bak").write_text("# oud\n", encoding="ascii")
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(main), "transport.ps1": _sha(sibling)}))
+    started = _spy_popen(monkeypatch)
+    start_powershell(["-File", str(main)])
+    assert len(started) == 1
+
+
+def _product_scripts_but_the_transport_pinned(tmp_path: Path) -> Path:
+    """The product's own scripts directory, copied, with every script
+    pinned EXCEPT the SSH transport the three SSH scripts dot-source."""
+    import shutil
+
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    directory = tmp_path / "scripts"
+    directory.mkdir()
+    for script in _REPO_SCRIPTS.glob("*.ps1"):
+        shutil.copyfile(script, directory / script.name)
+    assert (directory / "GjkUpgrade-Ssh.ps1").is_file()
+    pins = {p.name.casefold(): _sha(p) for p in directory.glob("*.ps1") if p.name != "GjkUpgrade-Ssh.ps1"}
+    set_script_policy(ScriptPolicy(pins=pins))
+    return directory
+
+
+@pytest.mark.parametrize("script", ["Invoke-GjkLiveMeting.ps1", "Invoke-GjkConfigOpslaan.ps1"])
+def test_sr5_the_ssh_scripts_refuse_to_start_beside_an_unpinned_transport(
+    tmp_path, monkeypatch, restore_policy, script
+):
+    from nsmcp.handelen import ActionError, script_command
+
+    directory = _product_scripts_but_the_transport_pinned(tmp_path)
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ActionError, match="GjkUpgrade-Ssh.ps1") as refused:
+        handelen_module.default_runner(script_command(directory / script, ["-WatIs"]), 5)
+    assert started == []
+    assert str(tmp_path) not in str(refused.value)
+
+
+def test_sr5_the_faserunner_refuses_to_start_beside_an_unpinned_transport(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.handelen import upgrade_command
+    from nsmcp.powershell import ScriptPinMismatch
+
+    directory = _product_scripts_but_the_transport_pinned(tmp_path)
+    with pytest.raises(ScriptPinMismatch, match="GjkUpgrade-Ssh.ps1"):
+        upgrade_command(directory / "Invoke-GjkUpgradeFase.ps1", ["-WatIs"])
+
+
+def test_sr5_the_write_script_refuses_to_start_beside_an_unpinned_script(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.handelen import ActionError, script_command
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    film = tmp_path / "film"
+    film.mkdir()
+    write = film / "Invoke-GjkLabWrite.ps1"
+    write.write_bytes(b". (Join-Path $PSScriptRoot 'Hulp.ps1')\r\n")
+    (film / "Hulp.ps1").write_bytes(b"function Hulp { }\r\n")
+    set_script_policy(ScriptPolicy(pins={write.name.casefold(): _sha(write)}))
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ActionError, match="Hulp.ps1"):
+        handelen_module.default_runner(script_command(write, ["-Actie", "x"]), 5)
+    assert started == []
+
+
+def test_sr5_the_collector_refuses_to_start_beside_an_unpinned_script(tmp_path, monkeypatch, restore_policy):
+    from nsmcp.collect import CollectError, collect
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+    from nsmcp.target import CertAgreement, Target
+
+    beheer = tmp_path / "beheer"
+    beheer.mkdir()
+    script = beheer / "verzamel.ps1"
+    script.write_bytes(b". (Join-Path $PSScriptRoot 'Nitro.ps1')\r\n")
+    (beheer / "Nitro.ps1").write_bytes(b"function Nitro { }\r\n")
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(script)}))
+    started = _spy_popen(monkeypatch)
+    target = Target(name="lab", address="192.0.2.10", credential_target="T/x", agreement=CertAgreement.CHAIN)
+    with pytest.raises(CollectError) as refused:
+        collect(target, tmp_path / "export", script)
+    assert started == []
+    message = str(refused.value)
+    assert "Nitro.ps1" in message and "niet gestart" in message, message
+    assert str(tmp_path) not in message, message
+
+
+def test_sr5_the_pin_command_pins_every_script_in_a_directory(tmp_path, capsys):
+    import json
+
+    from nsmcp.powershell import main as pin_main
+
+    main_script, sibling = _scripts(tmp_path)
+    module = main_script.parent / "Helpers.psm1"
+    module.write_bytes(b"function Help { }\r\n")
+    (main_script.parent / "README.md").write_text("uitleg\n", encoding="ascii")
+    assert pin_main(["--pin", str(main_script.parent)]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed == {
+        "scriptpin": {
+            "Helpers.psm1": _sha(module),
+            "Transport.ps1": _sha(sibling),
+            "Verzamel.ps1": _sha(main_script),
+        }
+    }
