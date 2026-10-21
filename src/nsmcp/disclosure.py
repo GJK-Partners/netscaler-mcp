@@ -1361,9 +1361,6 @@ def _limit(
     return copy
 
 
-_DAYS = re.compile(r"over (\d+) dagen")
-
-
 def _minimal(answer: Answer, tool: str) -> str:
     """Aggregates only. The stamp lines (knowledge/data/target) come from
     `Answer.stamp_lines()`, the one builder `to_text()` reads too, so this
@@ -1410,8 +1407,10 @@ def _minimal(answer: Answer, tool: str) -> str:
     `Certainty.ESTABLISHED`/`NOT_ESTABLISHED` is the only source of truth
     here - not `len(...)`, not the content of an outcome text.
     """
-    days = [int(m.group(1)) for b in answer.findings for m in _DAYS.finditer(b.outcome)]
-    already_expired = any("verlopen" in b.outcome for b in answer.findings)
+    # SR-10 (1.0.2): from the typed fields of the finding, never from its
+    # outcome text (that text carries object names).
+    days = [b.days_left for b in answer.findings if b.days_left is not None and not b.expired]
+    already_expired = any(b.expired for b in answer.findings)
     if already_expired:
         if days:
             severity = f"er is al iets verlopen; kortste resterende looptijd van de rest: {min(days)} dagen"

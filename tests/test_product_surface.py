@@ -2600,6 +2600,7 @@ def _minimal_golden_answer() -> Answer:
                 outcome="verloopt over 12 dagen",
                 certainty=Certainty.ESTABLISHED,
                 evidence="daystoexpiration=12",
+                days_left=12,
             )
         ],
         read_gaps=[ReadGap(source="config/sslvserver", reason="read niet bruikbaar: RBAC_DENIED")],

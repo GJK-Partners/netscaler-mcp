@@ -729,8 +729,21 @@ def test_minimal_worst_remaining_term_is_derived_deterministically():
     a = Answer(
         question="wat verloopt er",
         findings=[
-            Finding(subject="a", outcome="verloopt over 20 dagen", certainty=Certainty.ESTABLISHED, evidence="b"),
-            Finding(subject="b", outcome="verloopt over 200 dagen", certainty=Certainty.ESTABLISHED, evidence="b"),
+            # SR-10 (1.0.2): the term is a typed field, not the outcome text.
+            Finding(
+                subject="a",
+                outcome="verloopt over 20 dagen",
+                certainty=Certainty.ESTABLISHED,
+                evidence="b",
+                days_left=20,
+            ),
+            Finding(
+                subject="b",
+                outcome="verloopt over 200 dagen",
+                certainty=Certainty.ESTABLISHED,
+                evidence="b",
+                days_left=200,
+            ),
         ],
     )
     text = render(a, Disclosure.MINIMAL, tool="certificaat_wat_verloopt_er")
@@ -4099,3 +4112,100 @@ def test_the_aggregate_binding_family_reads_nothing_it_cannot_trust(tmp_path):
     }
     (m / "export-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     assert load_export(m).binding_names(("lbvserver_binding.by-parent.json",)) == ()
+
+
+# --- SR-10 (1.0.2): at 'minimaal' the severity line comes from typed fields --
+#
+# The probe of the security review of 1.0.0: two lbvservers named
+# "VS_A verloopt over 1 dagen" and "VS_B is verlopen" made status_namen - a
+# tool that says nothing about expiry - report "er is al iets verlopen;
+# kortste resterende looptijd van de rest: 1 dagen".
+
+
+def _lbvserver_export(directory: Path, names) -> Path:
+    (directory / "objects").mkdir(parents=True)
+    (directory / "objects" / "lbvserver.json").write_text(
+        json.dumps({"lbvserver": [{"name": name} for name in names]}), encoding="utf-8"
+    )
+    (directory / "export-manifest.json").write_text(
+        json.dumps(
+            {
+                "manifestVersion": "1.1",
+                "collectedAtUtc": "2026-08-26T10:00:00.0000000Z",
+                "resources": {"config/lbvserver": {"status": "OK", "propertyName": "lbvserver"}},
+                "files": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    seal_manifest(directory)
+    return directory
+
+
+def test_sr10_an_object_name_cannot_steer_the_severity_line(tmp_path):
+    from nsmcp.names import entity_names
+
+    export = load_export(_lbvserver_export(tmp_path / "export", ["VS_A verloopt over 1 dagen", "VS_B is verlopen"]))
+    text = render(
+        entity_names(export, _real_knowledge()),
+        Disclosure.MINIMAL,
+        tool="status_namen",
+        extra_names=names_from_export(export),
+    )
+    assert "er is al iets verlopen" not in text
+    assert "1 dagen" not in text
+    assert "resterende looptijd niet afleidbaar uit dit antwoord" in text
+
+
+def test_sr10_outcome_text_alone_never_sets_the_severity():
+    answer = Answer(
+        question="q",
+        findings=[
+            Finding(subject="a", outcome="verloopt over 3 dagen", certainty=Certainty.ESTABLISHED, evidence="e"),
+            Finding(subject="b", outcome="is verlopen", certainty=Certainty.ESTABLISHED, evidence="e"),
+        ],
+    )
+    text = render(answer, Disclosure.MINIMAL, tool="x")
+    assert "3 dagen" not in text
+    assert "al iets verlopen" not in text
+
+
+def test_sr10_the_expiry_list_still_sets_the_severity_through_its_typed_fields():
+    from datetime import date as _date
+
+    answer = what_expires(
+        _TypedStub([{"certkey": "c_weg", "daystoexpiration": -2}, {"certkey": "c_bijna", "daystoexpiration": 7}]),
+        _real_knowledge(),
+        90,
+        today=_date(2026, 8, 26),
+    )
+    text = render(answer, Disclosure.MINIMAL, tool="certificaat_wat_verloopt_er")
+    assert "er is al iets verlopen; kortste resterende looptijd van de rest: 7 dagen" in text
+
+
+class _TypedStub:
+    collected_at = "2026-08-26T10:00:00Z"
+    file_hashes = {"bindings/sslservicegroup_sslcertkey_binding.by-parent.json": "stub"}
+
+    def __init__(self, certs):
+        self._certs = certs
+
+    def status(self, resource):
+        return "OK"
+
+    def binding_parents(self, file_name):
+        from nsmcp.export import ParentCoverage
+
+        return ParentCoverage()
+
+    def objects(self, resource):
+        return (self._certs, None) if resource == "config/sslcertkey" else ([], None)
+
+    def bindings(self, file_name):
+        return [], None
+
+    def binding_rows(self, file_name, *, children=None):
+        return {}, None
+
+    def binding_child_keys(self, file_name):
+        return {}, None

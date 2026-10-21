@@ -685,6 +685,8 @@ def what_expires(export, knowledge: Knowledge, horizon_days: int, *, today: date
                     # evidence names how it was counted.
                     evidence=f"{RESOURCE}: {key_bits}; {counted_from_today(age_days)}",
                     reason=state.reason,
+                    days_left=days,
+                    expired=days < 0,
                 ),
             )
         )

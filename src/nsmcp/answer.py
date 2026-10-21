@@ -241,6 +241,15 @@ class Finding:
     # the "niet gevonden" finding beside the candidate line. Add a flagged
     # finding without such a companion and that stops holding.
     only_in_full: bool = False
+    # SR-10 (1.0.2). The remaining term of a certificate, TYPED, for the
+    # severity line at 'minimaal' (`disclosure._minimal`). That line used to
+    # be a regex over `outcome` - and an outcome carries object names, so a
+    # vserver called "VS_A verloopt over 1 dagen" steered the verdict of a
+    # tool that says nothing about expiry. Only the expiry list sets these:
+    # `days_left` the whole days left today, `expired` True for one that is
+    # past its date. Default None/False: no finding claims a term it lacks.
+    days_left: int | None = None
+    expired: bool = False
     # Does this finding count toward the "N vastgestelde bevinding(en)"
     # tally `disclosure._minimal()` reports? Default True, so nothing
     # existing changes. False is for a finding whose own outcome IS a
