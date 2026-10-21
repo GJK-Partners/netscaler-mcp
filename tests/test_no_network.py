@@ -882,7 +882,9 @@ def test_the_reading_tools_on_the_REAL_export_open_no_socket(tmp_path, loop, no_
         "beveiliging_verstopte_regels"
     ][1]
     assert "- blootstelling: FAIL [vastgesteld]" in answers["beveiliging_beheervlak"][1]
-    assert "- Strict-Transport-Security: aanwezig en gebonden [vastgesteld]" in (answers["beveiliging_headers"][1])
+    # B2 (1.0.2): no vserver on this export binds an HSTS profile, and the
+    # binding field is not in the export - never "aanwezig en gebonden".
+    assert "- Strict-Transport-Security: niet beoordeeld [niet vastgesteld]" in (answers["beveiliging_headers"][1])
     assert "- VSRV-003: niet vastgesteld [niet vastgesteld]" in answers["dienst_keten"][1]
     assert "- storing: geen object DOWN gezien [vastgesteld]" in answers["status_gezondheid"][1]
     assert "- Gateway-vservers: 2 gemeten, 0 DOWN [vastgesteld]" in answers["status_gezondheid"][1]

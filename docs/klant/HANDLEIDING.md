@@ -136,8 +136,8 @@ gereedschappen hieronder horen bij de volgende negen:
   configuratieweging, geen live scan) en `beveiliging_beheervlak` (staat het beheer van de
   appliance open: blootstelling, transport, certificaat en RBAC, elk PASS, FAIL of NIET
   BEOORDEELD) en `beveiliging_headers` (de dekking van zes HTTP-securityheaders; een rewrite
-  telt alleen met een effectieve RESPONSE-binding, terwijl HSTS volgt uit een FrontEnd-profiel
-  met `hsts=ENABLED` en de vserverbinding afzonderlijk als bewijs wordt gemeld).
+  telt alleen met een effectieve RESPONSE-binding, en HSTS telt alleen als een vserver een
+  FrontEnd-profiel met `hsts=ENABLED` bindt).
   `beveiliging_scorekaart` toont de Level-1-controls met ernst, zekerheid en toepasselijkheid.
   De kop telt alleen PASS en FAIL: X van 18 beoordeeld, of 19 bij bevestigde IPREP-scancontext.
   Vijf controls vallen buiten de noemer; zeven vaste onderwerpen staan onderaan buiten bereik.
@@ -840,8 +840,13 @@ in orde is.
 `beveiliging_headers` (hoofdstuk beveiliging) meldt per HTTP-securityheader of
 die aanwezig en gebonden, wel gedefinieerd maar niet gebonden, afwezig of niet
 beoordeeld is. Een rewrite-action telt alleen via een effectieve RESPONSE-binding.
-Voor HSTS bepaalt een gelezen FrontEnd-SSL-profiel met `hsts=ENABLED` het oordeel;
-het aantal vserverbindings is afzonderlijk bewijs en verandert dat oordeel niet.
+Voor HSTS telt een FrontEnd-SSL-profiel met `hsts=ENABLED` alleen als een vserver het
+bindt: dan is HSTS "aanwezig en gebonden", met de namen van die vservers. Bindt geen
+vserver zo'n eigen profiel, dan is het "wel gedefinieerd maar niet gebonden". De
+ingebouwde profielen (`ns_default_ssl_profile_...`) staan op elke appliance en tellen
+alleen mee als een vserver ze bindt. Is niet te lezen welk profiel een vserver bindt
+(de bron of het veld `sslprofile` ontbreekt), dan is HSTS "niet beoordeeld" en staat
+het leesgat onder NIET VASTGESTELD.
 
 ### Certificaatgebruik buiten de virtuele servers
 

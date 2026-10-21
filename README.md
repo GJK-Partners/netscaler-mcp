@@ -345,7 +345,7 @@ does not.
 | `beveiliging_verstopte_regels(doel)` | the 29 hidden rules no alarm fires on: per rule whether it is hit, on which objects, and why it goes unnoticed. Reads configuration fields; proves no behaviour |
 | `beveiliging_tls_baseline(doel)` | a TLS grade per virtual server (A+ through T) with the deciding characteristics, plus the spread across the appliance and the ruleset version used. Protocol and ciphers come from the bound SSL profile when there is one. A configuration weighing, not a live scan |
 | `beveiliging_beheervlak(doel)` | whether the management plane of this appliance is open: exposure on data-plane addresses, cleartext transport, the default management certificate on production traffic and RBAC hardening. Each of the four is PASS, FAIL or NIET BEOORDEELD. A network ACL in front of the management address is invisible to this answer |
-| `beveiliging_headers(doel)` | whether the six HTTP security headers are configured: rewrite headers require an effective RESPONSE binding; HSTS follows a FrontEnd SSL profile with `hsts=ENABLED`, while the vserver binding count is reported separately as evidence |
+| `beveiliging_headers(doel)` | whether the six HTTP security headers are configured: rewrite headers require an effective RESPONSE binding; HSTS counts only when a vserver binds a FrontEnd SSL profile with `hsts=ENABLED` (named per vserver); an own profile nobody binds is "defined, not bound", an unbound built-in profile does not count, and an unread binding is "niet beoordeeld" |
 | `beveiliging_scorekaart(doel)` | Level-1 controls with outcome-dependent severity; X of Y assessed (18 or 19), five controls excluded and seven fixed out-of-scope subjects |
 
 ### onderhoud

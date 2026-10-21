@@ -35,6 +35,10 @@ HEADER_WORDS = (
     "niet beoordeeld",
 )
 HSTS = HEADERS[0]
+# The built-in SSL profiles every appliance carries (`ns_default_ssl_profile_
+# frontend`, `..._secure_frontend`, ...). One with hsts=ENABLED proves nothing
+# until a vserver binds it.
+_BUILTIN_PROFILE_PREFIX = "ns_default_ssl_profile"
 _TARGET_ALIASES = {header.casefold(): header for header in HEADERS}
 _TARGET_ALIASES["feature-policy"] = "Permissions-Policy"
 # Complete current-release vocabularies from the NITRO rewriteaction and
@@ -252,7 +256,7 @@ def header_coverage(export) -> tuple[HeaderResult, ...]:
             )
             bound.setdefault(header, set()).add(where)
 
-    hsts_profiles = {
+    hsts_profile_names = {
         field_text(profile, "name").casefold()
         for profile in profiles
         if field_text(profile, "sslprofiletype").casefold() == "frontend"
@@ -262,33 +266,69 @@ def header_coverage(export) -> tuple[HeaderResult, ...]:
         sorted(
             field_text(vserver, "vservername") or field_text(vserver, "name") or "(naamloos)"
             for vserver in vservers
-            if field_text(vserver, "sslprofile").casefold() in hsts_profiles
+            if field_text(vserver, "sslprofile").casefold() in hsts_profile_names
         )
     )
+    # B2 (1.0.2): a profile is only evidence of HSTS on traffic when a vserver
+    # binds it. The built-in profiles exist on every appliance, so an unbound
+    # built-in one says nothing at all; an own profile that nobody binds is
+    # "wel gedefinieerd, niet gebonden"; and a gap in the binding read is
+    # "niet beoordeeld", never "gebonden".
+    own_hsts_profiles = {name for name in hsts_profile_names if not name.startswith(_BUILTIN_PROFILE_PREFIX)}
+    hsts_binding_gaps = _dedupe_gaps((*vserver_source_gaps, *vserver_field_gaps))
 
     results: list[HeaderResult] = []
     hsts_gaps = _dedupe_gaps((*profile_source_gaps, *profile_field_gaps))
     if hsts_gaps:
         results.append(_not_assessed(HSTS, hsts_gaps))
-    elif hsts_profiles:
-        hsts_binding_gaps = _dedupe_gaps((*vserver_source_gaps, *vserver_field_gaps))
-        if hsts_binding_gaps:
-            binding_evidence = "binding onbekend door een leesgat"
-        elif bound_hsts_vservers:
-            binding_evidence = f"gebonden aan {len(bound_hsts_vservers)} vserver(s)"
-        else:
-            binding_evidence = "aan geen vserver gebonden"
+    elif bound_hsts_vservers:
         results.append(
             HeaderResult(
                 HSTS,
                 "aanwezig en gebonden",
                 bound_hsts_vservers,
-                evidence=f"{PROFILE_RESOURCE}; {binding_evidence}",
+                evidence=(
+                    f"{PROFILE_RESOURCE}: FrontEnd-profiel met hsts=ENABLED; {VSERVER_RESOURCE}: gebonden aan"
+                    f" {', '.join(bound_hsts_vservers)}"
+                ),
                 read_gaps=hsts_binding_gaps,
             )
         )
+    elif hsts_profile_names and hsts_binding_gaps:
+        results.append(
+            HeaderResult(
+                HSTS,
+                "niet beoordeeld",
+                evidence=", ".join(dict.fromkeys((PROFILE_RESOURCE, *(gap.source for gap in hsts_binding_gaps)))),
+                reason=(
+                    "er bestaat een FrontEnd-profiel met hsts=ENABLED, maar welke vserver welk profiel bindt is"
+                    " niet gelezen: " + "; ".join(f"{gap.source}: {gap.reason}" for gap in hsts_binding_gaps)
+                ),
+                read_gaps=hsts_binding_gaps,
+            )
+        )
+    elif own_hsts_profiles:
+        results.append(
+            HeaderResult(
+                HSTS,
+                "wel gedefinieerd, niet gebonden",
+                evidence=f"{PROFILE_RESOURCE}, {VSERVER_RESOURCE}",
+                reason="geen vserver bindt een FrontEnd-profiel met hsts=ENABLED",
+            )
+        )
     else:
-        results.append(HeaderResult(HSTS, "afwezig", evidence=PROFILE_RESOURCE))
+        results.append(
+            HeaderResult(
+                HSTS,
+                "afwezig",
+                evidence=f"{PROFILE_RESOURCE}, {VSERVER_RESOURCE}" if hsts_profile_names else PROFILE_RESOURCE,
+                reason=(
+                    "alleen ingebouwde profielen dragen hsts=ENABLED en geen vserver bindt ze"
+                    if hsts_profile_names
+                    else ""
+                ),
+            )
+        )
 
     rewrite_gaps = _dedupe_gaps(
         (*action_source_gaps, *policy_source_gaps, *action_field_gaps, *policy_field_gaps, *binding_gaps)

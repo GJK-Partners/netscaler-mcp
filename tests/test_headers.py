@@ -58,17 +58,19 @@ KNOWN_GLOBAL_TYPES = tuple(
 GLOBAL_HTTP_RESPONSES = ("RES_DEFAULT", "RES_OVERRIDE", "HTTPQUIC_RES_DEFAULT", "HTTPQUIC_RES_OVERRIDE")
 
 
-def test_the_real_export_has_hsts_and_no_rewrite_headers():
+def test_the_real_export_has_no_bound_hsts_and_no_rewrite_headers():
+    # Before 1.0.2 this pinned "aanwezig en gebonden [vastgesteld]" - the
+    # false green of B2. See the B2 tests at the end of this file.
     export = load_export(FIXTURE)
     text = stamp_data(headers_answer(export, KNOWLEDGE), export.collected_at, TODAY, export.target_name).to_text()
 
     assert "Vraag: staan de security-headers er echt op" in text
-    assert "- Strict-Transport-Security: aanwezig en gebonden [vastgesteld]" in text
+    assert "- Strict-Transport-Security: niet beoordeeld [niet vastgesteld]" in text
     for header in HEADERS[1:]:
         assert f"- {header}: afwezig [vastgesteld]" in text
 
 
-def test_hsts_frontend_profile_counts_even_without_a_vserver_binding(tmp_path):
+def test_hsts_frontend_profile_without_a_vserver_binding_is_only_defined(tmp_path):
     export = _export(
         tmp_path,
         profiles=[{"name": "FE_HSTS", "sslprofiletype": "FrontEnd", "hsts": "ENABLED"}],
@@ -76,9 +78,9 @@ def test_hsts_frontend_profile_counts_even_without_a_vserver_binding(tmp_path):
 
     result = _by_header(export)["Strict-Transport-Security"]
 
-    assert result.word == "aanwezig en gebonden"
+    assert result.word == "wel gedefinieerd, niet gebonden"
     assert result.vservers == ()
-    assert "aan geen vserver gebonden" in result.evidence
+    assert "geen vserver bindt" in result.reason
 
 
 def test_feature_policy_action_is_the_permissions_policy_alias(tmp_path):
@@ -303,7 +305,7 @@ def test_unknown_global_type_is_a_gap_without_value_echo(tmp_path):
     assert "UNKNOWN_GLOBAL" not in result.reason
 
 
-def test_missing_vserver_binding_fields_make_only_binding_evidence_unknown(tmp_path):
+def test_missing_vserver_binding_fields_make_hsts_not_assessed(tmp_path):
     export = _export(
         tmp_path,
         profiles=[{"name": "FE_HSTS", "sslprofiletype": "FrontEnd", "hsts": "ENABLED"}],
@@ -312,13 +314,12 @@ def test_missing_vserver_binding_fields_make_only_binding_evidence_unknown(tmp_p
 
     result = _by_header(export)["Strict-Transport-Security"]
 
-    assert result.word == "aanwezig en gebonden"
-    assert "binding onbekend" in result.evidence
-    assert "aan geen vserver gebonden" not in result.evidence
+    assert result.word == "niet beoordeeld"
+    assert "niet gelezen" in result.reason
     assert any(g.source == "config/sslvserver.sslprofile" for g in result.read_gaps)
 
 
-def test_unreadable_vserver_source_makes_only_binding_evidence_unknown(tmp_path):
+def test_unreadable_vserver_source_makes_hsts_not_assessed(tmp_path):
     export = _export(
         tmp_path,
         profiles=[{"name": "FE_HSTS", "sslprofiletype": "FrontEnd", "hsts": "ENABLED"}],
@@ -327,9 +328,8 @@ def test_unreadable_vserver_source_makes_only_binding_evidence_unknown(tmp_path)
 
     result = _by_header(export)["Strict-Transport-Security"]
 
-    assert result.word == "aanwezig en gebonden"
-    assert "binding onbekend" in result.evidence
-    assert "aan geen vserver gebonden" not in result.evidence
+    assert result.word == "niet beoordeeld"
+    assert "niet gelezen" in result.reason
     assert any(g.source == "config/sslvserver" for g in result.read_gaps)
 
 
@@ -403,3 +403,124 @@ def _export(
     )
     seal_manifest(root)
     return load_export(root)
+
+
+# --- B2 (1.0.2): HSTS is only "aanwezig en gebonden" when a vserver binds it --
+#
+# Measured in the public test of 1.0.0: on the shipped lab export every
+# sslvserver carries hsts DISABLED and no sslprofile; the only profiles with
+# hsts ENABLED are the built-in `ns_default_ssl_profile_secure_frontend(_cloud)`.
+# The answer still said "aanwezig en gebonden [vastgesteld]" with the evidence
+# "binding onbekend door een leesgat".
+
+_HSTS = "Strict-Transport-Security"
+_FE_HSTS = {"name": "FE_HSTS", "sslprofiletype": "FrontEnd", "hsts": "ENABLED"}
+_FE_PLAIN = {"name": "FE_PLAIN", "sslprofiletype": "FrontEnd", "hsts": "DISABLED"}
+_BUILTIN_SECURE = {"name": "ns_default_ssl_profile_secure_frontend", "sslprofiletype": "FrontEnd", "hsts": "ENABLED"}
+
+
+def test_b2_the_lab_export_never_says_hsts_is_present_and_bound():
+    export = load_export(FIXTURE)
+    result = _by_header(export)[_HSTS]
+    assert result.word != "aanwezig en gebonden"
+    assert result.word == "niet beoordeeld"
+    assert result.vservers == ()
+    assert any(g.source == "config/sslvserver.sslprofile" for g in result.read_gaps)
+    text = stamp_data(headers_answer(export, KNOWLEDGE), export.collected_at, TODAY, export.target_name).to_text()
+    assert f"- {_HSTS}: niet beoordeeld [niet vastgesteld]" in text
+    assert "NIET VASTGESTELD" in text
+    assert "config/sslvserver.sslprofile" in text.split("NIET VASTGESTELD", 1)[1]
+
+
+def test_b2_a_bound_hsts_profile_is_present_and_bound_with_the_vserver_names(tmp_path):
+    export = _export(
+        tmp_path,
+        profiles=[_FE_HSTS, _FE_PLAIN],
+        vservers=[
+            {"vservername": "LB_B", "sslprofile": "FE_HSTS"},
+            {"vservername": "LB_A", "sslprofile": "fe_hsts"},
+            {"vservername": "LB_C", "sslprofile": "FE_PLAIN"},
+        ],
+    )
+    result = _by_header(export)[_HSTS]
+    assert result.word == "aanwezig en gebonden"
+    assert result.vservers == ("LB_A", "LB_B")
+    assert "LB_A, LB_B" in result.evidence
+    assert result.read_gaps == ()
+
+
+def test_b2_a_defined_hsts_profile_that_no_vserver_binds_is_only_defined(tmp_path):
+    export = _export(
+        tmp_path,
+        profiles=[_FE_HSTS, _FE_PLAIN],
+        vservers=[{"vservername": "LB_A", "sslprofile": "FE_PLAIN"}],
+    )
+    result = _by_header(export)[_HSTS]
+    assert result.word == "wel gedefinieerd, niet gebonden"
+    assert result.vservers == ()
+
+
+def test_b2_an_unbound_builtin_profile_does_not_count(tmp_path):
+    export = _export(
+        tmp_path,
+        profiles=[_BUILTIN_SECURE, _FE_PLAIN],
+        vservers=[{"vservername": "LB_A", "sslprofile": "FE_PLAIN"}],
+    )
+    result = _by_header(export)[_HSTS]
+    assert result.word == "afwezig"
+
+
+def test_b2_a_builtin_profile_counts_once_a_vserver_binds_it(tmp_path):
+    export = _export(
+        tmp_path,
+        profiles=[_BUILTIN_SECURE],
+        vservers=[{"vservername": "LB_A", "sslprofile": "ns_default_ssl_profile_secure_frontend"}],
+    )
+    result = _by_header(export)[_HSTS]
+    assert result.word == "aanwezig en gebonden"
+    assert result.vservers == ("LB_A",)
+
+
+@pytest.mark.parametrize(
+    "vservers, resource_status, gap_source",
+    [
+        ([{"vservername": "LB_A"}], None, "config/sslvserver.sslprofile"),
+        ((), {"config/sslvserver": "RBAC_DENIED"}, "config/sslvserver"),
+    ],
+    ids=["field-missing", "source-unread"],
+)
+def test_b2_a_binding_read_gap_is_not_assessed_never_present(tmp_path, vservers, resource_status, gap_source):
+    export = _export(tmp_path, profiles=[_FE_HSTS], vservers=vservers, resource_status=resource_status)
+    result = _by_header(export)[_HSTS]
+    assert result.word == "niet beoordeeld"
+    assert any(g.source == gap_source for g in result.read_gaps)
+    finding = next(f for f in headers_answer(export, KNOWLEDGE).findings if f.subject == _HSTS)
+    assert finding.certainty is Certainty.NOT_ESTABLISHED
+
+
+def test_b2_a_bound_profile_next_to_a_binding_gap_stays_bound_and_names_the_gap(tmp_path):
+    export = _export(
+        tmp_path,
+        profiles=[_FE_HSTS],
+        vservers=[{"vservername": "LB_A", "sslprofile": "FE_HSTS"}, {"vservername": "LB_B"}],
+    )
+    result = _by_header(export)[_HSTS]
+    assert result.word == "aanwezig en gebonden"
+    assert result.vservers == ("LB_A",)
+    assert any(g.source == "config/sslvserver.sslprofile" for g in result.read_gaps)
+
+
+def test_b2_headers_and_tls_baseline_do_not_contradict_on_the_lab_export():
+    """Cross-check on one export: a vserver the header answer calls bound to
+    HSTS must not be flagged "hsts uit" by the TLS baseline, and a header
+    answer of "aanwezig en gebonden" needs at least one such vserver."""
+    from nsmcp.tls_baseline import grade_per_vserver
+
+    export = load_export(FIXTURE)
+    result = _by_header(export)[_HSTS]
+    hsts_off = {g.vserver for g in grade_per_vserver(export) if "hsts uit" in g.kenmerken}
+    assert hsts_off, "de labexport hoort vservers met 'hsts uit' te dragen"
+    assert not set(result.vservers) & hsts_off
+    if result.word == "aanwezig en gebonden":
+        assert set(result.vservers) - hsts_off
+    assert result.word != "aanwezig en gebonden"
