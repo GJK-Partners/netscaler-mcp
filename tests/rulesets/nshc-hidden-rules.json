@@ -1,0 +1,290 @@
+{
+  "schemaVersion": "1.0",
+  "rulesetName": "nshc-hidden-rules",
+  "rulesetVersion": "1.0.1",
+  "rulesetDate": "2026-09-06",
+  "source": "GJK NetScaler Healthcheck 1.0.1 backend/hiddenrules/NshcHiddenRules.ps1 (rules, statuses) + backend/readonly/Invoke-NshcSslGrade.ps1 (gradeLetters) + backend/readonly/Invoke-NshcSecurityScorecard.ps1 (haControls)",
+  "readAt": "2026-09-06",
+  "notes": "Generated readout of two PowerShell files, not a byte-for-byte vendor copy like the other files in this directory - see extract_nshc_hidden_rules.py in this same directory. rules and statuses come from backend/hiddenrules/NshcHiddenRules.ps1; gradeLetters comes from the $order literal in backend/readonly/Invoke-NshcSslGrade.ps1 (fix round 1, task-8-review.md finding I-1 - the parity gate used to compare this product's TLS-letter constant against a literal typed in the test file, never reading NSHC at all). haControls comes from $haMeta, the verdict branches of Get-NshcHaVerdict and the naReason switch of Resolve-ControlVerdict in backend/readonly/Invoke-NshcSecurityScorecard.ps1 (merge-review I-2: the four HA controls were named only in docstrings, so the parity claim -equal in id, severity and word- could not be measured against NSHC at all). Regenerate with './.venv/Scripts/python.exe tests/rulesets/extract_nshc_hidden_rules.py --nshc-version <version> --read-at <YYYY-MM-DD>' against the NSHC working copy and update the anchor in src/nsmcp/rulesets.py in the same commit - both arguments are required with no default (fix round 1, finding I-2), so a regeneration cannot silently keep stamping a stale version or date. Written with LF line endings only (no os.linesep) so the anchor holds regardless of which platform regenerates it - unlike the other files in this directory, this one is not a byte-for-byte copy of an NSHC file, so there is no CRLF original to preserve.",
+  "statuses": [
+    "ERROR",
+    "FINDING",
+    "NOT_ASSESSABLE",
+    "PASS",
+    "SKIPPED"
+  ],
+  "gradeLetters": [
+    "A+",
+    "A",
+    "B",
+    "C",
+    "F",
+    "T"
+  ],
+  "haControls": [
+    {
+      "id": "GJK-L1-HA-001",
+      "title": "HA-paar gezond (rolverdeling; sync-bewijs via HA-002)",
+      "severity": "high",
+      "standaloneNaReason": "scope",
+      "standaloneApplicability": "NotApplicable"
+    },
+    {
+      "id": "GJK-L1-HA-002",
+      "title": "HA-propagatie en sync ingeschakeld",
+      "severity": "medium",
+      "standaloneNaReason": "scope",
+      "standaloneApplicability": "NotApplicable"
+    },
+    {
+      "id": "GJK-L1-HA-003",
+      "title": "Geen geforceerde HA-node-state",
+      "severity": "high",
+      "standaloneNaReason": "scope",
+      "standaloneApplicability": "NotApplicable"
+    },
+    {
+      "id": "GJK-L1-HA-004",
+      "title": "HA running-vs-saved config-drift",
+      "severity": "medium",
+      "standaloneNaReason": null,
+      "standaloneApplicability": null
+    }
+  ],
+  "rules": [
+    {
+      "id": "NSHC-HR-AAA-001",
+      "severity": "high",
+      "requires": [
+        "config/authenticationldapaction"
+      ],
+      "whyFirstSentence": "Een LDAP-action met sectype=SSL of sectype=TLS EN validateservercert=NO bouwt wel een TLS-verbinding naar de directory op, maar controleert het servercertificaat niet."
+    },
+    {
+      "id": "NSHC-HR-AAA-003",
+      "severity": "medium",
+      "requires": [
+        "config/aaaparameter"
+      ],
+      "whyFirstSentence": "aaaparameter.maxloginattempts begrenst mislukte inlogpogingen voor een account wordt geblokkeerd - brute-force-mitigatie."
+    },
+    {
+      "id": "NSHC-HR-CS-001",
+      "severity": "medium",
+      "requires": [
+        "config/csvserver"
+      ],
+      "whyFirstSentence": "Met stateupdate=DISABLED (de default) weerspiegelt de CS-vserver de staat van zijn target-LB niet: gaat een backend DOWN, dan blijft de CS-vserver UP en stuurt verkeer naar een dode dienst."
+    },
+    {
+      "id": "NSHC-HR-CS-002",
+      "severity": "medium",
+      "requires": [
+        "config/cspolicy"
+      ],
+      "whyFirstSentence": "Bij NetScaler advanced-policy bepaalt de tekstmodus of hoofdletters meetellen bij CONTAINS/EQ/STARTSWITH."
+    },
+    {
+      "id": "NSHC-HR-GLOB-001",
+      "severity": "medium",
+      "requires": [
+        "config/nsparam"
+      ],
+      "whyFirstSentence": "nsparam.internaluserlogin bepaalt of de interne gebruiker op de appliance mag inloggen; NetScaler-functies gebruiken dat account voor interne communicatie."
+    },
+    {
+      "id": "NSHC-HR-HA-001",
+      "severity": "high",
+      "requires": [
+        "config/hanode"
+      ],
+      "whyFirstSentence": "STAYSECONDARY is een onderhoudsstand die routinematig blijft staan na een upgrade of troubleshooting."
+    },
+    {
+      "id": "NSHC-HR-HA-002",
+      "severity": "medium",
+      "requires": [
+        "config/hanode"
+      ],
+      "whyFirstSentence": "Met syncstatusstrictmode=DISABLED rapporteert een node \"in sync\" ook als niet elke feature strikt gesynct is."
+    },
+    {
+      "id": "NSHC-HR-HA-003",
+      "severity": "high",
+      "requires": [
+        "config/hanode"
+      ],
+      "whyFirstSentence": "Met haprop=DISABLED worden config-wijzigingen op de primary NIET automatisch naar de secondary gepropageerd."
+    },
+    {
+      "id": "NSHC-HR-HA-005",
+      "severity": "high",
+      "requires": [
+        "config/hanode"
+      ],
+      "whyFirstSentence": "HA failsafe garandeert dat er altijd EEN node primary blijft, ook als beide nodes hun health-check niet halen."
+    },
+    {
+      "id": "NSHC-HR-LB-001",
+      "severity": "high",
+      "requires": [
+        "config/lbvserver"
+      ],
+      "whyFirstSentence": "Staat er een spillover-methode (soMethod) ingesteld maar geen backup-vserver, dan wordt elke overflow-gebeurtenis een STILLE connectie-drop i.p.v. dat verkeer naar een backup gaat."
+    },
+    {
+      "id": "NSHC-HR-LB-003",
+      "severity": "high",
+      "requires": [
+        "config/lbvserver"
+      ],
+      "whyFirstSentence": "sessionless=ENABLED (gebruikt voor doorvoer/DSR) houdt geen sessietabel bij."
+    },
+    {
+      "id": "NSHC-HR-LOG-001",
+      "severity": "high",
+      "requires": [
+        "config/auditsyslogparams"
+      ],
+      "whyFirstSentence": "config/auditsyslogparams is de globale, ingebouwde syslog-route van NetScaler: alles wat niet door een benoemde auditsyslog-policy wordt afgevangen, gaat hierlangs."
+    },
+    {
+      "id": "NSHC-HR-LOG-002",
+      "severity": "medium",
+      "requires": [
+        "config/auditsyslogaction"
+      ],
+      "whyFirstSentence": "UDP-syslog is verbindingsloos: bij netwerksaturatie, een hoge log-rate of een tijdelijk onbereikbare server kunnen berichten stilzwijgend verdwijnen - geen fout, geen retry, geen gat dat opvalt."
+    },
+    {
+      "id": "NSHC-HR-MGMT-001",
+      "severity": "high",
+      "requires": [
+        "config/nsip"
+      ],
+      "whyFirstSentence": "Wanneer GUI of SSH op een SNIP/VIP (data-plane) is aangezet, is het beheervlak bereikbaar via het netwerk waar gebruikersverkeer loopt."
+    },
+    {
+      "id": "NSHC-HR-MGMT-002",
+      "severity": "medium",
+      "requires": [
+        "config/systemparameter"
+      ],
+      "whyFirstSentence": "systemparameter.strongpassword dwingt complexiteitseisen af op lokale system-accounts (nsroot en maatwerkbeheerders)."
+    },
+    {
+      "id": "NSHC-HR-MGMT-003",
+      "severity": "high",
+      "requires": [
+        "config/nsip"
+      ],
+      "whyFirstSentence": "Telnet en FTP versturen inloggegevens en configuratie ONVERSLEUTELD over het netwerk."
+    },
+    {
+      "id": "NSHC-HR-MGMT-004",
+      "severity": "medium",
+      "requires": [
+        "config/systemparameter"
+      ],
+      "whyFirstSentence": "systemparameter.timeout is de globale inactiviteits-timeout voor CLI- en GUI-beheersessies."
+    },
+    {
+      "id": "NSHC-HR-MON-001",
+      "severity": "medium",
+      "requires": [
+        "config/lbmonitor"
+      ],
+      "whyFirstSentence": "Een monitor hoort binnen het probe-interval een antwoord te krijgen: resptimeout moet KLEINER zijn dan interval."
+    },
+    {
+      "id": "NSHC-HR-MON-002",
+      "severity": "medium",
+      "requires": [
+        "config/lbmonitor"
+      ],
+      "whyFirstSentence": "retries bepaalt hoeveel probes NetScaler stuurt om de staat van een dienst vast te stellen nadat een probe mislukte."
+    },
+    {
+      "id": "NSHC-HR-RBAC-001",
+      "severity": "high",
+      "requires": [
+        "config/systemcmdpolicy"
+      ],
+      "whyFirstSentence": "Een command-policy met ALLOW op een spec die \"shell\" matcht laat de gebruiker uit de NetScaler-CLI naar de onderliggende FreeBSD-shell springen - feitelijk een RBAC-sandbox-escape met volledige OS-toegang."
+    },
+    {
+      "id": "NSHC-HR-RSP-001",
+      "severity": "high",
+      "requires": [
+        "config/responderpolicy"
+      ],
+      "whyFirstSentence": "RESET (stuurt TCP-RST) en DROP (gooit weg, geen antwoord) zijn harde responder-acties."
+    },
+    {
+      "id": "NSHC-HR-RW-001",
+      "severity": "high",
+      "requires": [
+        "config/rewritepolicy",
+        "config/rewriteaction"
+      ],
+      "whyFirstSentence": "Verwijst een niet-default rewritepolicy naar een action-naam die niet in de action-lijst staat en geen ingebouwde rewrite-policy-action is (NOREWRITE/RESET/DROP), dan heeft NetScaler bij een match geen geldige actie: het pad wordt een UNDEF-event (niet herschreven, niet netjes doorgelaten)."
+    },
+    {
+      "id": "NSHC-HR-SSL-001",
+      "severity": "high",
+      "requires": [
+        "config/sslvserver_sslcertkey_binding?bulkbindings=yes"
+      ],
+      "whyFirstSentence": "De ingebouwde self-signed ns-server-certificate hoort alleen voor het beheer-GUI, niet voor productieverkeer."
+    },
+    {
+      "id": "NSHC-HR-SSL-002",
+      "severity": "high",
+      "requires": [
+        "config/sslparameter"
+      ],
+      "whyFirstSentence": "De globale SSL-parameter denySSLReneg bepaalt of clients een TLS-heronderhandeling mogen starten."
+    },
+    {
+      "id": "NSHC-HR-SSL-003",
+      "severity": "high",
+      "requires": [
+        "config/sslprofile"
+      ],
+      "whyFirstSentence": "Bind een beheerder een eigen SSL-profiel aan een vserver, dan overschrijven de profielwaarden de per-vserver-instellingen."
+    },
+    {
+      "id": "NSHC-HR-SSL-004",
+      "severity": "medium",
+      "requires": [
+        "config/sslcertkey"
+      ],
+      "whyFirstSentence": "Per certificaat bepaalt expirymonitor of NetScaler een melding geeft als het certificaat bijna verloopt; notificationperiod bepaalt hoeveel dagen van tevoren."
+    },
+    {
+      "id": "NSHC-HR-SSL-005",
+      "severity": "medium",
+      "requires": [
+        "config/sslvserver",
+        "config/sslprofile"
+      ],
+      "whyFirstSentence": "TLS 1.3 staat op NetScaler standaard uit."
+    },
+    {
+      "id": "NSHC-HR-SVC-001",
+      "severity": "high",
+      "requires": [
+        "config/service"
+      ],
+      "whyFirstSentence": "Een config/service met healthmonitor=NO krijgt geen probes: de appliance toont de dienst dan te allen tijde als UP."
+    },
+    {
+      "id": "NSHC-HR-SVC-002",
+      "severity": "medium",
+      "requires": [
+        "config/servicegroup"
+      ],
+      "whyFirstSentence": "USIP=YES (Use Source IP) laat de NetScaler het originele client-IP als source gebruiken naar de backend."
+    }
+  ]
+}

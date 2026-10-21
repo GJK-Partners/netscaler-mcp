@@ -1,0 +1,16 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "auditsyslogpolicy": [
+    {
+      "name": "SYSLOGPOL-001",
+      "rule": "true",
+      "action": "SYSLOGACT-001",
+      "activepolicy": "0",
+      "priority": "0",
+      "feature": "SYSTEM",
+      "expressiontype": "Advanced Policy"
+    }
+  ]
+}

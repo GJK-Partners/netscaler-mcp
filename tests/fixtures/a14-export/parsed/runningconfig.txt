@@ -1,0 +1,5 @@
+#NS14.1 Build 72.57
+# Last modified Sun Sep  6 11:03:36 2026
+set ns config -IPAddress 203.0.113.11 -netmask 255.255.255.0
+set ns tcpProfile nsulfd_default_profile -mss 0 -initialCwnd 6 -oooQSize 100 -maxPktPerMss 0 -bufferSize 8190 -flavor Default -frto DISABLED -fack DISABLED
+add lb vserver LAB-LBV-005 SSL 192.0.2.14 443 -persistenceType COOKIEINSERT -timeout 0 -lbMethod ROUNDROBIN -backupLBMethod LEASTCONNECTION -cltTimeout 180 -tcpProfileName nstcp_default_tcp_lan

@@ -1,0 +1,7 @@
+{
+  "lbmonitor": [
+    {
+      "monitorname": "mon_http"
+    }
+  ]
+}

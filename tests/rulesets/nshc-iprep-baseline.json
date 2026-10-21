@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "rulesetName": "nshc-iprep-baseline",
+  "rulesetVersion": "2026.07.1",
+  "rulesetDate": "2026-07-24",
+  "source": "Lab-bevestigd tegen live NetScaler NS14.1 iprep.log (2026-07-24, TERM-001). Bevestigd: syslog-regelformaat 'MMM dd HH:mm:ss <facility> <host> iprep: <func>:<ln> <msg>', de indicator 'iprep and PE are at same version' (DB actueel) en de foutregel 'curl_easy_perform failed ... Could not resolve hostname' (download faalt). VERDICT-DRAGEND is UITSLUITEND het lab-bevestigde 'iprep and PE are at same version'-patroon in lastUpdatePatterns; de onbevestigde succes-varianten ('update completed'/'updated successfully'/ISO-timestamp) zijn BEWUST NIET in de verdict-dragende patronen opgenomen (het lab had geen cloud-bereik voor een succesvolle-download-sample), zodat een onbevestigd formaat nooit een PASS kan opleveren. Het IP-aantal- en DB-versie-formaat zijn best-effort evidence (NIET verdict-dragend); ontbreken geeft fail-closed geen valse PASS.",
+  "rules": {
+    "logPath": "/var/log",
+    "logFile": "iprep.log",
+    "maxLogLines": 400,
+    "staleAfterMinutes": 1440,
+    "patternsConfirmed": true,
+    "iprepExpressionPattern": "(?i)(IPREP_IS_MALICIOUS|SRC\\.IPREP|\\.IPREP_|CLIENT\\.IP\\.SRC\\.IPREP|ipreputation)",
+    "lastUpdatePatterns": [
+      "(?i)^(\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2})\\b.*iprep and PE are at same version"
+    ],
+    "ipCountPatterns": [
+      "(?i)(?:total\\s+(?:number\\s+of\\s+)?(?:malicious\\s+)?ip(?:\\s+address)?e?s?|ip\\s+count)\\D{0,20}(\\d{3,})"
+    ],
+    "dbVersionPatterns": [
+      "(?i)(?:schema|db|database)\\s+version\\D{0,10}([0-9][0-9.]{0,15})"
+    ],
+    "errorPatterns": [
+      "(?i)(curl_easy_perform\\s+failed|could\\s+not\\s+resolve|failed|failure|error|unable to|cannot connect|connection refused|timed out|timeout|no route|resolve)"
+    ],
+    "credentialPatterns": [
+      "(?i)(credential|password|passwd|token|api[_-]?key|apikey|secret|oem\\s*id|uid\\s*=|key\\s*=)"
+    ]
+  }
+}

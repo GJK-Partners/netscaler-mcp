@@ -1,0 +1,61 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "systemcmdpolicy": [
+    {
+      "policyname": "operator",
+      "action": "ALLOW",
+      "cmdspec": "(^man.*)|(^show\\s+(?!system)(?!configstatus)(?!ns ns\\.conf)(?!ns savedconfig)(?!ns runningConfig)(?!gslb runningConfig)(?!audit messages)(?!techsupport)(?!ns rpcNode).*)|(^stat.*)|(^(enable|disable) (server|service).*)|(^generate aaa otpparameter.*)",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "read-only",
+      "action": "ALLOW",
+      "cmdspec": "(^man.*)|(^show\\s+(?!system)(?!configstatus)(?!ns ns\\.conf)(?!ns savedconfig)(?!ns runningConfig)(?!gslb runningConfig)(?!audit messages)(?!techsupport)(?!ns rpcNode).*)|(^stat.*)|(^generate aaa otpparameter.*)",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "network",
+      "action": "ALLOW",
+      "cmdspec": "^(?!clear ns config.*)(?!scp.*)(?!add gslb site.*)(?!add HA node.*)(?!add cluster node.*)(?!add telemetry)(?!set ssl fips)(?!reset ssl fips)(?!diff ns config)(?!convert\\s+ns\\s+config)(?!shell)(?!reboot)(?!batch)(?!source)(?!install)(?!set\\s+aaa\\s+parameter\\s+.*-maxLoginAttempts.*)(?!lock\\s+aaa\\s+user\\s+.*)(?!unlock\\s+aaa\\s+user\\s+.*)(?!(set|unset|add|rm|bind|unbind|switch)\\s+ns\\s+partition)\\S+\\s+(?!system)(?!audit messages)(?!configstatus)(?!ns ns\\.conf)(?!ns savedconfig)(?!ns runningConfig)(?!gslb runningConfig)(?!techsupport)(?!nstrace)(?!ns rpcNode).*|(^install\\s*(wi|wf))",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "superuser",
+      "action": "ALLOW",
+      "cmdspec": ".*",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "sysadmin",
+      "action": "ALLOW",
+      "cmdspec": "^(?!shell)(?!sftp)(?!scp)(?!batch)(?!source)(?!.*superuser)(?!.*nsroot)(?!install)(?!add gslb site.*)(?!add HA node.*)(?!add cluster node.*)(?!.*ns rpcNode.*)(?!show\\s+system\\s+(user|cmdPolicy|file))(?!(set|add|rm|create|export|kill)\\s+system)(?!(unbind|bind)\\s+system\\s+(user|group))(?!diff\\s+ns\\s+config)(?!convert\\s+ns\\s+config)(?!(set|unset|add|rm|bind|unbind|switch)\\s+ns\\s+partition).*|(^install\\s*(wi|wf))",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "partition-operator",
+      "action": "ALLOW",
+      "cmdspec": "(^man.*)|(^switch)|(^show\\s+(?!system)(?!configstatus)(?!ns ns\\.conf)(?!ns savedconfig)(?!ns runningConfig)(?!gslb runningConfig)(?!audit messages)(?!techsupport)(?!ns rpcNode).*)|(^stat.*)|(^(enable|disable) (server|service).*)|(^generate aaa otpparameter.*)",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "partition-read-only",
+      "action": "ALLOW",
+      "cmdspec": "(^man.*)|(^switch)|(^show\\s+(?!system)(?!configstatus)(?!ns ns\\.conf)(?!ns savedconfig)(?!ns runningConfig)(?!gslb runningConfig)(?!audit messages)(?!techsupport)(?!ns rpcNode).*)|(^stat.*)|(^generate aaa otpparameter.*)",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "partition-network",
+      "action": "ALLOW",
+      "cmdspec": "^((?!clear ns config.*)(?!scp.*)(?!add gslb site.*)(?!add telemetry)(?!set ssl fips)(?!reset ssl fips)(?!diff ns config)(?!shell)(?!reboot)(?!batch)(?!source)(?!install)(?!set\\s+aaa\\s+parameter\\s+.*-maxLoginAttempts.*)(?!lock\\s+aaa\\s+user\\s+.*)(?!unlock\\s+aaa\\s+user\\s+.*)(?!(add|rm|set|unset|bind|unbind) ns partition)\\S+\\s+(?!system)(?!audit messages)(?!configstatus)(?!ns ns\\.conf)(?!ns savedconfig)(?!ns runningConfig)(?!gslb runningConfig)(?!techsupport)(?!nstrace)(?!ns rpcNode).*)|(^install\\s*(wi|wf))",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "partition-admin",
+      "action": "ALLOW",
+      "cmdspec": "^((?!shell)(?!reboot)(?!batch)(?!source)(?!scp.*)(?!install)(?!(add|rm|set) ns partition)\\S+\\s+(?!system)(?!techsupport).*)|(^(show|add|rm|bind|unbind|set) system (user|group|cmdPolicy))|(^show system globaldata)|(^show system entity)|(^show system datasource)|(^(show|add|rm) system file)|(^vtysh)|(^install\\s*(wi|wf))|(^(show|bind|unbind) system global)|(^stat system memory)|(^cls)",
+      "feature": "SYSTEM"
+    }
+  ]
+}

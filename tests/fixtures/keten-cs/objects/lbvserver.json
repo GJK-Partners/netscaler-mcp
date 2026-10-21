@@ -1,0 +1,10 @@
+{
+  "lbvserver": [
+    {
+      "name": "LBV-KETEN-OK",
+      "curstate": "UP",
+      "ipv46": "198.51.100.11",
+      "port": 443
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "auditsyslogparams": {
+    "serverip": "127.0.0.1",
+    "serverport": 514,
+    "dateformat": "MMDDYYYY",
+    "loglevel": [
+      "ALL"
+    ],
+    "logfacility": "LOCAL0",
+    "tcp": "NONE",
+    "timezone": "GMT_TIME",
+    "feature": "SYSTEM",
+    "lsn": "DISABLED",
+    "dns": "DISABLED"
+  }
+}

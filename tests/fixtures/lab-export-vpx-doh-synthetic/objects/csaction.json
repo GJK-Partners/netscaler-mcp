@@ -1,0 +1,31 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "csaction": [
+    {
+      "name": "CSACT-001",
+      "targetlbvserver": "LBV-APP-001",
+      "hits": "0",
+      "referencecount": "1",
+      "undefhits": "0",
+      "feature": "CS"
+    },
+    {
+      "name": "CSACT-002",
+      "targetlbvserver": "LBV-TCP-001",
+      "hits": "0",
+      "referencecount": "1",
+      "undefhits": "0",
+      "feature": "CS"
+    },
+    {
+      "name": "CSACT-003",
+      "targetlbvserver": "LBV-WEB-001",
+      "hits": "0",
+      "referencecount": "1",
+      "undefhits": "0",
+      "feature": "CS"
+    }
+  ]
+}

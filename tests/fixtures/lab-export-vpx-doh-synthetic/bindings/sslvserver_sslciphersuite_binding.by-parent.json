@@ -1,0 +1,63 @@
+{
+  "bindingResource": "sslvserver_sslciphersuite_binding",
+  "parentResource": "sslvserver",
+  "parentKey": "vservername",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "LBV-DOH-001",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "LBV-DOH-002",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "LBV-NODOH-001",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "LBV-APP-001",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "LBV-APP-002",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "LBV-OOS-001",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "CSV-DOH-001",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "CSV-DOH-002",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "CSV-WEB-001",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "CSV-WEB-002",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "CSV-EMPTY-001",
+      "outcome": "EMPTY",
+      "data": null
+    }
+  ]
+}

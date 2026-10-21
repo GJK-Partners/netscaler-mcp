@@ -1,0 +1,25 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "csvserver_rewritepolicy_binding": [
+    {
+      "name": "CSV-WEB-002",
+      "policyname": "RWPOL-001",
+      "stateflag": "536936449",
+      "priority": "100",
+      "gotopriorityexpression": "END",
+      "bindpoint": "REQUEST",
+      "invoke": false
+    },
+    {
+      "name": "CSV-WEB-002",
+      "policyname": "RWPOL-002",
+      "stateflag": "536936449",
+      "priority": "100",
+      "gotopriorityexpression": "NEXT",
+      "bindpoint": "RESPONSE",
+      "invoke": false
+    }
+  ]
+}

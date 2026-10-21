@@ -1,0 +1,29 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "auditsyslogparams": {
+    "serverip": "127.0.0.1",
+    "serverport": 514,
+    "dateformat": "MMDDYYYY",
+    "loglevel": [
+      "ALL"
+    ],
+    "logfacility": "LOCAL0",
+    "tcp": "NONE",
+    "acl": "DISABLED",
+    "timezone": "GMT_TIME",
+    "userdefinedauditlog": "NO",
+    "appflowexport": "DISABLED",
+    "feature": "SYSTEM",
+    "lsn": "DISABLED",
+    "alg": "DISABLED",
+    "subscriberlog": "DISABLED",
+    "dns": "DISABLED",
+    "sslinterception": "DISABLED",
+    "contentinspectionlog": "DISABLED",
+    "streamanalytics": "DISABLED",
+    "protocolviolations": "NONE",
+    "denylistviolations": "DISABLED"
+  }
+}

@@ -1,0 +1,172 @@
+#NS14.1 Build 72.57
+# Last modified Sun Sep  6 12:00:00 2026
+set ns config -IPAddress 192.0.2.2 -netmask 255.255.255.0
+enable ns feature WL SP LB CS SSL REWRITE RESPONDER
+enable ns mode FR L3 Edge USNIP PMTUD
+set system parameter -minpasswordlen <REDACTED> -strongpassword <REDACTED> -forcePasswordChange <REDACTED>
+set system user nsroot <REDACTED> -encrypted -externalAuth DISABLED -lastpwdchangetimestamp <REDACTED>
+add system user labadmin <REDACTED> -encrypted -externalAuth DISABLED -logging ENABLED -maxsession 4 -allowedManagementInterface CLI -lastpwdchangetimestamp <REDACTED>
+add system group LAB-ADMIN-GRP
+set HA node -failSafe ON
+add ns ip 192.0.2.3 255.255.255.0 -vServer DISABLED
+add ns ip 198.51.100.254 255.255.255.0 -vServer DISABLED
+add snmp manager 203.0.113.40
+add snmp trap generic 203.0.113.41 -communityName <REDACTED>
+add audit syslogAction SYSLOGACT-001 203.0.113.30 -loglevel EMERGENCY ALERT CRITICAL ERROR WARNING NOTICE
+add audit syslogPolicy SYSLOGPOL-001 true SYSLOGACT-001
+set ns encryptionParams -method AES256 -keyValue <REDACTED> -encrypted -encryptmethod ENCMTHD_4 -kek -suffix LAB_SYNTHETIC_KEY
+set ns rpcNode 192.0.2.2 -password <REDACTED> -encrypted -encryptmethod ENCMTHD_4 -kek -suffix LAB_SYNTHETIC_KEY -srcIP 192.0.2.2
+add ns httpProfile HTTPPROF-H2-001 -http2 ENABLED
+add dns profile DNSPROF-001 -recursiveResolution ENABLED
+add authentication ldapAction LDAP-ACT-001 -serverIP 203.0.113.20 -serverPort 636 -ldapBase "dc=lab,dc=example" -ldapBindDn "cn=svc-lab,dc=lab,dc=example" -ldapBindDnPassword <REDACTED> -encrypted -encryptmethod ENCMTHD_4 -kek -suffix LAB_SYNTHETIC_KEY -ldapLoginName sAMAccountName -secType SSL
+add server SRV-DOH-001 198.51.100.1
+add server SRV-DOH-002 198.51.100.2
+add server SRV-DNS-001 198.51.100.3
+add server SRV-DNS-002 198.51.100.4
+add server SRV-APP-001 198.51.100.10
+add server SRV-APP-002 198.51.100.11
+add server SRV-APP-003 198.51.100.12
+add server SRV-APP-004 198.51.100.13
+add server SRV-APP-005 198.51.100.14
+add server SRV-APP-006 198.51.100.15
+add server 198.51.100.20 198.51.100.20
+add server SRV-APP-008 198.51.100.16
+add server SRV-APP-009 198.51.100.17
+add server SRV-TCP-001 198.51.100.21
+add server SRV-TCP-002 198.51.100.22
+add server SRV-BRIDGE-001 198.51.100.23
+add server SRV-WEB-001 198.51.100.40
+add server 198.51.100.41 198.51.100.41
+add server 198.51.100.42 198.51.100.42
+add service SVC-WEB-001 SRV-WEB-001 HTTP 80 -gslb NONE -maxClient 0 -maxReq 0 -usip NO
+add service SVC-SYS-001 198.51.100.41 UDP 514 -gslb NONE -maxClient 0 -maxReq 0 -usip NO
+add service SVC-SPARE-001 198.51.100.42 HTTP 8080 -gslb NONE -maxClient 0 -maxReq 0 -usip NO
+add serviceGroup SG-DOH-001 SSL -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add serviceGroup SG-DNS-001 DNS -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add serviceGroup SG-APP-001 SSL -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add serviceGroup SG-APP-002 SSL -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add serviceGroup SG-APP-003 SSL -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add serviceGroup SG-TCP-001 TCP -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add serviceGroup SG-BRIDGE-001 SSL_BRIDGE -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add serviceGroup SG-SPARE-001 HTTP -maxClient 0 -maxReq 0 -usip NO -useproxyport YES
+add lb monitor MON-ECV-001 HTTP-ECV -send "GET /lab/health" -recv q/{\"Status\":0}/ -LRTM DISABLED -interval 30 -resptimeout 10 -secure YES
+add lb monitor MON-ECV-002 HTTP-ECV -send "GET /lab/health" -recv q/{\"Status\":0}/ -LRTM DISABLED -interval 30 -resptimeout 10 -secure YES
+add lb monitor MON-ECV-003 HTTP-ECV -send "GET /lab/health" -recv q/{\"Status\":0}/ -LRTM DISABLED -interval 30 -resptimeout 10 -destPort 443 -secure YES -trofsstring q/{\"Status\":1}/
+add lb monitor MON-HTTP-001 HTTP -respCode 200 -httpRequest "HEAD /lab/ready" -LRTM DISABLED
+add lb monitor MON-DNS-001 DNS -query lab.example -queryType Address -LRTM DISABLED
+add lb monitor MON-LDAP-001 LDAP -password <REDACTED> -encrypted -encryptmethod ENCMTHD_4 -kek -suffix LAB_SYNTHETIC_KEY -LRTM DISABLED -baseDN "dc=lab,dc=example" -bindDN "cn=svc-lab,dc=lab,dc=example"
+add lb vserver LBV-DOH-001 SSL 192.0.2.10 443 -persistenceType NONE -cltTimeout 180 -httpProfileName HTTPPROF-H2-001 -dnsOverHttps ENABLED
+add lb vserver LBV-DOH-002 SSL 192.0.2.11 443 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-NODOH-001 SSL 192.0.2.12 443 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-DNS-001 DNS 192.0.2.13 53 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-DNS-002 DNS_TCP 192.0.2.14 53 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-WEB-001 HTTP 192.0.2.20 80 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-APP-001 SSL 192.0.2.21 443 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-APP-002 SSL 192.0.2.22 443 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-TCP-001 TCP 192.0.2.23 8443 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-UDP-001 UDP 192.0.2.24 514 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-OOS-001 SSL 192.0.2.25 443 -persistenceType NONE -cltTimeout 180
+add lb vserver LBV-BRIDGE-001 SSL_BRIDGE 192.0.2.26 443 -persistenceType NONE -cltTimeout 180
+add cs vserver CSV-DOH-001 SSL 192.0.2.40 443 -cltTimeout 180 -persistenceType NONE -httpProfileName HTTPPROF-H2-001 -dnsOverHttps ENABLED
+add cs vserver CSV-DOH-002 SSL 192.0.2.41 443 -cltTimeout 180 -persistenceType NONE
+add cs vserver CSV-WEB-001 SSL 192.0.2.42 443 -cltTimeout 180 -persistenceType NONE
+add cs vserver CSV-WEB-002 SSL 192.0.2.43 443 -cltTimeout 180 -persistenceType NONE
+add cs vserver CSV-EMPTY-001 SSL 192.0.2.44 443 -cltTimeout 180 -persistenceType NONE
+add cs action CSACT-001 -targetLBVserver LBV-APP-001
+add cs action CSACT-002 -targetLBVserver LBV-TCP-001
+add cs action CSACT-003 -targetLBVserver LBV-WEB-001
+add cs policy CSPOL-001 -rule "HTTP.REQ.HOSTNAME.EQ(\"lbv-app-001.lab.example\")" -action CSACT-001
+add cs policy CSPOL-002 -rule "HTTP.REQ.HOSTNAME.EQ(\"lbv-tcp-001.lab.example\")" -action CSACT-002
+add cs policy CSPOL-003 -rule "HTTP.REQ.HOSTNAME.EQ(\"lbv-web-001.lab.example\")" -action CSACT-003
+set lb vserver LBV-DOH-002 -dnsOverHttps ENABLED
+set cs vserver CSV-DOH-002 -dnsOverHttps ENABLED
+add rewrite action RWACT-001 insert_http_header X-Lab-Synthetic "\"1\""
+add rewrite action RWACT-002 delete_http_header X-Lab-Trace
+add rewrite policy RWPOL-001 HTTP.REQ.IS_VALID RWACT-001
+add rewrite policy RWPOL-002 true RWACT-002
+add responder policy RSPOL-001 HTTP.REQ.IS_VALID.NOT RESET
+bind lb vserver LBV-DOH-001 SG-DOH-001
+bind lb vserver LBV-DNS-001 SG-DNS-001
+bind lb vserver LBV-WEB-001 SVC-WEB-001
+bind lb vserver LBV-APP-001 SG-APP-001
+bind lb vserver LBV-APP-002 SG-APP-002
+bind lb vserver LBV-TCP-001 SG-TCP-001
+bind lb vserver LBV-UDP-001 SVC-SYS-001
+bind lb vserver LBV-OOS-001 SG-APP-003
+bind lb vserver LBV-BRIDGE-001 SG-BRIDGE-001
+bind lb vserver LBV-WEB-001 -policyName RSPOL-001 -priority 100 -gotoPriorityExpression END -type REQUEST
+bind lb vserver LBV-APP-001 -policyName RWPOL-001 -priority 100 -gotoPriorityExpression END -type REQUEST
+bind cs vserver CSV-WEB-001 -lbvserver LBV-APP-002
+bind cs vserver CSV-WEB-001 -policyName CSPOL-001 -priority 100
+bind cs vserver CSV-WEB-001 -policyName CSPOL-002 -priority 110
+bind cs vserver CSV-WEB-002 -policyName CSPOL-003 -priority 100
+bind cs vserver CSV-WEB-002 -policyName RWPOL-001 -priority 100 -gotoPriorityExpression END -type REQUEST
+bind cs vserver CSV-WEB-002 -policyName RWPOL-002 -priority 100 -gotoPriorityExpression NEXT -type RESPONSE
+bind cs vserver CSV-WEB-002 -policyName RSPOL-001 -priority 100 -gotoPriorityExpression END -type REQUEST
+bind service SVC-WEB-001 -monitorName http
+bind service SVC-SYS-001 -monitorName ping-default
+bind service SVC-SPARE-001 -monitorName tcp-default
+bind serviceGroup SG-DOH-001 SRV-DOH-001 443
+bind serviceGroup SG-DOH-001 SRV-DOH-002 443
+bind serviceGroup SG-DOH-001 -monitorName MON-ECV-001
+bind serviceGroup SG-DNS-001 SRV-DNS-001 53
+bind serviceGroup SG-DNS-001 SRV-DNS-002 53
+bind serviceGroup SG-DNS-001 -monitorName MON-DNS-001
+bind serviceGroup SG-APP-001 SRV-APP-001 443
+bind serviceGroup SG-APP-001 SRV-APP-002 443
+bind serviceGroup SG-APP-001 SRV-APP-003 443
+bind serviceGroup SG-APP-001 SRV-APP-004 443
+bind serviceGroup SG-APP-001 -monitorName MON-ECV-002
+bind serviceGroup SG-APP-002 SRV-APP-005 443
+bind serviceGroup SG-APP-002 SRV-APP-006 443
+bind serviceGroup SG-APP-002 198.51.100.20 443
+bind serviceGroup SG-APP-002 -monitorName MON-ECV-003
+bind serviceGroup SG-APP-003 SRV-APP-008 443
+bind serviceGroup SG-APP-003 SRV-APP-009 443
+bind serviceGroup SG-APP-003 -monitorName MON-HTTP-001
+bind serviceGroup SG-TCP-001 SRV-TCP-001 8443
+bind serviceGroup SG-TCP-001 SRV-TCP-002 8443
+bind serviceGroup SG-TCP-001 -monitorName tcp-default
+bind serviceGroup SG-BRIDGE-001 SRV-BRIDGE-001 443
+bind serviceGroup SG-BRIDGE-001 -monitorName tcp-default
+bind serviceGroup SG-SPARE-001 -monitorName http
+add ssl certKey ns-server-certificate -cert ns-server.cert -key ns-server.key
+add ssl certKey ns-sftrust-certificate -cert ns-sftrust.cert -key ns-sftrust.key
+add ssl certKey CERT-DOH-001 -cert cert-doh-001.cert -key cert-doh-001.key
+add ssl certKey CERT-DOH-002 -cert cert-doh-002.cert -key cert-doh-002.key
+add ssl certKey CERT-NODOH-001 -cert cert-nodoh-001.cert -key cert-nodoh-001.key
+add ssl certKey CERT-WEB-001 -cert cert-web-001.cert -key cert-web-001.key
+add ssl certKey CERT-WEB-002 -cert cert-web-002.cert -key cert-web-002.key
+add ssl certKey CERT-SPARE-001 -cert cert-spare-001.cert -key cert-spare-001.key
+add ssl certKey CERT-CA-001 -cert cert-ca-001.cert -key cert-ca-001.key
+add ssl profile SSLPROF-FE-001 -tls13 ENABLED -denySSLReneg FRONTEND_CLIENT
+add ssl cipher CIPHERGRP-LAB-001
+bind ssl cipher CIPHERGRP-LAB-001 -cipherName TLS1.2-ECDHE-RSA-AES256-GCM-SHA384
+bind ssl cipher CIPHERGRP-LAB-001 -cipherName TLS1.2-ECDHE-RSA-AES128-GCM-SHA256
+set ssl vserver LBV-DOH-001 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver LBV-DOH-002 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver LBV-NODOH-001 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver LBV-APP-001 -sslProfile SSLPROF-FE-001
+set ssl vserver LBV-APP-002 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver LBV-OOS-001 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver CSV-DOH-001 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver CSV-DOH-002 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver CSV-WEB-001 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver CSV-WEB-002 -sslProfile ns_default_ssl_profile_frontend
+set ssl vserver CSV-EMPTY-001 -sslProfile ns_default_ssl_profile_frontend
+bind ssl profile ns_default_ssl_profile_frontend -cipherName CIPHERGRP-LAB-001 -cipherPriority 1
+bind ssl profile ns_default_ssl_profile_frontend -cipherName DEFAULT -cipherPriority 2
+bind ssl profile ns_default_ssl_profile_backend -cipherName DEFAULT_BACKEND -cipherPriority 1
+bind ssl profile SSLPROF-FE-001 -cipherName CIPHERGRP-LAB-001 -cipherPriority 1
+bind ssl vserver LBV-DOH-001 -certkeyName CERT-DOH-001
+bind ssl vserver LBV-DOH-002 -certkeyName CERT-DOH-002
+bind ssl vserver CSV-DOH-001 -certkeyName CERT-DOH-002
+bind ssl vserver CSV-DOH-002 -certkeyName CERT-DOH-002
+bind ssl vserver LBV-NODOH-001 -certkeyName CERT-NODOH-001
+bind ssl vserver CSV-WEB-001 -certkeyName CERT-WEB-001
+bind ssl vserver LBV-APP-001 -certkeyName CERT-WEB-001
+bind ssl vserver LBV-APP-002 -certkeyName CERT-WEB-001
+bind ssl vserver CSV-WEB-002 -certkeyName CERT-WEB-002
+bind ssl vserver CSV-EMPTY-001 -certkeyName CERT-WEB-002
+bind ssl vserver LBV-OOS-001 -certkeyName CERT-WEB-002
+ Done

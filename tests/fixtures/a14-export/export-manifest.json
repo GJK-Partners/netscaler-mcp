@@ -1,0 +1,53 @@
+{
+  "manifestVersion": "1.1",
+  "collectedAtUtc": "2026-09-06T20:38:11.0000000Z",
+  "resources": {
+    "config/nsversion": {
+      "status": "OK",
+      "propertyName": "nsversion",
+      "objectCount": 1,
+      "payloadSha256": "E7084B7C82AC5463A5C6266D1D68F3935527A5B8B94627FB878F8A14B46CD7F9"
+    },
+    "config/nstcpprofile": {
+      "status": "OK",
+      "propertyName": "nstcpprofile",
+      "objectCount": 13,
+      "payloadSha256": "9BB2CA649BFFCDFB49D3DDAED75B076C53BF2EC9F5EB66E9391EF1DE2C576C73"
+    },
+    "config/lbvserver": {
+      "status": "OK",
+      "propertyName": "lbvserver",
+      "objectCount": 5,
+      "payloadSha256": "0D674B421EA122F20661D5559B6DB031DC1FB0F2B18226C3AE9367F280F09AE6"
+    },
+    "config/systembackup": {
+      "status": "OK",
+      "propertyName": "systembackup",
+      "objectCount": 7,
+      "payloadSha256": "B2072E06AB641058507E0BD787A7AD4A8223727D0D27760F511BE27666950FCE"
+    },
+    "config/nsconfig": {
+      "status": "OK",
+      "propertyName": "nsconfig",
+      "objectCount": 1,
+      "payloadSha256": "EE098EEF8CAE1FF523E399E54B05D029779B3782B14CA00802E451E668368DCF"
+    },
+    "stat/system": {
+      "status": "OK",
+      "propertyName": "system",
+      "objectCount": 1,
+      "payloadSha256": "6F58BA558768A63A4BB2484B1C3DCDCAD01340BDE9FC2A2D0C4319C384F7227B"
+    },
+    "config/systemfile?args=filename:iprep.log,filelocation:%2Fvar%2Flog": {
+      "status": "NOT_SUPPORTED",
+      "propertyName": "systemfile"
+    },
+    "config/nsrunningconfig": {
+      "status": "OK",
+      "propertyName": "nsrunningconfig"
+    }
+  },
+  "files": {
+    "parsed/runningconfig.txt": "5db16412f453eb5f86f001dae313b7c87c45b71982d129781189906e59ffea20"
+  }
+}

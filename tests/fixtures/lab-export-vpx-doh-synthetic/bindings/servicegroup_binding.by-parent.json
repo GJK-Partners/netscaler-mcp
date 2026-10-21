@@ -1,0 +1,596 @@
+{
+  "bindingResource": "servicegroup_binding",
+  "parentResource": "servicegroup",
+  "parentKey": "servicegroupname",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "SG-DOH-001",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-DOH-001",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-DOH-001",
+              "monitor_name": "MON-ECV-001",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ],
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-DOH-001",
+              "ip": "198.51.100.1",
+              "port": 443,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-DOH-001",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-DOH-001",
+              "ip": "198.51.100.2",
+              "port": 443,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-DOH-002",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            }
+          ],
+          "servicegroup_servicegroupentitymonbindings_binding": [
+            {
+              "servicegroupname": "SG-DOH-001",
+              "servicegroupentname2": "SG-DOH-001?SRV-DOH-001?443",
+              "monitor_name": "MON-ECV-001",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-DOH-001",
+              "servicegroupentname2": "SG-DOH-001?SRV-DOH-002?443",
+              "monitor_name": "MON-ECV-001",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SG-DNS-001",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-DNS-001",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-DNS-001",
+              "monitor_name": "MON-DNS-001",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ],
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-DNS-001",
+              "ip": "198.51.100.3",
+              "port": 53,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-DNS-001",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-DNS-001",
+              "ip": "198.51.100.4",
+              "port": 53,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-DNS-002",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            }
+          ],
+          "servicegroup_servicegroupentitymonbindings_binding": [
+            {
+              "servicegroupname": "SG-DNS-001",
+              "servicegroupentname2": "SG-DNS-001?SRV-DNS-001?53",
+              "monitor_name": "MON-DNS-001",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-DNS-001",
+              "servicegroupentname2": "SG-DNS-001?SRV-DNS-002?53",
+              "monitor_name": "MON-DNS-001",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SG-APP-001",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-APP-001",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-APP-001",
+              "monitor_name": "MON-ECV-002",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ],
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-APP-001",
+              "ip": "198.51.100.10",
+              "port": 443,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-001",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-APP-001",
+              "ip": "198.51.100.11",
+              "port": 443,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-002",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-APP-001",
+              "ip": "198.51.100.12",
+              "port": 443,
+              "svrstate": "OUT OF SERVICE",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-003",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "DISABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-APP-001",
+              "ip": "198.51.100.13",
+              "port": 443,
+              "svrstate": "UP",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-004",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            }
+          ],
+          "servicegroup_servicegroupentitymonbindings_binding": [
+            {
+              "servicegroupname": "SG-APP-001",
+              "servicegroupentname2": "SG-APP-001?SRV-APP-001?443",
+              "monitor_name": "MON-ECV-002",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-APP-001",
+              "servicegroupentname2": "SG-APP-001?SRV-APP-002?443",
+              "monitor_name": "MON-ECV-002",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-APP-001",
+              "servicegroupentname2": "SG-APP-001?SRV-APP-003?443",
+              "monitor_name": "MON-ECV-002",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-APP-001",
+              "servicegroupentname2": "SG-APP-001?SRV-APP-004?443",
+              "monitor_name": "MON-ECV-002",
+              "monitor_state": "UP",
+              "passive": false,
+              "lastresponse": "Success - synthetic probe.",
+              "responsetime": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SG-APP-002",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-APP-002",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-APP-002",
+              "monitor_name": "MON-ECV-003",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ],
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-APP-002",
+              "ip": "198.51.100.14",
+              "port": 443,
+              "svrstate": "UP",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-005",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-APP-002",
+              "ip": "198.51.100.15",
+              "port": 443,
+              "svrstate": "UP",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-006",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-APP-002",
+              "ip": "198.51.100.20",
+              "port": 443,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "198.51.100.20",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            }
+          ],
+          "servicegroup_servicegroupentitymonbindings_binding": [
+            {
+              "servicegroupname": "SG-APP-002",
+              "servicegroupentname2": "SG-APP-002?SRV-APP-005?443",
+              "monitor_name": "MON-ECV-003",
+              "monitor_state": "UP",
+              "passive": false,
+              "lastresponse": "Success - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-APP-002",
+              "servicegroupentname2": "SG-APP-002?SRV-APP-006?443",
+              "monitor_name": "MON-ECV-003",
+              "monitor_state": "UP",
+              "passive": false,
+              "lastresponse": "Success - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-APP-002",
+              "servicegroupentname2": "SG-APP-002?198.51.100.20?443",
+              "monitor_name": "MON-ECV-003",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SG-APP-003",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-APP-003",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-APP-003",
+              "monitor_name": "MON-HTTP-001",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ],
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-APP-003",
+              "ip": "198.51.100.16",
+              "port": 443,
+              "svrstate": "OUT OF SERVICE",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-008",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "DISABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-APP-003",
+              "ip": "198.51.100.17",
+              "port": 443,
+              "svrstate": "OUT OF SERVICE",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-APP-009",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "DISABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            }
+          ],
+          "servicegroup_servicegroupentitymonbindings_binding": [
+            {
+              "servicegroupname": "SG-APP-003",
+              "servicegroupentname2": "SG-APP-003?SRV-APP-008?443",
+              "monitor_name": "MON-HTTP-001",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-APP-003",
+              "servicegroupentname2": "SG-APP-003?SRV-APP-009?443",
+              "monitor_name": "MON-HTTP-001",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SG-TCP-001",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-TCP-001",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-TCP-001",
+              "monitor_name": "tcp-default",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ],
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-TCP-001",
+              "ip": "198.51.100.21",
+              "port": 8443,
+              "svrstate": "UP",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-TCP-001",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            },
+            {
+              "servicegroupname": "SG-TCP-001",
+              "ip": "198.51.100.22",
+              "port": 8443,
+              "svrstate": "UP",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-TCP-002",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            }
+          ],
+          "servicegroup_servicegroupentitymonbindings_binding": [
+            {
+              "servicegroupname": "SG-TCP-001",
+              "servicegroupentname2": "SG-TCP-001?SRV-TCP-001?8443",
+              "monitor_name": "tcp-default",
+              "monitor_state": "UP",
+              "passive": false,
+              "lastresponse": "Success - synthetic probe.",
+              "responsetime": "0"
+            },
+            {
+              "servicegroupname": "SG-TCP-001",
+              "servicegroupentname2": "SG-TCP-001?SRV-TCP-002?8443",
+              "monitor_name": "tcp-default",
+              "monitor_state": "UP",
+              "passive": false,
+              "lastresponse": "Success - synthetic probe.",
+              "responsetime": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SG-BRIDGE-001",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-BRIDGE-001",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-BRIDGE-001",
+              "monitor_name": "tcp-default",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ],
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-BRIDGE-001",
+              "ip": "198.51.100.23",
+              "port": 443,
+              "svrstate": "DOWN",
+              "statechangetimesec": "Sun Sep  6 12:00:00 2026",
+              "weight": "1",
+              "servername": "SRV-BRIDGE-001",
+              "customserverid": "None",
+              "serverid": "0",
+              "state": "ENABLED",
+              "hashid": "0",
+              "graceful": "NO",
+              "delay": 0,
+              "orderstr": "Default"
+            }
+          ],
+          "servicegroup_servicegroupentitymonbindings_binding": [
+            {
+              "servicegroupname": "SG-BRIDGE-001",
+              "servicegroupentname2": "SG-BRIDGE-001?SRV-BRIDGE-001?443",
+              "monitor_name": "tcp-default",
+              "monitor_state": "DOWN",
+              "passive": false,
+              "lastresponse": "Failure - synthetic probe.",
+              "responsetime": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SG-SPARE-001",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-SPARE-001",
+          "servicegroup_lbmonitor_binding": [
+            {
+              "servicegroupname": "SG-SPARE-001",
+              "monitor_name": "http",
+              "monweight": "0",
+              "monstate": "ENABLED",
+              "weight": "1",
+              "state": "ENABLED",
+              "passive": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

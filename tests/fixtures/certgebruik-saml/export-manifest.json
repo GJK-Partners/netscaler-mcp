@@ -1,0 +1,17 @@
+{
+  "manifestVersion": "1.1",
+  "collectorVersion": "1.1.0",
+  "collectedAtUtc": "2026-09-25T06:00:00.0000000Z",
+  "resources": {
+    "config/sslcertkey": {"status": "OK", "httpStatus": null, "propertyName": "sslcertkey", "objectCount": 6, "payloadSha256": "B06A1A088217DD446F5F9F976D7FE89588A2D438E5FA093200A4B521300C2193"},
+    "config/sslvserver": {"status": "OK", "httpStatus": null, "propertyName": "sslvserver", "objectCount": 1, "payloadSha256": "E5E4F44EFE02E3C8177CF8583297D70C19AF0BC5675FC3BFF8F9DAFAF14AA4D4"},
+    "config/sslservicegroup": {"status": "OK", "httpStatus": null, "propertyName": "sslservicegroup", "objectCount": 2, "payloadSha256": "F958C48496A18856453F7533155E98D2BA98111744076974937BC7E5D2941F34"},
+    "config/authenticationsamlaction": {"status": "OK", "httpStatus": null, "propertyName": "authenticationsamlaction", "objectCount": 2, "payloadSha256": "5EEEF12DB79815292D62618825CE93E89C7A4D64198CB6935525EFA24B09DE0E"},
+    "config/authenticationsamlidpprofile": {"status": "OK", "httpStatus": null, "propertyName": "authenticationsamlidpprofile", "objectCount": 1, "payloadSha256": "9A320D633599E2F04A9B7CC983DB50C2B1BF2CF62C97E8EAA5F23333FC22A77D"}
+  },
+  "files": {
+    "bindings/sslvserver_sslcertkey_binding.by-parent.json": "E3C56316C199D4CF482A78ECF7955AF16A9197F39DF87717315B0E7F242E6AFC",
+    "bindings/sslcertkey_binding.by-parent.json": "8529207B834F65C9EC69415AC025AE39002DC18B40A228FD5847CC3355976090",
+    "bindings/sslservicegroup_sslcertkey_binding.by-parent.json": "B9194DE7A7AA77A4907F6BC2AC2276D78AD3529DFB31937D8606EC7443817E31"
+  }
+}

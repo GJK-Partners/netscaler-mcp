@@ -1,0 +1,41 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "nshttpprofile": [
+    {
+      "name": "nshttp_default_profile",
+      "dropinvalreqs": "ENABLED",
+      "markhttp09inval": "DISABLED",
+      "conmultiplex": "ENABLED",
+      "websocket": "DISABLED",
+      "http2": "DISABLED",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "nshttp_default_strict_validation",
+      "dropinvalreqs": "ENABLED",
+      "markhttp09inval": "DISABLED",
+      "conmultiplex": "ENABLED",
+      "websocket": "DISABLED",
+      "http2": "DISABLED",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "HTTPPROF-H2-001",
+      "dropinvalreqs": "DISABLED",
+      "markhttp09inval": "DISABLED",
+      "conmultiplex": "ENABLED",
+      "websocket": "DISABLED",
+      "http2": "ENABLED",
+      "builtin": [],
+      "feature": "SYSTEM"
+    }
+  ]
+}

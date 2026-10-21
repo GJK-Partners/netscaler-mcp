@@ -1,0 +1,21 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "systemparameter": {
+    "rbaonresponse": "ENABLED",
+    "timeout": 900,
+    "maxclient": "40",
+    "localauth": "ENABLED",
+    "minpasswordlen": "8",
+    "strongpassword": "enablelocal",
+    "restrictedtimeout": "DISABLED",
+    "fipsusermode": "DISABLED",
+    "forcepasswordchange": "ENABLED",
+    "basicauth": "DISABLED",
+    "maxsessionperuser": "20",
+    "wafprotection": [
+      "DEFAULT"
+    ]
+  }
+}

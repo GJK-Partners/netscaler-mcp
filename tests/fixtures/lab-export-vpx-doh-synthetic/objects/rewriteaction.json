@@ -1,0 +1,52 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "rewriteaction": [
+    {
+      "name": "NOREWRITE",
+      "type": "noop",
+      "hits": "0",
+      "undefhits": "0",
+      "referencecount": "1",
+      "isdefault": true,
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "RESET",
+      "type": "noop",
+      "hits": "0",
+      "undefhits": "0",
+      "referencecount": "1",
+      "isdefault": true,
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "DROP",
+      "type": "noop",
+      "hits": "0",
+      "undefhits": "0",
+      "referencecount": "1",
+      "isdefault": true,
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "RWACT-001",
+      "type": "insert_http_header",
+      "hits": "0",
+      "undefhits": "0",
+      "referencecount": "1",
+      "isdefault": false,
+      "feature": "REWRITE"
+    },
+    {
+      "name": "RWACT-002",
+      "type": "delete_http_header",
+      "hits": "0",
+      "undefhits": "0",
+      "referencecount": "1",
+      "isdefault": false,
+      "feature": "REWRITE"
+    }
+  ]
+}

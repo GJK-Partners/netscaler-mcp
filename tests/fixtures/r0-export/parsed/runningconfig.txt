@@ -1,0 +1,10 @@
+#NS14.1 Build 66.59
+set ns config -IPAddress 10.0.0.1 -netmask 255.255.255.0
+add lb vserver vs_web HTTP 10.0.0.10 80
+add lb vserver vs_api HTTP 10.0.0.11 80
+add cs vserver cs_front HTTP 10.0.0.20 80
+add service svc_web1 10.0.1.1 HTTP 80
+add service svc_web2 10.0.1.2 HTTP 80
+add serviceGroup sg_web HTTP
+add ssl certKey wildcard -cert wildcard.cer -key wildcard.key
+add lb monitor mon_http HTTP

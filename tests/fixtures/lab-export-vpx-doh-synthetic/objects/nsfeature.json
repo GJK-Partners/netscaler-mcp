@@ -1,0 +1,35 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "nsfeature": {
+    "feature": [
+      "WL",
+      "SP",
+      "LB",
+      "CS",
+      "SSL",
+      "REWRITE",
+      "RESPONDER"
+    ],
+    "wl": true,
+    "sp": true,
+    "lb": true,
+    "cs": true,
+    "cr": false,
+    "cmp": false,
+    "ssl": true,
+    "gslb": false,
+    "aaa": false,
+    "rewrite": true,
+    "appfw": false,
+    "responder": true,
+    "appflow": false,
+    "appqoe": false,
+    "feo": false,
+    "lsn": false,
+    "rep": false,
+    "videooptimization": false,
+    "bot": false
+  }
+}

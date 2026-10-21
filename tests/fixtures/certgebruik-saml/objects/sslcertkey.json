@@ -1,0 +1,10 @@
+{
+  "sslcertkey": [
+    {"certkey": "CERT-VS", "daystoexpiration": 20, "publickeysize": 2048, "signaturealg": "sha256WithRSAEncryption", "certificatetype": ["SRVR_CERT"]},
+    {"certkey": "CERT-IDP", "daystoexpiration": 45, "publickeysize": 2048, "signaturealg": "sha256WithRSAEncryption", "certificatetype": ["SRVR_CERT"]},
+    {"certkey": "CERT-SP", "daystoexpiration": 300, "publickeysize": 2048, "signaturealg": "sha256WithRSAEncryption", "certificatetype": ["SRVR_CERT"]},
+    {"certkey": "CERT-SG", "daystoexpiration": 10, "publickeysize": 2048, "signaturealg": "sha256WithRSAEncryption", "certificatetype": ["CLNT_CERT"]},
+    {"certkey": "CERT-SG-CA", "daystoexpiration": 800, "publickeysize": 4096, "signaturealg": "sha256WithRSAEncryption", "certificatetype": ["ROOT_CERT"]},
+    {"certkey": "CERT-LOS", "daystoexpiration": 60, "publickeysize": 2048, "signaturealg": "sha256WithRSAEncryption", "certificatetype": ["SRVR_CERT"]}
+  ]
+}

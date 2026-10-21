@@ -1,0 +1,20 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "botsettings": {
+    "defaultprofile": "BOT-001",
+    "defaultnonintrusiveprofile": "BOT-003",
+    "javascriptname": "client.ns.js",
+    "sessiontimeout": "900",
+    "sessioncookiename": "citrix_bot_id",
+    "dfprequestlimit": "1000",
+    "signatureautoupdate": "OFF",
+    "signatureurl": "https://nsbotsignatures.s3.amazonaws.com/BotSignatureMapping.json",
+    "proxyport": 8080,
+    "trapurlautogenerate": "OFF",
+    "trapurlinterval": "3600",
+    "trapurllength": "32",
+    "feature": "SYSTEM"
+  }
+}

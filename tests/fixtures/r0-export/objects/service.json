@@ -1,0 +1,10 @@
+{
+  "service": [
+    {
+      "name": "svc_web1"
+    },
+    {
+      "name": "svc_web2"
+    }
+  ]
+}

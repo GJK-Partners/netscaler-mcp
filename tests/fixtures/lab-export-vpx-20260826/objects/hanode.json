@@ -1,0 +1,33 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "hanode": [
+    {
+      "id": "0",
+      "name": "host-006.lab.example",
+      "ipaddress": "192.0.2.2",
+      "flags": "129",
+      "hastatus": "UP",
+      "state": "Primary",
+      "hasync": "ENABLED",
+      "haprop": "ENABLED",
+      "enaifaces": "0/1 1/1 1/2",
+      "netmask": "0.0.0.0",
+      "inc": "DISABLED",
+      "ssl2": "NOT PRESENT",
+      "hellointerval": 200,
+      "deadinterval": 3,
+      "masterstatetime": 328,
+      "failsafe": "ON",
+      "routemonitor": "192.0.2.2",
+      "maxflips": "3",
+      "maxfliptime": "20",
+      "curflips": "0",
+      "completedfliptime": "20",
+      "routemonitorstate": "DOWN",
+      "syncstatusstrictmode": "DISABLED",
+      "secureheartbeatstate": "DISABLED"
+    }
+  ]
+}

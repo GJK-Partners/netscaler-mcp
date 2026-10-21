@@ -1,0 +1,14 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "sslparameter": {
+    "quantumsize": "8192",
+    "crlmemorysizemb": "256",
+    "strictcachecks": "NO",
+    "denysslreneg": "ALL",
+    "insertionencoding": "Unicode",
+    "defaultprofile": "ENABLED",
+    "hybridfipsmode": "DISABLED"
+  }
+}

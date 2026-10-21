@@ -1,0 +1,35 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "appfwprofile": [
+    {
+      "name": "APPFW-LAB-001",
+      "type": [
+        "HTML"
+      ],
+      "state": "DISABLED",
+      "builtin": false
+    },
+    {
+      "name": "APPFW_BYPASS",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "builtin": true
+    },
+    {
+      "name": "APPFW_BLOCK",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "builtin": true
+    }
+  ]
+}

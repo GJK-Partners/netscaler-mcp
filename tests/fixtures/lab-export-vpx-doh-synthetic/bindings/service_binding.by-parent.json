@@ -1,0 +1,68 @@
+{
+  "bindingResource": "service_binding",
+  "parentResource": "service",
+  "parentKey": "name",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "SVC-WEB-001",
+      "outcome": "OK",
+      "data": {
+        "service_binding": {
+          "name": "SVC-WEB-001",
+          "service_lbmonitor_binding": [
+            {
+              "name": "SVC-WEB-001",
+              "monitor_name": "http",
+              "stateflag": "7168",
+              "monstate": "ENABLED",
+              "monitor_state": "UP",
+              "weight": "1",
+              "passive": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SVC-SYS-001",
+      "outcome": "OK",
+      "data": {
+        "service_binding": {
+          "name": "SVC-SYS-001",
+          "service_lbmonitor_binding": [
+            {
+              "name": "SVC-SYS-001",
+              "monitor_name": "ping-default",
+              "stateflag": "7168",
+              "monstate": "ENABLED",
+              "monitor_state": "DOWN",
+              "weight": "1",
+              "passive": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "SVC-SPARE-001",
+      "outcome": "OK",
+      "data": {
+        "service_binding": {
+          "name": "SVC-SPARE-001",
+          "service_lbmonitor_binding": [
+            {
+              "name": "SVC-SPARE-001",
+              "monitor_name": "tcp-default",
+              "stateflag": "7168",
+              "monstate": "ENABLED",
+              "monitor_state": "DOWN",
+              "weight": "1",
+              "passive": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

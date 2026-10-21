@@ -1,0 +1,35 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "lbvserver": [
+    {
+      "name": "LAB-LBV-005",
+      "servicetype": "SSL",
+      "curstate": "DOWN",
+      "tcpprofilename": "nstcp_default_tcp_lan"
+    },
+    {
+      "name": "LAB-LBV-018",
+      "servicetype": "TCP",
+      "curstate": "DOWN",
+      "tcpprofilename": "nstcp_default_tcp_lan"
+    },
+    {
+      "name": "LAB-LBV-019",
+      "servicetype": "TCP",
+      "curstate": "DOWN",
+      "tcpprofilename": "nstcp_default_tcp_lan"
+    },
+    {
+      "name": "LB_VS_CITRIX_STOREFRONT",
+      "servicetype": "SSL",
+      "curstate": "DOWN"
+    },
+    {
+      "name": "LB_VS_CITRIX_DIRECTOR",
+      "servicetype": "SSL",
+      "curstate": "DOWN"
+    }
+  ]
+}

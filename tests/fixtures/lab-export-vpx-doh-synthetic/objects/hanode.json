@@ -1,0 +1,28 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "hanode": [
+    {
+      "id": "0",
+      "ipaddress": "192.0.2.2",
+      "flags": "129",
+      "hastatus": "UP",
+      "state": "Primary",
+      "hasync": "ENABLED",
+      "haprop": "ENABLED",
+      "enaifaces": "0/1 1/1",
+      "netmask": "0.0.0.0",
+      "inc": "DISABLED",
+      "ssl2": "NOT PRESENT",
+      "hellointerval": 200,
+      "deadinterval": 3,
+      "failsafe": "ON",
+      "maxflips": "0",
+      "maxfliptime": "0",
+      "curflips": "0",
+      "syncstatusstrictmode": "DISABLED",
+      "secureheartbeatstate": "DISABLED"
+    }
+  ]
+}

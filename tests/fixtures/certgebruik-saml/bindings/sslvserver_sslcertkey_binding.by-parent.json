@@ -1,0 +1,17 @@
+{
+  "bindingResource": "sslvserver_sslcertkey_binding",
+  "parentResource": "sslvserver",
+  "parentKey": "vservername",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "LBV-WEB-01",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {"vservername": "LBV-WEB-01", "certkeyname": "CERT-VS", "ca": false, "snicert": false}
+        ]
+      }
+    }
+  ]
+}

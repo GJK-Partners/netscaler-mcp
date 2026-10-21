@@ -1,0 +1,30 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "nsparam": {
+    "maxconn": "0",
+    "maxreq": "0",
+    "cip": "DISABLED",
+    "cookieversion": "0",
+    "securecookie": "ENABLED",
+    "pmtumin": "576",
+    "pmtutimeout": 10,
+    "timezone": "CoordinatedUniversalTime",
+    "grantquotamaxclient": "10",
+    "exclusivequotamaxclient": "80",
+    "grantquotaspillover": "10",
+    "exclusivequotaspillover": "80",
+    "useproxyport": "ENABLED",
+    "internaluserlogin": "ENABLED",
+    "aftpallowrandomsourceport": "DISABLED",
+    "tcpcip": "DISABLED",
+    "secureicaports": [
+      "443"
+    ],
+    "proxyprotocol": "DISABLED",
+    "advancedanalyticsstats": "DISABLED",
+    "autoscaleoption": "0",
+    "ipttl": "255"
+  }
+}

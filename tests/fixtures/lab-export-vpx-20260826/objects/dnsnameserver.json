@@ -1,0 +1,17 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "dnsnameserver": [
+    {
+      "ip": "192.0.2.1",
+      "port": 0,
+      "type": "UDP",
+      "state": "ENABLED",
+      "nameserverstate": "DOWN",
+      "local": false,
+      "clmonowner": "0",
+      "clmonview": "0"
+    }
+  ]
+}

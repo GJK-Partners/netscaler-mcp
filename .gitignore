@@ -1,0 +1,19 @@
+# Werkbestanden
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest-tmp/
+
+# Het kennispakket reist apart en hoort niet in de repository
+knowledge/
+
+# Lokale profielen en sleutelmateriaal
+config/local*
+certs/
+
+# De lokale needle-lijst van de hygienetests (tests/private_needles.py)
+/.private-needles.txt
+
+# uv maakt hier zijn eigen omgeving; de venv van dit project staat al hierboven
+.uv/

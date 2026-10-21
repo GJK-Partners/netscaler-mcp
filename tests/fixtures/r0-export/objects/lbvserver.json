@@ -1,0 +1,10 @@
+{
+  "lbvserver": [
+    {
+      "name": "vs_web"
+    },
+    {
+      "name": "vs_api"
+    }
+  ]
+}

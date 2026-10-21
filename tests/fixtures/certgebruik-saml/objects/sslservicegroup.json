@@ -1,0 +1,6 @@
+{
+  "sslservicegroup": [
+    {"servicegroupname": "SG-BACKEND-01"},
+    {"servicegroupname": "SG-LEEG-01"}
+  ]
+}

@@ -1,0 +1,157 @@
+name: ci
+
+on:
+  # Frugal by design: the Windows runner is billed at twice the Linux rate,
+  # so a run only happens where it proves something. The release branch is
+  # the tested branch (full matrix); master only ever receives a fast-forward
+  # of a commit that already passed here, so it does not run again. A pushed
+  # `v*` tag runs the full matrix as well: that tag run is the run that
+  # belongs to the release, and the release notes name its URL
+  # (.github/release-notes-template.md). Pull requests run one Python
+  # version; the release-branch and tag runs cover both.
+  push:
+    branches: ["feat/release-1-0"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Windows only, deliberately. Every part is Windows-only today, reading
+    # included - nsmcp.disclosure imports msvcrt unconditionally - so a
+    # Linux job would prove nothing. See README's Platform section.
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both versions on the release branch, one on pull requests.
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.12"]') || fromJSON('["3.11", "3.12"]') }}
+    steps:
+      # Every action is pinned to the full commit id of its newest release
+      # within the major version in use, with that tag as a comment: a tag
+      # can be moved, a commit id cannot. Dependabot still proposes updates.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the locked environment
+        # pwsh sets $ErrorActionPreference = 'stop' but leaves
+        # $PSNativeCommandUseErrorActionPreference at $false, so a non-zero
+        # exit from a native command does not abort this multi-line block,
+        # and the step's result would otherwise come only from the last
+        # line. Check $LASTEXITCODE after each command so the step fails at
+        # the line that actually failed - in particular a --require-hashes
+        # mismatch, exactly the supply-chain event that line exists to catch.
+        #
+        # The build toolchain (pip, setuptools, wheel) comes first, from its
+        # own hash-locked file, installed with the pip setup-python provides;
+        # pip is never upgraded unpinned. The project is then installed
+        # without an isolated build environment, which would fetch
+        # setuptools from the index without a hash. CONTRIBUTING.md shows the
+        # same three lines (tests/test_repo_hygiene.py holds both ways).
+        run: |
+          python -m pip install --require-hashes -r requirements-build.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip install --require-hashes -r requirements-dev.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip install -e . --no-deps --no-build-isolation
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install Posh-SSH 3.2.7 for the phase-runner tests
+        # The phase runner (scripts/GjkUpgrade-Ssh.ps1) pins Posh-SSH 3.2.7 and
+        # refuses to start without it (exit 3), and tests/test_runner_script.py
+        # runs the real script under both Windows PowerShell 5.1 and PowerShell
+        # 7. AllUsers under Windows PowerShell lands the module in
+        # Program Files\WindowsPowerShell\Modules, a path both hosts search by
+        # default, so neither test host needs a PSModulePath override. The
+        # version is pinned; the install is verified by reading it back, and
+        # its CONTENT by scripts/Get-GjkPoshSshManifest.ps1: a sha256 manifest
+        # over every module file except PSGetModuleInfo.xml, compared with
+        # the value measured over Posh-SSH 3.2.7 from the gallery. The script
+        # prints the full list, so a difference can be read in this log; it
+        # exits non-zero on any difference and the job fails.
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+          # Measured once on one of the two matrix runners: Install-Module failed
+          # with "Unable to find repository 'PSGallery'" while the sibling job on
+          # the same commit passed. Register the default repository when it is
+          # missing, and give the gallery three attempts before failing the job.
+          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+            Write-Host '[INFO] PSGallery is not registered on this runner; registering the default repository'
+            try { Register-PSRepository -Default -ErrorAction Stop } catch { Write-Host ('[WARN] ' + $_.Exception.Message) }
+          }
+          $attempt = 0
+          while ($true) {
+            $attempt++
+            try {
+              Install-Module -Name Posh-SSH -RequiredVersion 3.2.7 -Repository PSGallery -Scope AllUsers -Force -ErrorAction Stop
+              break
+            } catch {
+              if ($attempt -ge 3) { throw }
+              Write-Host ('[WARN] attempt {0} failed: {1}' -f $attempt, $_.Exception.Message)
+              Start-Sleep -Seconds 20
+            }
+          }
+          $m = Get-Module -ListAvailable -Name Posh-SSH | Where-Object { $_.Version -eq [version]'3.2.7' }
+          if (-not $m) { Write-Host '[FOUT] Posh-SSH 3.2.7 niet gevonden na installatie'; exit 1 }
+          Write-Host ('[OK] Posh-SSH {0} in {1}' -f $m.Version, $m.ModuleBase)
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\scripts\Get-GjkPoshSshManifest.ps1
+          if ($LASTEXITCODE -ne 0) { Write-Host ('[FOUT] Posh-SSH-manifest: exitcode {0}' -f $LASTEXITCODE); exit $LASTEXITCODE }
+
+      - name: Lint
+        run: python -m ruff check --no-cache src tests scripts
+
+      - name: Format check
+        run: python -m ruff format --check --no-cache src tests scripts
+
+      - name: The three invariants, by name
+        # These three files ARE the public promise of this product: no socket
+        # in a reading tool, nothing established without evidence, and the
+        # confirmation code never reaching the model. They run first and by
+        # name, so the log says which promise was measured.
+        run: python -m pytest tests/test_no_network.py tests/test_answer.py tests/test_handelen_zonder_code.py -q
+
+      - name: Full suite
+        run: python -m pytest -q
+
+      - name: Software bill of materials
+        # cyclonedx-py reads the installed environment (the same one the
+        # suite above just ran against) and writes a CycloneDX SBOM per
+        # Python version. The SBOM from a green run is attached to the
+        # release tag as a release asset - the tag itself is a separate,
+        # manual step (see CONTRIBUTING.md, "Release").
+        run: python -m cyclonedx_py environment --of JSON -o sbom-${{ matrix.python-version }}.cdx.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-${{ matrix.python-version }}
+          path: sbom-${{ matrix.python-version }}.cdx.json
+
+      - name: Dependency audit
+        # --disable-pip makes pip_audit read requirements-dev.txt directly and
+        # offline, auditing every pinned distribution in it (confirmed with
+        # -v). --no-deps alone does NOT do this: without
+        # --disable-pip, pip_audit still builds a throwaway venv and runs
+        # "pip install --dry-run --report", so distributions already satisfied
+        # in that bootstrap venv silently drop out (measured: 68 pinned, only
+        # 66 audited, exit 0 anyway; pip and packaging were the two missing
+        # here, but which two drop out varies by environment). --no-deps is
+        # dropped as redundant once --disable-pip is set: no install ever
+        # runs, so there are no deps left to skip. Only on this --disable-pip
+        # code path can --strict do its job: it fails the build if any pinned
+        # distribution cannot be audited. requirements-build.txt is audited
+        # with it: setuptools and wheel are pinned there only (measured
+        # locally: 86 audited, the 84 of requirements-dev.txt plus those two).
+        run: python -m pip_audit --strict --disable-pip --progress-spinner off -r requirements-dev.txt -r requirements-build.txt

@@ -1,0 +1,26 @@
+{
+  "bindingResource": "servicegroup_binding",
+  "parentResource": "servicegroup",
+  "parentKey": "servicegroupname",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "SG-KETEN-OK",
+      "outcome": "OK",
+      "data": {
+        "servicegroup_binding": {
+          "servicegroupname": "SG-KETEN-OK",
+          "servicegroup_servicegroupmember_binding": [
+            {
+              "servicegroupname": "SG-KETEN-OK",
+              "servername": "SRV-KETEN-OK",
+              "ip": "198.51.100.10",
+              "port": "443",
+              "svrstate": "UP"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "systemuser": [
+    {
+      "username": "nsroot",
+      "externalauth": "DISABLED",
+      "logging": "ENABLED",
+      "timeout": 900,
+      "allowedmanagementinterface": [
+        "CLI",
+        "API"
+      ]
+    }
+  ]
+}

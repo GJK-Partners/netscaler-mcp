@@ -1,0 +1,84 @@
+{
+  "bindingResource": "sslvserver_ecccurve_binding",
+  "parentResource": "sslvserver",
+  "parentKey": "vservername",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "VSRV-003",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_ecccurve_binding": [
+          {
+            "vservername": "VSRV-003",
+            "ecccurvename": "X25519_MLKEM768",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-003",
+            "ecccurvename": "X_25519",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-003",
+            "ecccurvename": "P_256",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-003",
+            "ecccurvename": "P_384",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-003",
+            "ecccurvename": "P_224",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-003",
+            "ecccurvename": "P_521",
+            "stateflag": "1024"
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "VSRV-002",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_ecccurve_binding": [
+          {
+            "vservername": "VSRV-002",
+            "ecccurvename": "X25519_MLKEM768",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-002",
+            "ecccurvename": "X_25519",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-002",
+            "ecccurvename": "P_256",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-002",
+            "ecccurvename": "P_384",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-002",
+            "ecccurvename": "P_224",
+            "stateflag": "1024"
+          },
+          {
+            "vservername": "VSRV-002",
+            "ecccurvename": "P_521",
+            "stateflag": "1024"
+          }
+        ]
+      }
+    }
+  ]
+}

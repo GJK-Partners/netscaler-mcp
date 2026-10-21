@@ -1,0 +1,32 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "aaaparameter": {
+    "enablestaticpagecaching": "YES",
+    "enableenhancedauthfeedback": "NO",
+    "defaultauthtype": "LOCAL",
+    "maxaaausers": "4294967295",
+    "aaadnatip": "0.0.0.0",
+    "enablesessionstickiness": "NO",
+    "aaasessionloglevel": "INFORMATIONAL",
+    "aaadloglevel": "INFORMATIONAL",
+    "dynaddr": "OFF",
+    "ftmode": "ON",
+    "maxsamldeflatesize": "1024",
+    "persistentloginattempts": "DISABLED",
+    "pwdexpirynotificationdays": "0",
+    "maxkbquestions": "2",
+    "feature": "SYSTEM",
+    "loginencryption": "DISABLED",
+    "apitokencache": "DISABLED",
+    "tokenintrospectioninterval": "0",
+    "defaultcspheader": "ENABLED",
+    "httponlycookie": "ENABLED",
+    "enhancedepa": "DISABLED",
+    "wafprotection": [
+      "DEFAULT"
+    ],
+    "securityinsights": "DISABLED"
+  }
+}

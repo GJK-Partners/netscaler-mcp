@@ -1,0 +1,9 @@
+{
+  "servicegroup": [
+    {
+      "servicegroupname": "SG-KETEN-OK",
+      "servicetype": "HTTP",
+      "state": "ENABLED"
+    }
+  ]
+}

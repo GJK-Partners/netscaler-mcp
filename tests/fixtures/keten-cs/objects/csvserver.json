@@ -1,0 +1,28 @@
+{
+  "csvserver": [
+    {
+      "name": "CSV-KETEN-DEFLB",
+      "curstate": "UP",
+      "ipv46": "198.51.100.1",
+      "port": 443
+    },
+    {
+      "name": "CSV-KETEN-GAT",
+      "curstate": "UP",
+      "ipv46": "198.51.100.2",
+      "port": 443
+    },
+    {
+      "name": "CSV-KETEN-BELEID",
+      "curstate": "UP",
+      "ipv46": "198.51.100.3",
+      "port": 443
+    },
+    {
+      "name": "CSV-KETEN-LEEG",
+      "curstate": "UP",
+      "ipv46": "198.51.100.4",
+      "port": 443
+    }
+  ]
+}

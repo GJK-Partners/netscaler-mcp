@@ -1,0 +1,1 @@
+{"global_status": "success", "summary": {"total_checks": 13, "passed": 13, "failed": 0}, "checks": [{"name": "disk_space", "status": "success"}]}

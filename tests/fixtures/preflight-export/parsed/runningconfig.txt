@@ -1,0 +1,7 @@
+#NS14.1 Build 66.59.nc
+set ns config -IPAddress 10.0.0.10 -netmask 255.255.255.0
+add ns ip 10.0.0.11 255.255.255.0 -type SNIP
+add lb vserver LB_VS_PREFLIGHT SSL 10.0.0.20 443 -persistenceType NONE
+add rewrite policy RW_POL_ADV true NOREWRITE
+bind lb vserver LB_VS_PREFLIGHT -policyName RW_POL_ADV -priority 100 -type REQUEST
+set ns param -timezone CoordinatedUniversalTime

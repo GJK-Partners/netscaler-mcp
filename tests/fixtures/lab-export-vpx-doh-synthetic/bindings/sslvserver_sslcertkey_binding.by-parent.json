@@ -1,0 +1,184 @@
+{
+  "bindingResource": "sslvserver_sslcertkey_binding",
+  "parentResource": "sslvserver",
+  "parentKey": "vservername",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "LBV-DOH-001",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "LBV-DOH-001",
+            "certkeyname": "CERT-DOH-001",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "LBV-DOH-002",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "LBV-DOH-002",
+            "certkeyname": "CERT-DOH-002",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "LBV-NODOH-001",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "LBV-NODOH-001",
+            "certkeyname": "CERT-NODOH-001",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "LBV-APP-001",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "LBV-APP-001",
+            "certkeyname": "CERT-WEB-001",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "LBV-APP-002",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "LBV-APP-002",
+            "certkeyname": "CERT-WEB-001",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "LBV-OOS-001",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "LBV-OOS-001",
+            "certkeyname": "CERT-WEB-002",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "CSV-DOH-001",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "CSV-DOH-001",
+            "certkeyname": "CERT-DOH-002",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "CSV-DOH-002",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "CSV-DOH-002",
+            "certkeyname": "CERT-DOH-002",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "CSV-WEB-001",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "CSV-WEB-001",
+            "certkeyname": "CERT-WEB-001",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "CSV-WEB-002",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "CSV-WEB-002",
+            "certkeyname": "CERT-WEB-002",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "CSV-EMPTY-001",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "CSV-EMPTY-001",
+            "certkeyname": "CERT-WEB-002",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "bindingResource": "lbvserver_binding",
+  "parentResource": "lbvserver",
+  "parentKey": "name",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "LBV-KETEN-OK",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-KETEN-OK",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-KETEN-OK",
+              "servicegroupname": "SG-KETEN-OK",
+              "servicename": "SG-KETEN-OK"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

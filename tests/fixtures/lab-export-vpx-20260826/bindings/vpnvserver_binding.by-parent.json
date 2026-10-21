@@ -1,0 +1,177 @@
+{
+  "bindingResource": "vpnvserver_binding",
+  "parentResource": "vpnvserver",
+  "parentKey": "name",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "VSRV-003",
+      "outcome": "OK",
+      "data": {
+        "vpnvserver_binding": {
+          "name": "VSRV-003",
+          "vpnvserver_cachepolicy_binding": [
+            {
+              "name": "VSRV-003",
+              "policy": "_cacheTCVPNStaticObjects",
+              "stateflag": "536936467",
+              "priority": "10",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-003",
+              "policy": "_cacheOCVPNStaticObjects",
+              "stateflag": "536936467",
+              "priority": "20",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-003",
+              "policy": "_cacheVPNStaticObjects",
+              "stateflag": "536936467",
+              "priority": "30",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-003",
+              "policy": "_mayNoCacheReq",
+              "stateflag": "536936467",
+              "priority": "40",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-003",
+              "policy": "_cacheWFStaticObjects",
+              "stateflag": "536936467",
+              "priority": "10",
+              "bindpoint": "RESPONSE",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-003",
+              "policy": "_noCacheRest",
+              "stateflag": "536936467",
+              "priority": "20",
+              "bindpoint": "RESPONSE",
+              "gotopriorityexpression": "END"
+            }
+          ],
+          "vpnvserver_vpnsessionpolicy_binding": [
+            {
+              "name": "VSRV-003",
+              "policy": "NSG_SES_POL_VPN_Test",
+              "priority": "100",
+              "stateflag": "536938497",
+              "acttype": "0"
+            },
+            {
+              "name": "VSRV-003",
+              "policy": "NSG_SES_POL_StoreFront_TEST",
+              "priority": "120",
+              "stateflag": "536938497",
+              "acttype": "0"
+            },
+            {
+              "name": "VSRV-003",
+              "policy": "NSG_SES_POL_StoreFront-CitrixReceiver",
+              "priority": "130",
+              "stateflag": "536938497",
+              "acttype": "0"
+            }
+          ],
+          "vpnvserver_staserver_binding": [
+            {
+              "name": "VSRV-003",
+              "staserver": "https://host-005.lab.example",
+              "stastate": "DOWN",
+              "stateflag": "536938508",
+              "acttype": "0",
+              "staaddresstype": "IPV4"
+            },
+            {
+              "name": "VSRV-003",
+              "staserver": "https://host-004.lab.example",
+              "stastate": "DOWN",
+              "stateflag": "536938508",
+              "acttype": "0",
+              "staaddresstype": "IPV4"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "VSRV-002",
+      "outcome": "OK",
+      "data": {
+        "vpnvserver_binding": {
+          "name": "VSRV-002",
+          "vpnvserver_cachepolicy_binding": [
+            {
+              "name": "VSRV-002",
+              "policy": "_cacheTCVPNStaticObjects",
+              "stateflag": "536936467",
+              "priority": "10",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-002",
+              "policy": "_cacheOCVPNStaticObjects",
+              "stateflag": "536936467",
+              "priority": "20",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-002",
+              "policy": "_cacheVPNStaticObjects",
+              "stateflag": "536936467",
+              "priority": "30",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-002",
+              "policy": "_mayNoCacheReq",
+              "stateflag": "536936467",
+              "priority": "40",
+              "bindpoint": "REQUEST",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-002",
+              "policy": "_cacheWFStaticObjects",
+              "stateflag": "536936467",
+              "priority": "10",
+              "bindpoint": "RESPONSE",
+              "gotopriorityexpression": "END"
+            },
+            {
+              "name": "VSRV-002",
+              "policy": "_noCacheRest",
+              "stateflag": "536936467",
+              "priority": "20",
+              "bindpoint": "RESPONSE",
+              "gotopriorityexpression": "END"
+            }
+          ],
+          "vpnvserver_responderpolicy_binding": [
+            {
+              "name": "VSRV-002",
+              "policy": "RSPOL-001",
+              "stateflag": "536936450",
+              "priority": "100",
+              "gotopriorityexpression": "END",
+              "bindpoint": "REQUEST"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

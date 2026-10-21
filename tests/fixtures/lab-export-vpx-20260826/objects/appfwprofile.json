@@ -1,0 +1,3021 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "appfwprofile": [
+    {
+      "name": "APPFW_BYPASS",
+      "type": [
+        "HTML"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "OFF",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "0",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "0",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "OFF",
+      "messagescanlimit": "1000000",
+      "jsonmessagescan": "OFF",
+      "jsonmessagescanlimit": "1000000",
+      "messagescanlimitcontenttypes": [
+        "NONE"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "none"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": " ",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": true,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "none"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": " ",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "APPFW_RESET",
+      "type": [
+        "HTML"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "ON",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "0",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "0",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "OFF",
+      "messagescanlimit": "1000000",
+      "jsonmessagescan": "OFF",
+      "jsonmessagescanlimit": "1000000",
+      "messagescanlimitcontenttypes": [
+        "NONE"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "none"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": " ",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": true,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "none"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": " ",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "APPFW_DROP",
+      "type": [
+        "HTML"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "ON",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "0",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "0",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "OFF",
+      "messagescanlimit": "1000000",
+      "jsonmessagescan": "OFF",
+      "jsonmessagescanlimit": "1000000",
+      "messagescanlimitcontenttypes": [
+        "NONE"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "none"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": " ",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": true,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "none"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": " ",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "APPFW_BLOCK",
+      "type": [
+        "HTML"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "ON",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "0",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "0",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "OFF",
+      "messagescanlimit": "1000000",
+      "jsonmessagescan": "OFF",
+      "jsonmessagescanlimit": "1000000",
+      "messagescanlimitcontenttypes": [
+        "NONE"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "none"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": " ",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": true,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "none"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": " ",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "ns-aaa-default-appfw-profile",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "OFF",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "2000000",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "128000",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "ON",
+      "messagescanlimit": "128000",
+      "jsonmessagescan": "ON",
+      "jsonmessagescanlimit": "128000",
+      "messagescanlimitcontenttypes": [
+        "FORM-DATA",
+        "JSON"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "block",
+        "log"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": "application/octet-stream",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": false,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "none"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": "ns-aaa-spec",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "ns-aaatm-default-appfw-profile",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "OFF",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "2000000",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "128000",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "ON",
+      "messagescanlimit": "128000",
+      "jsonmessagescan": "ON",
+      "jsonmessagescanlimit": "128000",
+      "messagescanlimitcontenttypes": [
+        "FORM-DATA",
+        "JSON"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "block",
+        "log"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": "application/octet-stream",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": false,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "none"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": "ns-aaatm-spec",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "ns-vpn-default-appfw-profile",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "OFF",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "2000000",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "128000",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "ON",
+      "messagescanlimit": "128000",
+      "jsonmessagescan": "ON",
+      "jsonmessagescanlimit": "128000",
+      "messagescanlimitcontenttypes": [
+        "FORM-DATA",
+        "JSON"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "block",
+        "log"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": "application/octet-stream",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": false,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "keepLast"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": "ns-vpn-spec",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "ns-web-default-appfw-profile",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "OFF",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "2000000",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "128000",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "ON",
+      "messagescanlimit": "128000",
+      "jsonmessagescan": "ON",
+      "jsonmessagescanlimit": "128000",
+      "messagescanlimitcontenttypes": [
+        "FORM-DATA",
+        "JSON"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "block",
+        "log"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": "application/octet-stream",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": false,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "keepLast"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": "ns-web-spec",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "ns-mgmt-gui-default-appfw-profile",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "OFF",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "2000000",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "128000",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "ON",
+      "messagescanlimit": "128000",
+      "jsonmessagescan": "ON",
+      "jsonmessagescanlimit": "128000",
+      "messagescanlimitcontenttypes": [
+        "FORM-DATA",
+        "JSON"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "block",
+        "log"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": "application/octet-stream",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": false,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "keepLast"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": "ns-mgmt-gui-spec",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    },
+    {
+      "name": "ns-edge-default-appfw-profile",
+      "type": [
+        "HTML",
+        "XML",
+        "JSON"
+      ],
+      "state": "DISABLED",
+      "usehtmlerrorobject": "OFF",
+      "errorurl": "/",
+      "htmlerrorobject": " ",
+      "htmlerrorstatuscode": "200",
+      "htmlerrorstatusmessage": "OK",
+      "logeverypolicyhit": "OFF",
+      "striphtmlcomments": "none",
+      "stripxmlcomments": "none",
+      "defaultcharset": "iso-8859-1",
+      "postbodylimit": "2000000",
+      "postbodylimitaction": [
+        "block"
+      ],
+      "dynamiclearning": [
+        "none"
+      ],
+      "isautodeployed": "NOTAUTODEPLOYED",
+      "alertonly": "OFF",
+      "postbodylimitsignature": "128000",
+      "learning": "ON",
+      "fileuploadmaxnum": "0",
+      "canonicalizehtmlresponse": "OFF",
+      "enableformtagging": "OFF",
+      "sessionlessfieldconsistency": "OFF",
+      "sessionlessurlclosure": "OFF",
+      "semicolonfieldseparator": "OFF",
+      "excludefileuploadfromchecks": "OFF",
+      "sqlinjectionparsecomments": "checkall",
+      "checkrequestheaders": "OFF",
+      "inspectquerycontenttypes": [
+        "HTML",
+        "JSON",
+        "OTHER"
+      ],
+      "optimizepartialreqs": "ON",
+      "urldecoderequestcookies": "OFF",
+      "starturlaction": [
+        "none"
+      ],
+      "infercontenttypexmlpayloadaction": [
+        "none"
+      ],
+      "contenttypeaction": [
+        "none"
+      ],
+      "inspectcontenttypes": [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/x-gwt-rpc",
+        "application/grpc"
+      ],
+      "starturlclosure": "OFF",
+      "denyurlaction": [
+        "none"
+      ],
+      "refererheadercheck": "OFF",
+      "csrftagaction": [
+        "none"
+      ],
+      "crosssitescriptingaction": [
+        "none"
+      ],
+      "crosssitescriptingtransformunsafehtml": "OFF",
+      "crosssitescriptingcheckcompleteurls": "OFF",
+      "isregex_xss": "NOTREGEX",
+      "exemptclosureurlsfromsecuritychecks": "OFF",
+      "as_scan_location_xss": "FORMFIELD",
+      "isvalueregex_xss": "NOTREGEX",
+      "sqlinjectionaction": [
+        "none"
+      ],
+      "cmdinjectionaction": [
+        "none"
+      ],
+      "sqlinjectiontransformspecialchars": "OFF",
+      "sqlinjectiontype": "SQLKeyword",
+      "cmdinjectiontype": "CMDKeyword",
+      "sqlinjectiongrammar": "OFF",
+      "cmdinjectiongrammar": "OFF",
+      "fieldscan": "OFF",
+      "fieldscanlimit": "2048",
+      "jsonfieldscan": "OFF",
+      "jsonfieldscanlimit": "2048",
+      "messagescan": "ON",
+      "messagescanlimit": "128000",
+      "jsonmessagescan": "ON",
+      "jsonmessagescanlimit": "128000",
+      "messagescanlimitcontenttypes": [
+        "FORM-DATA",
+        "JSON"
+      ],
+      "sqlinjectionchecksqlwildchars": "OFF",
+      "isregex_sql": "NOTREGEX",
+      "invalidpercenthandling": "secure_mode",
+      "as_scan_location_sql": "FORMFIELD",
+      "isvalueregex_sql": "NOTREGEX",
+      "isregex_cmd": "NOTREGEX",
+      "as_scan_location_cmd": "FORMFIELD",
+      "isvalueregex_cmd": "NOTREGEX",
+      "fieldconsistencyaction": [
+        "none"
+      ],
+      "isregex_ffc": "NOTREGEX",
+      "cookieconsistencyaction": [
+        "none"
+      ],
+      "cookiehijackingaction": [
+        "none"
+      ],
+      "isregex": "NOTREGEX",
+      "cookietransforms": "OFF",
+      "cookieencryption": "none",
+      "cookieproxying": "none",
+      "addcookieflags": "none",
+      "bufferoverflowaction": [
+        "none"
+      ],
+      "grpcaction": [
+        "none"
+      ],
+      "restaction": [
+        "block",
+        "log"
+      ],
+      "bufferoverflowmaxurllength": "1024",
+      "bufferoverflowmaxheaderlength": "4096",
+      "bufferoverflowmaxcookielength": "4096",
+      "bufferoverflowmaxquerylength": "65535",
+      "bufferoverflowmaxtotalheaderlength": "65535",
+      "fieldformataction": [
+        "none"
+      ],
+      "defaultfieldformatminlength": "0",
+      "defaultfieldformatmaxlength": "65535",
+      "defaultfieldformatmaxoccurrences": "65535",
+      "isregex_ff": "NOTREGEX",
+      "fieldformatminlength": "0",
+      "fieldformatmaxlength": "0",
+      "creditcardaction": [
+        "none"
+      ],
+      "creditcard": [
+        "none"
+      ],
+      "creditcardmaxallowed": "0",
+      "creditcardxout": "OFF",
+      "dosecurecreditcardlogging": "ON",
+      "streaming": "OFF",
+      "trace": "OFF",
+      "maxmatchlength": "0",
+      "requestcontenttype": " ",
+      "responsecontenttype": "application/octet-stream",
+      "xmlerrorobject": " ",
+      "xmlerrorstatuscode": "200",
+      "xmlerrorstatusmessage": "OK",
+      "signatures": " ",
+      "xmlformataction": [
+        "none"
+      ],
+      "xmldosaction": [
+        "none"
+      ],
+      "xmlsqlinjectionaction": [
+        "none"
+      ],
+      "xmlsqlinjectiontype": "SQLKeyword",
+      "xmlsqlinjectionchecksqlwildchars": "OFF",
+      "xmlsqlinjectionparsecomments": "checkall",
+      "xmlxssaction": [
+        "none"
+      ],
+      "xmlwsiaction": [
+        "none"
+      ],
+      "xmlattachmentaction": [
+        "none"
+      ],
+      "xmlvalidationaction": [
+        "none"
+      ],
+      "xmlsoapfaultaction": [
+        "none"
+      ],
+      "isregex_xmlsql": "NOTREGEX",
+      "isregex_xmlxss": "NOTREGEX",
+      "xmlmaxelementdepthcheck": "OFF",
+      "xmlmaxelementdepth": "0",
+      "xmlmaxelementnamelengthcheck": "OFF",
+      "xmlmaxelementnamelength": "0",
+      "xmlmaxelementscheck": "OFF",
+      "xmlmaxelements": "0",
+      "xmlmaxelementchildrencheck": "OFF",
+      "xmlmaxelementchildren": "0",
+      "xmlmaxnodescheck": "OFF",
+      "xmlmaxnodes": "0",
+      "xmlmaxattributescheck": "OFF",
+      "xmlmaxattributes": "0",
+      "xmlmaxattributenamelengthcheck": "OFF",
+      "xmlmaxattributenamelength": "0",
+      "xmlmaxattributevaluelengthcheck": "OFF",
+      "xmlmaxattributevaluelength": "0",
+      "xmlmaxchardatalengthcheck": "OFF",
+      "xmlmaxchardatalength": "0",
+      "xmlmaxfilesizecheck": "OFF",
+      "xmlmaxfilesize": "0",
+      "xmlminfilesizecheck": "OFF",
+      "xmlminfilesize": "0",
+      "xmlblockpi": "OFF",
+      "xmlblockdtd": "OFF",
+      "xmlblockexternalentities": "OFF",
+      "xmlmaxentityexpansionscheck": "OFF",
+      "xmlmaxentityexpansions": "0",
+      "xmlmaxentityexpansiondepthcheck": "OFF",
+      "xmlmaxentityexpansiondepth": "0",
+      "xmlmaxnamespacescheck": "OFF",
+      "xmlmaxnamespaces": "0",
+      "xmlmaxnamespaceurilengthcheck": "OFF",
+      "xmlmaxnamespaceurilength": "0",
+      "xmlsoaparraycheck": "OFF",
+      "xmlmaxsoaparraysize": "0",
+      "xmlmaxsoaparrayrank": "0",
+      "xmladditionalsoapheaders": "OFF",
+      "xmlendpointcheck": "ABSOLUTE",
+      "xmlvalidatesoapenvelope": "OFF",
+      "xmlvalidateresponse": "OFF",
+      "xmlmaxattachmentsizecheck": "OFF",
+      "xmlmaxattachmentsize": "0",
+      "xmlattachmentcontenttypecheck": "OFF",
+      "builtin": false,
+      "percentdecoderecursively": "ON",
+      "multipleheaderaction": [
+        "keepLast"
+      ],
+      "rfcprofile": "APPFW_RFC_BLOCK",
+      "apispec": "ns-edge-spec",
+      "protofileobject": " ",
+      "jsonerrorobject": " ",
+      "jsonerrorstatuscode": "200",
+      "jsonerrorstatusmessage": "OK",
+      "jsondosaction": [
+        "none"
+      ],
+      "jsonsqlinjectionaction": [
+        "none"
+      ],
+      "jsonsqlinjectiontype": "SQLKeyword",
+      "jsonsqlinjectiongrammar": "OFF",
+      "jsoncmdinjectionaction": [
+        "none"
+      ],
+      "jsoncmdinjectiontype": "CMDKeyword",
+      "jsoncmdinjectiongrammar": "OFF",
+      "jsonxssaction": [
+        "none"
+      ],
+      "iskeyregex_json_sql": "NOTREGEX",
+      "isvalueregex_json_sql": "NOTREGEX",
+      "iskeyregex_json_cmd": "NOTREGEX",
+      "isvalueregex_json_cmd": "NOTREGEX",
+      "iskeyregex_json_xss": "NOTREGEX",
+      "isvalueregex_json_xss": "NOTREGEX",
+      "jsonmaxdocumentlengthcheck": "OFF",
+      "jsonmaxdocumentlength": "0",
+      "jsonmaxcontainerdepthcheck": "OFF",
+      "jsonmaxcontainerdepth": "0",
+      "jsonmaxobjectkeycountcheck": "OFF",
+      "jsonmaxobjectkeycount": "0",
+      "jsonmaxobjectkeylengthcheck": "OFF",
+      "jsonmaxobjectkeylength": "0",
+      "jsonmaxarraylengthcheck": "OFF",
+      "jsonmaxarraylength": "0",
+      "jsonmaxstringlengthcheck": "OFF",
+      "jsonmaxstringlength": "0",
+      "isnameregex": "NOTREGEX",
+      "fileuploadtypesaction": [
+        "none"
+      ],
+      "verboseloglevel": "pattern",
+      "insertcookiesamesiteattribute": "OFF",
+      "cookiesamesiteattribute": "LAX",
+      "sqlinjectionruletype": "ALLOW",
+      "fakeaccountdetection": "OFF",
+      "isfieldnameregex": "NOTREGEX",
+      "isregex_cffield": "NOTREGEX",
+      "blockkeywordaction": [
+        "none"
+      ],
+      "as_fieldname_isregex_blockkeyword": "NOTREGEX",
+      "jsonblockkeywordaction": [
+        "none"
+      ],
+      "iskeyregex_json_blockkeyword": "NOTREGEX",
+      "as_prof_bypass_list_enable": "OFF",
+      "as_prof_deny_list_enable": "OFF"
+    }
+  ]
+}

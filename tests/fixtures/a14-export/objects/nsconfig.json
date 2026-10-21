@@ -1,0 +1,33 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "nsconfig": {
+    "ipaddress": "203.0.113.11",
+    "netmask": "255.255.255.0",
+    "tagged": "YES",
+    "svmcmd": "0",
+    "maxconn": "0",
+    "maxreq": "0",
+    "cip": "DISABLED",
+    "cookieversion": "0",
+    "securecookie": "ENABLED",
+    "systemtype": "Stand-alone",
+    "primaryip": "203.0.113.11",
+    "pmtumin": "576",
+    "pmtutimeout": 10,
+    "flags": "4",
+    "timezone": "CoordinatedUniversalTime",
+    "lastconfigchangedtime": "Sun Sep  6 11:03:36 2026",
+    "lastconfigsavetime": "Sun Sep  6 11:03:35 2026",
+    "currentsytemtime": "Sun Sep  6 20:38:16 2026",
+    "systemtime": "1788719896",
+    "grantquotamaxclient": "10",
+    "exclusivequotamaxclient": "80",
+    "grantquotaspillover": "10",
+    "exclusivequotaspillover": "80",
+    "configchanged": true,
+    "securemanagementtraffic": "DISABLED",
+    "securemanagementtd": 0
+  }
+}

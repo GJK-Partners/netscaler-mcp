@@ -1,0 +1,18 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "aaaparameter": {
+    "defaultauthtype": "LOCAL",
+    "maxloginattempts": "3",
+    "failedlogintimeout": 15,
+    "persistentloginattempts": "DISABLED",
+    "feature": "SYSTEM",
+    "loginencryption": "DISABLED",
+    "httponlycookie": "ENABLED",
+    "wafprotection": [
+      "AUTH",
+      "VPN"
+    ]
+  }
+}

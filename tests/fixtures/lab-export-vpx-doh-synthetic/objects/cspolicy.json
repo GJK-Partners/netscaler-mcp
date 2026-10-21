@@ -1,0 +1,37 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "cspolicy": [
+    {
+      "policyname": "CSPOL-001",
+      "rule": "HTTP.REQ.HOSTNAME.EQ(\"lbv-app-001.lab.example\")",
+      "action": "CSACT-001",
+      "vstype": "2",
+      "hits": "0",
+      "bindhits": "0",
+      "priority": "0",
+      "activepolicy": true
+    },
+    {
+      "policyname": "CSPOL-002",
+      "rule": "HTTP.REQ.HOSTNAME.EQ(\"lbv-tcp-001.lab.example\")",
+      "action": "CSACT-002",
+      "vstype": "2",
+      "hits": "0",
+      "bindhits": "0",
+      "priority": "0",
+      "activepolicy": true
+    },
+    {
+      "policyname": "CSPOL-003",
+      "rule": "HTTP.REQ.HOSTNAME.EQ(\"lbv-web-001.lab.example\")",
+      "action": "CSACT-003",
+      "vstype": "2",
+      "hits": "0",
+      "bindhits": "0",
+      "priority": "0",
+      "activepolicy": true
+    }
+  ]
+}

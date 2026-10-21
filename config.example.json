@@ -1,0 +1,9 @@
+{
+  "profiel": "dienst",
+  "exportmap": "tests/fixtures/lab-export-vpx-20260826",
+  "kennispad": "kennis.example.json",
+  "kennispin": {
+    "versie": "VOORBEELD - dit pakket bevat geen echte CVE-basis",
+    "digest": "086b798af3fd842c777f8f5c96b62ac1e9ecbc5fe2cd00a3bc66f6748e0f91d3"
+  }
+}

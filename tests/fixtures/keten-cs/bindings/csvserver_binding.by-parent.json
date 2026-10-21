@@ -1,0 +1,66 @@
+{
+  "bindingResource": "csvserver_binding",
+  "parentResource": "csvserver",
+  "parentKey": "name",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "CSV-KETEN-DEFLB",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-KETEN-DEFLB",
+          "csvserver_lbvserver_binding": [
+            {
+              "name": "CSV-KETEN-DEFLB",
+              "lbvserver": "LBV-KETEN-OK",
+              "hits": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CSV-KETEN-GAT",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-KETEN-GAT",
+          "csvserver_lbvserver_binding": [
+            {
+              "name": "CSV-KETEN-GAT",
+              "lbvserver": "LBV-KETEN-ONBEKEND",
+              "hits": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CSV-KETEN-BELEID",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-KETEN-BELEID",
+          "csvserver_cspolicy_binding": [
+            {
+              "name": "CSV-KETEN-BELEID",
+              "policyname": "CSPOL-KETEN-01",
+              "priority": "100",
+              "hits": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CSV-KETEN-LEEG",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-KETEN-LEEG"
+        }
+      }
+    }
+  ]
+}

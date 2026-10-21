@@ -1,0 +1,8 @@
+{
+  "lbvserver": [
+    {
+      "name": "LBV-001",
+      "servicetype": "HTTP"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "systemuser": [
+    {
+      "username": "nsroot",
+      "externalauth": "DISABLED",
+      "logging": "ENABLED",
+      "timeout": 900,
+      "allowedmanagementinterface": [
+        "CLI",
+        "API"
+      ]
+    },
+    {
+      "username": "labadmin",
+      "externalauth": "DISABLED",
+      "logging": "ENABLED",
+      "maxsession": "4",
+      "timeout": 900,
+      "allowedmanagementinterface": [
+        "CLI"
+      ]
+    }
+  ]
+}

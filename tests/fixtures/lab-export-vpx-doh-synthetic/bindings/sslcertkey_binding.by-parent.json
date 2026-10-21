@@ -1,0 +1,234 @@
+{
+  "bindingResource": "sslcertkey_binding",
+  "parentResource": "sslcertkey",
+  "parentKey": "certkey",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "ns-server-certificate",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "ns-server-certificate",
+          "sslcertkey_service_binding": [
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nsrpcs-127.0.0.1-3008",
+              "data": "1",
+              "version": 2,
+              "stateflag": "4"
+            },
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nshttps-127.0.0.1-443",
+              "data": "2",
+              "version": 2,
+              "stateflag": "4"
+            },
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nshttps-certauth-127.0.0.1-8443",
+              "data": "3",
+              "version": 2,
+              "stateflag": "4"
+            },
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nsrpcs-::1l-3008",
+              "data": "4",
+              "version": 2,
+              "stateflag": "4"
+            },
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nshttps-::1l-443",
+              "data": "5",
+              "version": 2,
+              "stateflag": "4"
+            },
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nshttps-certauth-::1l-8443",
+              "data": "6",
+              "version": 2,
+              "stateflag": "4"
+            },
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nskrpcs-127.0.0.1-3009",
+              "data": "7",
+              "version": 2,
+              "stateflag": "4"
+            },
+            {
+              "certkey": "ns-server-certificate",
+              "servicename": "nsrnatsip-127.0.0.1-5061",
+              "data": "8",
+              "version": 2,
+              "stateflag": "4"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "ns-sftrust-certificate",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "ns-sftrust-certificate"
+        }
+      }
+    },
+    {
+      "parentName": "CERT-DOH-001",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-DOH-001",
+          "sslcertkey_sslvserver_binding": [
+            {
+              "certkey": "CERT-DOH-001",
+              "servername": "LBV-DOH-001",
+              "data": "1",
+              "version": 2,
+              "stateflag": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CERT-DOH-002",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-DOH-002",
+          "sslcertkey_sslvserver_binding": [
+            {
+              "certkey": "CERT-DOH-002",
+              "servername": "LBV-DOH-002",
+              "data": "1",
+              "version": 2,
+              "stateflag": "2"
+            },
+            {
+              "certkey": "CERT-DOH-002",
+              "servername": "CSV-DOH-001",
+              "data": "2",
+              "version": 2,
+              "stateflag": "2"
+            },
+            {
+              "certkey": "CERT-DOH-002",
+              "servername": "CSV-DOH-002",
+              "data": "3",
+              "version": 2,
+              "stateflag": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CERT-NODOH-001",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-NODOH-001",
+          "sslcertkey_sslvserver_binding": [
+            {
+              "certkey": "CERT-NODOH-001",
+              "servername": "LBV-NODOH-001",
+              "data": "1",
+              "version": 2,
+              "stateflag": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CERT-WEB-001",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-WEB-001",
+          "sslcertkey_sslvserver_binding": [
+            {
+              "certkey": "CERT-WEB-001",
+              "servername": "CSV-WEB-001",
+              "data": "1",
+              "version": 2,
+              "stateflag": "2"
+            },
+            {
+              "certkey": "CERT-WEB-001",
+              "servername": "LBV-APP-001",
+              "data": "2",
+              "version": 2,
+              "stateflag": "2"
+            },
+            {
+              "certkey": "CERT-WEB-001",
+              "servername": "LBV-APP-002",
+              "data": "3",
+              "version": 2,
+              "stateflag": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CERT-WEB-002",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-WEB-002",
+          "sslcertkey_sslvserver_binding": [
+            {
+              "certkey": "CERT-WEB-002",
+              "servername": "CSV-WEB-002",
+              "data": "1",
+              "version": 2,
+              "stateflag": "2"
+            },
+            {
+              "certkey": "CERT-WEB-002",
+              "servername": "CSV-EMPTY-001",
+              "data": "2",
+              "version": 2,
+              "stateflag": "2"
+            },
+            {
+              "certkey": "CERT-WEB-002",
+              "servername": "LBV-OOS-001",
+              "data": "3",
+              "version": 2,
+              "stateflag": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CERT-SPARE-001",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-SPARE-001"
+        }
+      }
+    },
+    {
+      "parentName": "CERT-CA-001",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-CA-001"
+        }
+      }
+    }
+  ]
+}

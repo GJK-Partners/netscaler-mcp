@@ -1,0 +1,14 @@
+{
+  "manifestVersion": "1.1",
+  "collectorVersion": "1.0.1",
+  "resources": {
+    "config/lbvserver": {
+      "status": "OK",
+      "httpStatus": 200,
+      "propertyName": "lbvserver",
+      "objectCount": 1,
+      "payloadSha256": "53DD80E27B89AC86984113D46FAC474E48C408B169B01305D50BD803C427398A"
+    }
+  },
+  "files": {}
+}

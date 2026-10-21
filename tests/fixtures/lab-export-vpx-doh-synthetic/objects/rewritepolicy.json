@@ -1,0 +1,29 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "rewritepolicy": [
+    {
+      "name": "RWPOL-001",
+      "rule": "HTTP.REQ.IS_VALID",
+      "action": "RWACT-001",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 1,
+      "priority": "0",
+      "isdefault": false,
+      "feature": "REWRITE"
+    },
+    {
+      "name": "RWPOL-002",
+      "rule": "true",
+      "action": "RWACT-002",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 1,
+      "priority": "0",
+      "isdefault": false,
+      "feature": "REWRITE"
+    }
+  ]
+}

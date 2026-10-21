@@ -1,0 +1,11 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "botsettings": {
+    "defaultprofile": "BOT-LAB-001",
+    "sessiontimeout": "900",
+    "signatureautoupdate": "OFF",
+    "feature": "SYSTEM"
+  }
+}

@@ -1,0 +1,13 @@
+1)	Node ID:      0 
+	IP:    192.0.2.10 
+	Node State: UP
+	Master State: Primary
+	Fail-Safe Mode: ON
+	Enabled Interfaces : 0/1 1/1 1/2
+	Disabled Interfaces : None
+	SSL Card Status: NOT PRESENT
+	Sync Status Strict Mode: DISABLED
+	Hello Interval: 200 msecs
+	Dead Interval: 3 secs
+	Node in this Master State for: 0:02:11:05 (days:hrs:min:sec)
+ Done

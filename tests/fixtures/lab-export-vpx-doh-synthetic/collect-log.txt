@@ -1,0 +1,73 @@
+collect-start 2026-09-06 12:00:00
+OK objects/nsversion count=1
+OK objects/lbvserver count=12
+OK objects/csvserver count=5
+OK objects/sslcertkey count=9
+OK objects/nshardware count=1
+OK objects/hanode count=1
+OK objects/vpnvserver count=0
+OK objects/servicegroup count=8
+OK objects/service count=3
+OK objects/server count=19
+R-redactie lbmonitor: velden verwijderd = password
+OK niet-geexporteerd/lbmonitor count=22
+OK objects/cspolicy count=3
+OK objects/csaction count=3
+OK objects/nsip count=20
+OK objects/systemcmdpolicy count=5
+OK objects/sslparameter count=1
+OK objects/systemparameter count=1
+OK parsed/authenticationldapaction count=1
+OK objects/aaaparameter count=1
+OK objects/nsparam count=1
+OK objects/sslprofile count=3
+OK objects/auditsyslogparams count=1
+OK objects/rewritepolicy count=2
+OK objects/rewriteaction count=5
+OK objects/responderpolicy count=1
+OK objects/nsfeature count=1
+OK objects/nslicense count=1
+OK objects/nslicenseserver count=0
+OK parsed/systemuser count=2
+WARN optional objects/mgmtparam WEGGELATEN (NOT_SUPPORTED)
+OK objects/ntpserver count=0
+OK objects/dnsnameserver count=0
+OK objects/snmpcommunity count=0
+OK objects/snmpmanager count=1
+OK objects/auditsyslogpolicy count=1
+OK objects/auditsyslogaction count=1
+OK objects/appfwpolicy count=0
+OK objects/appfwprofile count=3
+OK objects/botpolicy count=0
+OK objects/botprofile count=1
+OK objects/botsettings count=1
+OK objects/nshttpprofile count=3
+OK objects/sslvserver count=11
+OK objects/authenticationvserver count=0
+OK objects/reputationsettings count=1
+OK objects/botglobal_botpolicy_binding count=0
+OK objects/rewriteglobal_rewritepolicy_binding count=0
+WARN optional objects/vpnvserver_botpolicy_binding WEGGELATEN (NOT_SUPPORTED)
+OK objects/lbvserver_rewritepolicy_binding count=1
+OK objects/lbvserver_botpolicy_binding count=0
+OK objects/csvserver_rewritepolicy_binding count=2
+OK objects/csvserver_botpolicy_binding count=0
+OK objects/vpnvserver_rewritepolicy_binding count=0
+OK objects/vpnvserver_appfwpolicy_binding count=0
+WARN optional objects/authenticationvserver_appfwpolicy_binding WEGGELATEN (NOT_SUPPORTED)
+WARN optional objects/systemfile WEGGELATEN (NOT_SUPPORTED)
+OK bindings/lbvserver_binding ok=12 empty=0 readgap=0
+OK bindings/csvserver_binding ok=5 empty=0 readgap=0
+OK bindings/servicegroup_binding ok=8 empty=0 readgap=0
+OK bindings/service_binding ok=3 empty=0 readgap=0
+OK bindings/lbmonitor_binding ok=22 empty=0 readgap=0
+OK bindings/sslcertkey_binding ok=9 empty=0 readgap=0
+OK bindings/sslvserver_sslcertkey_binding ok=11 empty=0 readgap=0
+OK bindings/sslvserver_sslciphersuite_binding ok=0 empty=11 readgap=0
+OK bindings/sslvserver_ecccurve_binding ok=0 empty=11 readgap=0
+OK bindings/sslprofile_sslcipher_binding ok=3 empty=0 readgap=0
+OK bindings/sslcipher_binding ok=1 empty=0 readgap=0
+OK parsed/runningconfig.txt (geredigeerd op de jumphost)
+OK parsed/savedconfig.txt (geredigeerd op de jumphost)
+OK export-manifest resources=58
+collect-einde warns=4

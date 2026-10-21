@@ -1,0 +1,126 @@
+{
+  "bindingResource": "csvserver_binding",
+  "parentResource": "csvserver",
+  "parentKey": "name",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "CSV-DOH-001",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-DOH-001"
+        }
+      }
+    },
+    {
+      "parentName": "CSV-DOH-002",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-DOH-002"
+        }
+      }
+    },
+    {
+      "parentName": "CSV-WEB-001",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-WEB-001",
+          "csvserver_cspolicy_binding": [
+            {
+              "name": "CSV-WEB-001",
+              "policyname": "CSPOL-001",
+              "stateflag": "536937473",
+              "priority": "100",
+              "invoke": false,
+              "hits": "0",
+              "pipolicyhits": "0",
+              "rule": "true"
+            },
+            {
+              "name": "CSV-WEB-001",
+              "policyname": "CSPOL-002",
+              "stateflag": "536937473",
+              "priority": "110",
+              "invoke": false,
+              "hits": "0",
+              "pipolicyhits": "0",
+              "rule": "true"
+            }
+          ],
+          "csvserver_lbvserver_binding": [
+            {
+              "name": "CSV-WEB-001",
+              "lbvserver": "LBV-APP-002",
+              "stateflag": "536937476",
+              "hits": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CSV-WEB-002",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-WEB-002",
+          "csvserver_cspolicy_binding": [
+            {
+              "name": "CSV-WEB-002",
+              "policyname": "CSPOL-003",
+              "stateflag": "536937473",
+              "priority": "100",
+              "invoke": false,
+              "hits": "0",
+              "pipolicyhits": "0",
+              "rule": "true"
+            }
+          ],
+          "csvserver_rewritepolicy_binding": [
+            {
+              "name": "CSV-WEB-002",
+              "policyname": "RWPOL-001",
+              "stateflag": "536936449",
+              "priority": "100",
+              "gotopriorityexpression": "END",
+              "bindpoint": "REQUEST",
+              "invoke": false
+            },
+            {
+              "name": "CSV-WEB-002",
+              "policyname": "RWPOL-002",
+              "stateflag": "536936449",
+              "priority": "100",
+              "gotopriorityexpression": "NEXT",
+              "bindpoint": "RESPONSE",
+              "invoke": false
+            }
+          ],
+          "csvserver_responderpolicy_binding": [
+            {
+              "name": "CSV-WEB-002",
+              "policyname": "RSPOL-001",
+              "stateflag": "536936450",
+              "priority": "100",
+              "gotopriorityexpression": "END",
+              "invoke": false,
+              "bindpoint": "REQUEST"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "CSV-EMPTY-001",
+      "outcome": "OK",
+      "data": {
+        "csvserver_binding": {
+          "name": "CSV-EMPTY-001"
+        }
+      }
+    }
+  ]
+}

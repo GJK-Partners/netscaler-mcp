@@ -1,0 +1,416 @@
+{
+  "bindingResource": "lbvserver_binding",
+  "parentResource": "lbvserver",
+  "parentKey": "name",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "LBV-DOH-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-DOH-001",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-DOH-001",
+              "servicegroupname": "SG-DOH-001",
+              "stateflag": "536936464",
+              "servicename": "SG-DOH-001"
+            }
+          ],
+          "lbvserver_servicegroupmember_binding": [
+            {
+              "name": "LBV-DOH-001",
+              "servicegroupname": "SG-DOH-001",
+              "ipv46": "198.51.100.1",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-DOH-001",
+              "servicegroupname": "SG-DOH-001",
+              "ipv46": "198.51.100.2",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-DOH-002",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-DOH-002"
+        }
+      }
+    },
+    {
+      "parentName": "LBV-NODOH-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-NODOH-001"
+        }
+      }
+    },
+    {
+      "parentName": "LBV-DNS-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-DNS-001",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-DNS-001",
+              "servicegroupname": "SG-DNS-001",
+              "stateflag": "536936464",
+              "servicename": "SG-DNS-001"
+            }
+          ],
+          "lbvserver_servicegroupmember_binding": [
+            {
+              "name": "LBV-DNS-001",
+              "servicegroupname": "SG-DNS-001",
+              "ipv46": "198.51.100.3",
+              "port": 53,
+              "servicetype": "DNS",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-DNS-001",
+              "servicegroupname": "SG-DNS-001",
+              "ipv46": "198.51.100.4",
+              "port": 53,
+              "servicetype": "DNS",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-DNS-002",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-DNS-002"
+        }
+      }
+    },
+    {
+      "parentName": "LBV-WEB-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-WEB-001",
+          "lbvserver_service_binding": [
+            {
+              "name": "LBV-WEB-001",
+              "servicename": "SVC-WEB-001",
+              "stateflag": "536936451",
+              "ipv46": "SRV-WEB-001",
+              "port": 80,
+              "servicetype": "HTTP",
+              "curstate": "UP",
+              "weight": "1",
+              "dynamicweight": "0",
+              "vsvrbindsvcip": "SRV-WEB-001",
+              "vsvrbindsvcport": 80,
+              "orderstr": "None"
+            }
+          ],
+          "lbvserver_responderpolicy_binding": [
+            {
+              "name": "LBV-WEB-001",
+              "policyname": "RSPOL-001",
+              "stateflag": "536936450",
+              "priority": "100",
+              "gotopriorityexpression": "END",
+              "invoke": false,
+              "bindpoint": "REQUEST"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-APP-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-APP-001",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-APP-001",
+              "servicegroupname": "SG-APP-001",
+              "stateflag": "536936464",
+              "servicename": "SG-APP-001"
+            }
+          ],
+          "lbvserver_servicegroupmember_binding": [
+            {
+              "name": "LBV-APP-001",
+              "servicegroupname": "SG-APP-001",
+              "ipv46": "198.51.100.10",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-APP-001",
+              "servicegroupname": "SG-APP-001",
+              "ipv46": "198.51.100.11",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-APP-001",
+              "servicegroupname": "SG-APP-001",
+              "ipv46": "198.51.100.12",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "OUT OF SERVICE",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-APP-001",
+              "servicegroupname": "SG-APP-001",
+              "ipv46": "198.51.100.13",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "UP",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            }
+          ],
+          "lbvserver_rewritepolicy_binding": [
+            {
+              "name": "LBV-APP-001",
+              "policyname": "RWPOL-001",
+              "stateflag": "536936449",
+              "priority": "100",
+              "gotopriorityexpression": "END",
+              "bindpoint": "REQUEST",
+              "invoke": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-APP-002",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-APP-002",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-APP-002",
+              "servicegroupname": "SG-APP-002",
+              "stateflag": "536936464",
+              "servicename": "SG-APP-002"
+            }
+          ],
+          "lbvserver_servicegroupmember_binding": [
+            {
+              "name": "LBV-APP-002",
+              "servicegroupname": "SG-APP-002",
+              "ipv46": "198.51.100.14",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "UP",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-APP-002",
+              "servicegroupname": "SG-APP-002",
+              "ipv46": "198.51.100.15",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "UP",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-APP-002",
+              "servicegroupname": "SG-APP-002",
+              "ipv46": "198.51.100.20",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-TCP-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-TCP-001",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-TCP-001",
+              "servicegroupname": "SG-TCP-001",
+              "stateflag": "536936464",
+              "servicename": "SG-TCP-001"
+            }
+          ],
+          "lbvserver_servicegroupmember_binding": [
+            {
+              "name": "LBV-TCP-001",
+              "servicegroupname": "SG-TCP-001",
+              "ipv46": "198.51.100.21",
+              "port": 8443,
+              "servicetype": "TCP",
+              "curstate": "UP",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-TCP-001",
+              "servicegroupname": "SG-TCP-001",
+              "ipv46": "198.51.100.22",
+              "port": 8443,
+              "servicetype": "TCP",
+              "curstate": "UP",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-UDP-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-UDP-001",
+          "lbvserver_service_binding": [
+            {
+              "name": "LBV-UDP-001",
+              "servicename": "SVC-SYS-001",
+              "stateflag": "536936451",
+              "ipv46": "198.51.100.41",
+              "port": 514,
+              "servicetype": "UDP",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "vsvrbindsvcip": "198.51.100.41",
+              "vsvrbindsvcport": 514,
+              "orderstr": "None"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-OOS-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-OOS-001",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-OOS-001",
+              "servicegroupname": "SG-APP-003",
+              "stateflag": "536936464",
+              "servicename": "SG-APP-003"
+            }
+          ],
+          "lbvserver_servicegroupmember_binding": [
+            {
+              "name": "LBV-OOS-001",
+              "servicegroupname": "SG-APP-003",
+              "ipv46": "198.51.100.16",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "OUT OF SERVICE",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            },
+            {
+              "name": "LBV-OOS-001",
+              "servicegroupname": "SG-APP-003",
+              "ipv46": "198.51.100.17",
+              "port": 443,
+              "servicetype": "SSL",
+              "curstate": "OUT OF SERVICE",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "parentName": "LBV-BRIDGE-001",
+      "outcome": "OK",
+      "data": {
+        "lbvserver_binding": {
+          "name": "LBV-BRIDGE-001",
+          "lbvserver_servicegroup_binding": [
+            {
+              "name": "LBV-BRIDGE-001",
+              "servicegroupname": "SG-BRIDGE-001",
+              "stateflag": "536936464",
+              "servicename": "SG-BRIDGE-001"
+            }
+          ],
+          "lbvserver_servicegroupmember_binding": [
+            {
+              "name": "LBV-BRIDGE-001",
+              "servicegroupname": "SG-BRIDGE-001",
+              "ipv46": "198.51.100.23",
+              "port": 443,
+              "servicetype": "SSL_BRIDGE",
+              "curstate": "DOWN",
+              "weight": "1",
+              "dynamicweight": "0",
+              "orderstr": "None"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

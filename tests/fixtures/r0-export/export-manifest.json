@@ -1,0 +1,76 @@
+{
+  "manifestVersion": "1.1",
+  "collectorVersion": "1.0.0",
+  "collectedAtUtc": "2026-09-06T08:00:00.0000000Z",
+  "resources": {
+    "config/nsrunningconfig": {
+      "status": "OK",
+      "propertyName": "nsrunningconfig",
+      "objectCount": 1,
+      "payloadSha256": "A8C753931534F1CDAD20B2D9C9E6D14582768E9B46ADD59E91F97D12A92DDE80"
+    },
+    "config/systembackup": {
+      "status": "OK",
+      "propertyName": "systembackup",
+      "objectCount": 1,
+      "payloadSha256": "190E8EE2E18A2A5A25813D266EB7DE8ADB0F67036FF31CEFB64E2F8113CA5D72"
+    },
+    "config/systemfile?args=filelocation:%2Fvar%2Fnsinstall": {
+      "status": "OK",
+      "propertyName": "systemfile",
+      "objectCount": 1,
+      "payloadSha256": "7E25597F8CDF49AA1EBD83907A798426D7F359602ACAD065FA1F354B02BD73B7"
+    },
+    "config/lbvserver": {
+      "status": "OK",
+      "propertyName": "lbvserver",
+      "objectCount": 2,
+      "payloadSha256": "121C856668F3E9648FE4A01EFE6CDBCAD96046BA379AEB4E78D5C867C1E00519"
+    },
+    "config/csvserver": {
+      "status": "OK",
+      "propertyName": "csvserver",
+      "objectCount": 1,
+      "payloadSha256": "79E376ED3E09C28F7361A270AD3C8A8F8F09B04B065909C49180697BBD683412"
+    },
+    "config/vpnvserver": {
+      "status": "EMPTY",
+      "propertyName": "vpnvserver",
+      "objectCount": 0,
+      "payloadSha256": "50F23FF2331DD01A1AC775459F9460C3424D5FB2EBCD484C1190A616EB42F134"
+    },
+    "config/authenticationvserver": {
+      "status": "EMPTY",
+      "propertyName": "authenticationvserver",
+      "objectCount": 0,
+      "payloadSha256": "FFC8E25D9732403F02456A7E633EFF678CFA4E7B5CA60AD0DCF26981ED265B30"
+    },
+    "config/service": {
+      "status": "OK",
+      "propertyName": "service",
+      "objectCount": 2,
+      "payloadSha256": "36C63DABA0FA24574F553B06EEA9FE723E8482B7BBB2AFA4BA3E0C1D1A79A45D"
+    },
+    "config/servicegroup": {
+      "status": "OK",
+      "propertyName": "servicegroup",
+      "objectCount": 1,
+      "payloadSha256": "61DE96B02B4C633B1C179092F271039E554F8D7AC4106DB71E727AD01338F022"
+    },
+    "config/sslcertkey": {
+      "status": "OK",
+      "propertyName": "sslcertkey",
+      "objectCount": 1,
+      "payloadSha256": "F7B4C4E75EF86AD3B7EE492F3D74CF83CAC6F341FF4F344F31B80C90AB3780B3"
+    },
+    "config/lbmonitor": {
+      "status": "OK",
+      "propertyName": "lbmonitor",
+      "objectCount": 1,
+      "payloadSha256": "532D265D9F31ADC2932F9C23E9D07DB884B1835E37D86D623F1D1E1DAE22B82D"
+    }
+  },
+  "files": {
+    "parsed/runningconfig.txt": "dcff7f4e8bcab493d9a298c6b84943afe7dbee1644fb1d6351fbef6247a3f0fd"
+  }
+}

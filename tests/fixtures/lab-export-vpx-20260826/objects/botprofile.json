@@ -1,0 +1,124 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "botprofile": [
+    {
+      "name": "BOT-001",
+      "errorurl": "/",
+      "trapurl": " ",
+      "comment": " ",
+      "feature": "SYSTEM",
+      "bot_enable_white_list": "OFF",
+      "bot_enable_black_list": "OFF",
+      "bot_enable_rate_limit": "OFF",
+      "devicefingerprint": "OFF",
+      "devicefingerprintaction": [
+        "NONE"
+      ],
+      "bot_enable_ip_reputation": "OFF",
+      "trap": "OFF",
+      "signaturenouseragentheaderaction": [
+        "DROP"
+      ],
+      "spoofedreqaction": [
+        "LOG",
+        "DROP"
+      ],
+      "signaturemultipleuseragentheaderaction": [
+        "CHECKLAST"
+      ],
+      "trapaction": [
+        "NONE"
+      ],
+      "bot_enable_tps": "OFF",
+      "devicefingerprintmobile": [
+        "NONE"
+      ],
+      "headlessbrowserdetection": "OFF",
+      "kmjavascriptname": "client.km.js",
+      "kmdetection": "OFF",
+      "kmeventspostbodylimit": "40960",
+      "verboseloglevel": "NONE",
+      "addcookieflags": "httpOnly"
+    },
+    {
+      "name": "BOT-003",
+      "errorurl": "/",
+      "trapurl": " ",
+      "comment": " ",
+      "feature": "SYSTEM",
+      "bot_enable_white_list": "OFF",
+      "bot_enable_black_list": "OFF",
+      "bot_enable_rate_limit": "OFF",
+      "devicefingerprint": "OFF",
+      "devicefingerprintaction": [
+        "NONE"
+      ],
+      "bot_enable_ip_reputation": "OFF",
+      "trap": "OFF",
+      "signaturenouseragentheaderaction": [
+        "DROP"
+      ],
+      "spoofedreqaction": [
+        "LOG",
+        "DROP"
+      ],
+      "signaturemultipleuseragentheaderaction": [
+        "CHECKLAST"
+      ],
+      "trapaction": [
+        "NONE"
+      ],
+      "bot_enable_tps": "OFF",
+      "devicefingerprintmobile": [
+        "NONE"
+      ],
+      "headlessbrowserdetection": "OFF",
+      "kmjavascriptname": "client.km.js",
+      "kmdetection": "OFF",
+      "kmeventspostbodylimit": "40960",
+      "verboseloglevel": "NONE",
+      "addcookieflags": "httpOnly"
+    },
+    {
+      "name": "BOT-002",
+      "errorurl": "/",
+      "trapurl": " ",
+      "comment": " ",
+      "feature": "SYSTEM",
+      "bot_enable_white_list": "OFF",
+      "bot_enable_black_list": "OFF",
+      "bot_enable_rate_limit": "OFF",
+      "devicefingerprint": "OFF",
+      "devicefingerprintaction": [
+        "NONE"
+      ],
+      "bot_enable_ip_reputation": "OFF",
+      "trap": "OFF",
+      "signaturenouseragentheaderaction": [
+        "DROP"
+      ],
+      "spoofedreqaction": [
+        "LOG",
+        "DROP"
+      ],
+      "signaturemultipleuseragentheaderaction": [
+        "CHECKLAST"
+      ],
+      "trapaction": [
+        "NONE"
+      ],
+      "bot_enable_tps": "OFF",
+      "devicefingerprintmobile": [
+        "NONE"
+      ],
+      "headlessbrowserdetection": "OFF",
+      "kmjavascriptname": "client.km.js",
+      "kmdetection": "OFF",
+      "kmeventspostbodylimit": "40960",
+      "verboseloglevel": "NONE",
+      "addcookieflags": "httpOnly"
+    }
+  ]
+}

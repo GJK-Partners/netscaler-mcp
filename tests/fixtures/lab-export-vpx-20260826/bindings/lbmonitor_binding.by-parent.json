@@ -1,0 +1,287 @@
+{
+  "bindingResource": "lbmonitor_binding",
+  "parentResource": "lbmonitor",
+  "parentKey": "monitorname",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "ping-default",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ping-default"
+        }
+      }
+    },
+    {
+      "parentName": "tcp-default",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcp-default"
+        }
+      }
+    },
+    {
+      "parentName": "quic-default",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "quic-default"
+        }
+      }
+    },
+    {
+      "parentName": "kafka-autodiscover",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "kafka-autodiscover"
+        }
+      }
+    },
+    {
+      "parentName": "arp",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "arp"
+        }
+      }
+    },
+    {
+      "parentName": "nd6",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "nd6"
+        }
+      }
+    },
+    {
+      "parentName": "ping",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ping"
+        }
+      }
+    },
+    {
+      "parentName": "tcp",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcp"
+        }
+      }
+    },
+    {
+      "parentName": "http",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "http"
+        }
+      }
+    },
+    {
+      "parentName": "tcp-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcp-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "http-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "http-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "udp-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "udp-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "dns",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "dns"
+        }
+      }
+    },
+    {
+      "parentName": "ftp",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ftp"
+        }
+      }
+    },
+    {
+      "parentName": "tcps",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcps"
+        }
+      }
+    },
+    {
+      "parentName": "https",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "https"
+        }
+      }
+    },
+    {
+      "parentName": "tcps-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcps-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "https-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "https-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "xdm",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "xdm"
+        }
+      }
+    },
+    {
+      "parentName": "xnc",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "xnc"
+        }
+      }
+    },
+    {
+      "parentName": "mqtt",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "mqtt"
+        }
+      }
+    },
+    {
+      "parentName": "mqtt-tls",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "mqtt-tls"
+        }
+      }
+    },
+    {
+      "parentName": "http2direct",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "http2direct"
+        }
+      }
+    },
+    {
+      "parentName": "http2ssl",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "http2ssl"
+        }
+      }
+    },
+    {
+      "parentName": "dtls",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "dtls"
+        }
+      }
+    },
+    {
+      "parentName": "ldns-ping",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ldns-ping"
+        }
+      }
+    },
+    {
+      "parentName": "ldns-tcp",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ldns-tcp"
+        }
+      }
+    },
+    {
+      "parentName": "ldns-dns",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ldns-dns"
+        }
+      }
+    },
+    {
+      "parentName": "stasecure",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "stasecure"
+        }
+      }
+    },
+    {
+      "parentName": "sta",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "sta"
+        }
+      }
+    },
+    {
+      "parentName": "VPN_INT_MON-0",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "VPN_INT_MON-0"
+        }
+      }
+    }
+  ]
+}

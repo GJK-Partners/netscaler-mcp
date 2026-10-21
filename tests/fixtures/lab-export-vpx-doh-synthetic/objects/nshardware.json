@@ -1,0 +1,18 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "nshardware": {
+    "hwdescription": "NetScaler Virtual Appliance",
+    "sysid": "450070",
+    "manufactureday": 1,
+    "manufacturemonth": 1,
+    "manufactureyear": 2020,
+    "cpufrequncy": 2000,
+    "hostid": 100000001,
+    "host": "020000000001",
+    "serialno": "LABSERIAL1",
+    "encodedserialno": "00000000000000000000",
+    "netscaleruuid": "00000000-0000-0000-0000-020000000001"
+  }
+}

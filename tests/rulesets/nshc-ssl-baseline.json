@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1.0",
+  "rulesetName": "nshc-ssl-baseline",
+  "rulesetVersion": "2026.08",
+  "rulesetDate": "2026-08-12",
+  "source": "Citrix Q1-2025 TLS Tech Paper + NetScaler Cryptographic Recommendations",
+  "notes": "Read-only auditcriteria voor SSL/TLS-grading. Config-based, geen live SSL-Labs-scan. Bij te werken zonder rebuild via AppData-override. HERKOMST hstsMinAge (2026-08-12): 31536000 seconden (een jaar) is een BELEIDSKEUZE van GJK, GEEN leveranciersvoorschrift. Citrix documenteert geen HSTS-drempel (HSTS staat default DISABLED en maxage default 0); een jaar is de gangbare eis en is hetzelfde getal dat het klantadvies in ANNA-SEC-HTTP-HEADERS-001 noemt. Tot 12-8-2026 stond hier 157680000 (vijf jaar), wat de regelset en het advies elkaar liet tegenspreken.",
+  "rules": {
+    "approvedTlsVersions": ["TLS1.2", "TLS1.3"],
+    "deprecatedTlsVersions": ["SSLv2", "SSLv3", "TLS1.0", "TLS1.1"],
+    "approvedCiphers": [
+      "TLS1.3-AES256-GCM-SHA384",
+      "TLS1.3-AES128-GCM-SHA256",
+      "TLS1.3-CHACHA20-POLY1305-SHA256",
+      "TLS1.2-ECDHE-RSA-AES256-GCM-SHA384",
+      "TLS1.2-ECDHE-RSA-AES128-GCM-SHA256",
+      "TLS1.2-ECDHE-ECDSA-AES256-GCM-SHA384",
+      "TLS1.2-ECDHE-ECDSA-AES128-GCM-SHA256"
+    ],
+    "weakCipherPatterns": [
+      "(?i)-CBC-",
+      "(?i)3DES",
+      "(?i)-DES-",
+      "(?i)RC4",
+      "(?i)-MD5",
+      "(?i)-SHA$",
+      "(?i)EXPORT",
+      "(?i)NULL",
+      "(?i)-ADH-",
+      "(?i)anon"
+    ],
+    "approvedEccCurves": ["X25519", "P_256", "P_384", "P_521"],
+    "forbiddenEccCurves": ["P_224"],
+    "hstsMinAge": 31536000,
+    "defaultCipherGroupNames": ["DEFAULT", "DEFAULT_BACKEND"],
+    "weights": { "protocol": 30, "keyExchange": 30, "cipher": 40 },
+    "gradeThresholds": { "Aplus": 95, "A": 80, "B": 65, "C": 50, "Fbelow": 50 },
+    "certGate": { "expiredCapsTo": "T", "weakKeyCapsTo": "C", "minRsaBits": 2048 }
+  }
+}

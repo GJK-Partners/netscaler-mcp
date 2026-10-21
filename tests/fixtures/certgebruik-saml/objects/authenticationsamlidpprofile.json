@@ -1,0 +1,5 @@
+{
+  "authenticationsamlidpprofile": [
+    {"name": "SAML-IDP-01", "samlidpcertname": "CERT-IDP", "samlspcertname": "CERT-SP"}
+  ]
+}

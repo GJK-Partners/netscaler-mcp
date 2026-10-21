@@ -1,0 +1,25 @@
+{
+  "bindingResource": "sslcertkey_binding",
+  "parentResource": "sslcertkey",
+  "parentKey": "certkey",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "CERT-VS",
+      "outcome": "OK",
+      "data": {
+        "sslcertkey_binding": {
+          "certkey": "CERT-VS",
+          "sslcertkey_sslvserver_binding": [
+            {"certkey": "CERT-VS", "servername": "LBV-WEB-01"}
+          ]
+        }
+      }
+    },
+    {"parentName": "CERT-IDP", "outcome": "OK", "data": {"sslcertkey_binding": {"certkey": "CERT-IDP"}}},
+    {"parentName": "CERT-SP", "outcome": "OK", "data": {"sslcertkey_binding": {"certkey": "CERT-SP"}}},
+    {"parentName": "CERT-SG", "outcome": "OK", "data": {"sslcertkey_binding": {"certkey": "CERT-SG"}}},
+    {"parentName": "CERT-SG-CA", "outcome": "OK", "data": {"sslcertkey_binding": {"certkey": "CERT-SG-CA"}}},
+    {"parentName": "CERT-LOS", "outcome": "OK", "data": {"sslcertkey_binding": {"certkey": "CERT-LOS"}}}
+  ]
+}

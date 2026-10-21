@@ -1,0 +1,57 @@
+# The vendored NSHC rulesets are anchored by SHA-256 in
+# src/nsmcp/rulesets.py and must survive a checkout on ANY platform byte for
+# byte. MEASURED on 2026-09-06: the NSHC files carry CRLF, this repository has
+# core.autocrlf=true, and git therefore normalized them to LF in the index -
+# a clone on a Linux runner would have received bytes hashing to 234c1bf8...
+# instead of the anchored 66a9b378..., so the parity test would have failed on
+# the very runner the vendoring exists to serve. `-text` switches every
+# end-of-line conversion off for every file in this directory (a fourth was
+# added later, nshc-hidden-rules.json - a generated readout rather than a
+# byte-for-byte copy, LF already, but covered by the same glob so a future
+# fifth file cannot be forgotten either).
+tests/rulesets/*.json -text
+
+# Test fixtures with hash-pinned manifest/scan-doel pairs: export-manifest.json
+# carries a SHA-256 that is read and compared against the pinned hash in
+# scan-doel.txt (via export._read_target_name). On this repository with
+# core.autocrlf=true, both files carry CRLF; without `-text`, a checkout on a
+# CI runner with core.autocrlf=false/input would normalize them to LF, changing
+# the manifest's hash and causing the comparison to fail silently (target_name
+# returns None instead of the expected value). This rule covers both the a14
+# fixture and the lab-export fixture. `-text` also
+# ensures no future fixtures sharing this pattern are forgotten.
+tests/fixtures/**/export-manifest.json -text
+tests/fixtures/**/scan-doel.txt -text
+
+# Binding files (bindings/*.json) are ALSO hash-pinned: export-manifest.json's
+# "files" map carries a SHA-256 for every "bindings/<name>.json" entry, read
+# and compared against the RAW bytes on disk by export.py's
+# `_binding_document` (unlike parsed/runningconfig.txt and
+# parsed/savedconfig.txt, which are hashed LF-normalized and so survive either
+# line ending - see the docstring of `Export.running_config_lines`). MEASURED
+# on 2026-09-07 on tests/fixtures/lab-export-vpx-20260826/bindings/: every one
+# of the 7 files carries CRLF on disk, matches its manifest-pinned hash as
+# CRLF, and was ALREADY stored LF-normalized in the git index (added before
+# this rule existed) - a fresh checkout would hand out that LF blob, the raw
+# hash comparison would fail, and `bindings()` would return a ReadGap instead
+# of the real data, though no test in this suite currently asserts strongly
+# enough on these specific files to turn that into a visible failure. `-text`
+# stops future normalization; the directory-wide glob covers a binding file
+# added to any fixture later, same discipline as the two rules above.
+tests/fixtures/**/bindings/*.json -text
+
+# These synthetic object fixtures are hash-pinned over raw bytes.
+tests/fixtures/na-upgrade-met-veld/objects/*.json -text
+tests/fixtures/na-upgrade-zonder-veld/objects/*.json -text
+tests/fixtures/preflight-export/objects/*.json -text
+tests/fixtures/r0-export/objects/*.json -text
+
+# Every hash-pinned fixture file must reach every platform byte for byte:
+# objects/*.json (payloadSha256 over raw bytes) and parsed/* (files map).
+# The DoH fixture carries CRLF objects and LF parsed text, in the shape the
+# collector writes them; a checkout that converts either
+# breaks the manifest comparison.
+tests/fixtures/**/objects/*.json -text
+tests/fixtures/**/parsed/*.txt -text
+tests/fixtures/**/parsed/*.json -text
+tests/fixtures/**/collect-log.txt -text

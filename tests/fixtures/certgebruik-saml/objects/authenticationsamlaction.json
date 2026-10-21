@@ -1,0 +1,6 @@
+{
+  "authenticationsamlaction": [
+    {"name": "SAML-ACTIE-01", "samlidpcertname": "CERT-IDP", "samlsigningcertname": "CERT-VS"},
+    {"name": "SAML-ACTIE-02", "samlidpcertname": "CERT-IDP", "samlsigningcertname": ""}
+  ]
+}

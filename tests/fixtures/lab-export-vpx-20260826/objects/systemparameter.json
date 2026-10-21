@@ -1,0 +1,33 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "systemparameter": {
+    "rbaonresponse": "ENABLED",
+    "natpcbforceflushlimit": "2147483647",
+    "natpcbrstontimeout": "DISABLED",
+    "timeout": 900,
+    "maxclient": "20",
+    "localauth": "ENABLED",
+    "minpasswordlen": "1",
+    "strongpassword": "disabled",
+    "restrictedtimeout": "DISABLED",
+    "fipsusermode": "DISABLED",
+    "doppler": "ENABLED",
+    "googleanalytics": "DISABLED",
+    "cliloglevel": "INFORMATIONAL",
+    "forcepasswordchange": "DISABLED",
+    "totalauthtimeout": "20",
+    "basicauth": "ENABLED",
+    "allowdefaultpartition": "NO",
+    "reauthonauthparamchange": "DISABLED",
+    "removesensitivefiles": "DISABLED",
+    "maxsessionperuser": "20",
+    "wafprotection": [
+      "DEFAULT"
+    ],
+    "denylist": "ON",
+    "denylistlogging": "OFF",
+    "passwordhistorycontrol": "DISABLED"
+  }
+}

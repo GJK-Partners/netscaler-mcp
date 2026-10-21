@@ -1,0 +1,19 @@
+{
+  "bindingResource": "sslservicegroup_sslcertkey_binding",
+  "parentResource": "sslservicegroup",
+  "parentKey": "servicegroupname",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "SG-BACKEND-01",
+      "outcome": "OK",
+      "data": {
+        "sslservicegroup_sslcertkey_binding": [
+          {"servicegroupname": "SG-BACKEND-01", "certkeyname": "CERT-SG", "ca": false},
+          {"servicegroupname": "SG-BACKEND-01", "certkeyname": "CERT-SG-CA", "ca": true}
+        ]
+      }
+    },
+    {"parentName": "SG-LEEG-01", "outcome": "EMPTY", "data": null}
+  ]
+}

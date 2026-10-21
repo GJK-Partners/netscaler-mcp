@@ -1,0 +1,16 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "nsparam": {
+    "maxconn": "0",
+    "maxreq": "0",
+    "cip": "DISABLED",
+    "cookieversion": "0",
+    "securecookie": "ENABLED",
+    "timezone": "CoordinatedUniversalTime",
+    "useproxyport": "ENABLED",
+    "internaluserlogin": "ENABLED",
+    "proxyprotocol": "DISABLED"
+  }
+}

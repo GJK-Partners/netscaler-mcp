@@ -1,0 +1,77 @@
+collect-start 2026-08-26 12:28:08
+OK objects/nsversion count=1
+OK objects/lbvserver count=0
+OK objects/csvserver count=0
+OK objects/sslcertkey count=4
+OK objects/nshardware count=1
+OK objects/hanode count=1
+OK objects/vpnvserver count=2
+OK objects/servicegroup count=0
+OK objects/service count=0
+OK objects/server count=0
+R-redactie lbmonitor: velden verwijderd = password
+OK niet-geexporteerd/lbmonitor count=31
+OK objects/cspolicy count=0
+OK objects/csaction count=0
+OK objects/nsip count=6
+OK objects/systemcmdpolicy count=9
+OK objects/sslparameter count=1
+OK objects/systemparameter count=1
+P-projectie leeg, niets geschreven: authenticationldapaction
+OK parsed/authenticationldapaction count=0
+OK objects/aaaparameter count=1
+OK objects/nsparam count=1
+OK objects/sslprofile count=9
+OK objects/auditsyslogparams count=1
+OK objects/rewritepolicy count=71
+OK objects/rewriteaction count=66
+OK objects/responderpolicy count=7
+OK objects/nsfeature count=1
+OK objects/nslicense count=1
+OK objects/nslicenseserver count=0
+P-projectie geschreven (geheim niet getransporteerd): systemuser
+OK parsed/systemuser count=1
+WARN optional objects/mgmtparam WEGGELATEN (NOT_SUPPORTED): De externe server heeft een fout geretourneerd: (400) Ongeldige opdracht.
+OK objects/ntpserver count=0
+OK objects/dnsnameserver count=1
+P-projectie leeg, niets geschreven: snmpcommunity
+OK parsed/snmpcommunity count=0
+OK objects/snmpmanager count=0
+OK objects/auditsyslogpolicy count=0
+OK objects/auditsyslogaction count=0
+OK objects/appfwpolicy count=0
+OK objects/appfwprofile count=10
+OK objects/botpolicy count=0
+OK objects/botprofile count=3
+OK objects/botsettings count=1
+OK objects/nshttpprofile count=5
+OK objects/sslvserver count=3
+OK objects/authenticationvserver count=1
+OK objects/reputationsettings count=1
+OK objects/botglobal_botpolicy_binding count=0
+OK objects/rewriteglobal_rewritepolicy_binding count=0
+WARN optional objects/vpnvserver_botpolicy_binding WEGGELATEN (NOT_SUPPORTED): De externe server heeft een fout geretourneerd: (400) Ongeldige opdracht.
+OK bulk/lbvserver_rewritepolicy_binding count=0
+OK bulk/lbvserver_botpolicy_binding count=0
+OK bulk/csvserver_rewritepolicy_binding count=0
+OK bulk/csvserver_botpolicy_binding count=0
+OK bulk/vpnvserver_rewritepolicy_binding count=0
+OK bulk/vpnvserver_appfwpolicy_binding count=0
+WARN bulk/authenticationvserver_appfwpolicy_binding WEGGELATEN (NOT_SUPPORTED)
+iprep-scan overgeslagen: reputation-feature niet bevestigd aan
+SKIP bindings/lbvserver_binding: geen lbvserver-objecten
+SKIP bindings/csvserver_binding: geen csvserver-objecten
+OK bindings/vpnvserver_binding ok=2 empty=0 readgap=0
+SKIP bindings/servicegroup_binding: geen servicegroup-objecten
+SKIP bindings/service_binding: geen service-objecten
+OK bindings/lbmonitor_binding ok=31 empty=0 readgap=0
+OK bindings/sslcertkey_binding ok=4 empty=0 readgap=0
+OK bindings/sslvserver_sslcertkey_binding ok=2 empty=0 readgap=0
+OK bindings/sslvserver_sslciphersuite_binding ok=2 empty=0 readgap=0
+OK bindings/sslvserver_ecccurve_binding ok=2 empty=0 readgap=0
+OK bindings/sslprofile_sslcipher_binding ok=0 empty=9 readgap=0
+SKIP ciphergroep-uitrol: geen cipheralias gevonden op de profielen
+OK parsed/runningconfig.txt (geredigeerd op de jumphost)
+OK parsed/savedconfig.txt (geredigeerd op de jumphost)
+OK export-manifest resources=58
+collect-einde warns=3

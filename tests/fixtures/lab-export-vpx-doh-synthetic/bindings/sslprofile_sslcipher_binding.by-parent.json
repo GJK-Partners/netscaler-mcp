@@ -1,0 +1,60 @@
+{
+  "bindingResource": "sslprofile_sslcipher_binding",
+  "parentResource": "sslprofile",
+  "parentKey": "name",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "ns_default_ssl_profile_frontend",
+      "outcome": "OK",
+      "data": {
+        "sslprofile_sslcipher_binding": [
+          {
+            "name": "ns_default_ssl_profile_frontend",
+            "cipheraliasname": "CIPHERGRP-LAB-001",
+            "stateflag": "8",
+            "cipherpriority": "1",
+            "description": "User Created Cipher Group"
+          },
+          {
+            "name": "ns_default_ssl_profile_frontend",
+            "cipheraliasname": "DEFAULT",
+            "stateflag": "8",
+            "cipherpriority": "2",
+            "description": "Predefined Cipher Alias"
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "ns_default_ssl_profile_backend",
+      "outcome": "OK",
+      "data": {
+        "sslprofile_sslcipher_binding": [
+          {
+            "name": "ns_default_ssl_profile_backend",
+            "cipheraliasname": "DEFAULT_BACKEND",
+            "stateflag": "8",
+            "cipherpriority": "1",
+            "description": "Predefined Cipher Alias"
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "SSLPROF-FE-001",
+      "outcome": "OK",
+      "data": {
+        "sslprofile_sslcipher_binding": [
+          {
+            "name": "SSLPROF-FE-001",
+            "cipheraliasname": "CIPHERGRP-LAB-001",
+            "stateflag": "8",
+            "cipherpriority": "1",
+            "description": "User Created Cipher Group"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "bindingResource": "sslvserver_sslcertkey_binding",
+  "parentResource": "sslvserver",
+  "parentKey": "vservername",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "VSRV-003",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "VSRV-003",
+            "certkeyname": "CERT-009",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false,
+            "skipcaname": false
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "VSRV-002",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslcertkey_binding": [
+          {
+            "vservername": "VSRV-002",
+            "certkeyname": "CERT-009",
+            "stateflag": "2",
+            "cleartextport": 0,
+            "ca": false,
+            "snicert": false,
+            "skipcaname": false
+          }
+        ]
+      }
+    }
+  ]
+}

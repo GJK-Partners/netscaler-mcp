@@ -1,0 +1,29 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "auditsyslogaction": [
+    {
+      "name": "SYSLOGACT-001",
+      "serverip": "203.0.113.30",
+      "ip": "203.0.113.30",
+      "serverport": 514,
+      "loglevel": [
+        "EMERGENCY",
+        "ALERT",
+        "CRITICAL",
+        "ERROR",
+        "WARNING",
+        "NOTICE"
+      ],
+      "dateformat": "MMDDYYYY",
+      "logfacility": "LOCAL0",
+      "tcp": "NONE",
+      "timezone": "GMT_TIME",
+      "feature": "SYSTEM",
+      "lsn": "DISABLED",
+      "transport": "UDP",
+      "dns": "DISABLED"
+    }
+  ]
+}

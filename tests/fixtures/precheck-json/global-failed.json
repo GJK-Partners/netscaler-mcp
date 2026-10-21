@@ -1,0 +1,1 @@
+{"global_status": "failed", "summary": {"total_checks": 13, "passed": 10, "failed": 1}, "checks": [{"name": "disk_space", "status": "failed", "message": "Insufficient disk space available on /var"}]}

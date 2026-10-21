@@ -1,0 +1,22 @@
+{
+  "manifestVersion": "1.1",
+  "collectorVersion": "1.0.0",
+  "collectedAtUtc": "2026-09-06T09:00:00.0000000Z",
+  "resources": {
+    "config/nsversion": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nsversion",
+      "objectCount": 1,
+      "payloadSha256": "2D7FBCD0C18BEF96F557C1AC2FC265CBD61F72D9F896EEDF15689AB5CE1C9D33"
+    },
+    "config/nshttpprofile": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nshttpprofile",
+      "objectCount": 1,
+      "payloadSha256": "DBAAF2ED6126646B60A0672EE14C6FD5F010F23078374B16D8605B9E85194417"
+    }
+  },
+  "files": {}
+}

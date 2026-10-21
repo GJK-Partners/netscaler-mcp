@@ -1,0 +1,9 @@
+	NetScaler IP: 192.0.2.10  (mask: 255.255.255.0)
+	Number of MappedIP(s): 0
+	Node: Standalone
+	SecureManagementTraffic:DISABLED SecureManagementTD:0
+	                   System Time: Thu Sep 24 10:15:02 2026
+	      Last Config Changed Time: Thu Sep 24 10:12:03 2026
+	        Last Config Saved Time: Thu Sep 24 10:14:40 2026
+	Config Changed since Last Saved Config: FALSE
+ Done

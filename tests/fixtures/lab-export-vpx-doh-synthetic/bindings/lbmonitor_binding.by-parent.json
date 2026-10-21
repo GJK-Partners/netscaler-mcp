@@ -1,0 +1,206 @@
+{
+  "bindingResource": "lbmonitor_binding",
+  "parentResource": "lbmonitor",
+  "parentKey": "monitorname",
+  "shape": "aggregate",
+  "parents": [
+    {
+      "parentName": "ping-default",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ping-default"
+        }
+      }
+    },
+    {
+      "parentName": "tcp-default",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcp-default"
+        }
+      }
+    },
+    {
+      "parentName": "arp",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "arp"
+        }
+      }
+    },
+    {
+      "parentName": "nd6",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "nd6"
+        }
+      }
+    },
+    {
+      "parentName": "ping",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "ping"
+        }
+      }
+    },
+    {
+      "parentName": "tcp",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcp"
+        }
+      }
+    },
+    {
+      "parentName": "http",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "http"
+        }
+      }
+    },
+    {
+      "parentName": "tcp-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcp-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "http-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "http-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "udp-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "udp-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "dns",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "dns"
+        }
+      }
+    },
+    {
+      "parentName": "dns-tcp",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "dns-tcp"
+        }
+      }
+    },
+    {
+      "parentName": "https",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "https"
+        }
+      }
+    },
+    {
+      "parentName": "tcps",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "tcps"
+        }
+      }
+    },
+    {
+      "parentName": "https-ecv",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "https-ecv"
+        }
+      }
+    },
+    {
+      "parentName": "sta",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "sta"
+        }
+      }
+    },
+    {
+      "parentName": "MON-ECV-001",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "MON-ECV-001"
+        }
+      }
+    },
+    {
+      "parentName": "MON-ECV-002",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "MON-ECV-002"
+        }
+      }
+    },
+    {
+      "parentName": "MON-ECV-003",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "MON-ECV-003"
+        }
+      }
+    },
+    {
+      "parentName": "MON-HTTP-001",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "MON-HTTP-001"
+        }
+      }
+    },
+    {
+      "parentName": "MON-DNS-001",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "MON-DNS-001"
+        }
+      }
+    },
+    {
+      "parentName": "MON-LDAP-001",
+      "outcome": "OK",
+      "data": {
+        "lbmonitor_binding": {
+          "monitorname": "MON-LDAP-001"
+        }
+      }
+    }
+  ]
+}

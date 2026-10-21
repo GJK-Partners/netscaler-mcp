@@ -1,0 +1,7 @@
+{
+  "servicegroup": [
+    {
+      "servicegroupname": "sg_web"
+    }
+  ]
+}

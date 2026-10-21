@@ -1,0 +1,53 @@
+{
+  "bindingResource": "sslprofile_sslcipher_binding",
+  "parentResource": "sslprofile",
+  "parentKey": "name",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "ns_default_ssl_profile_frontend",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_profile_backend",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_profile_secure_frontend",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_profile_quic_frontend",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_profile_secure_frontend_cloud",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_profile_internal_frontend_service",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_profile_quic_backend",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_certauth_profile_internal_frontend_service",
+      "outcome": "EMPTY",
+      "data": null
+    },
+    {
+      "parentName": "ns_default_ssl_profile_frontend_spa_cep",
+      "outcome": "EMPTY",
+      "data": null
+    }
+  ]
+}

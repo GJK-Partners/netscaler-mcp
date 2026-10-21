@@ -1,0 +1,84 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "sslvserver": [
+    {
+      "vservername": "LBV-DOH-001",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "LBV-DOH-002",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "LBV-NODOH-001",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "LBV-APP-001",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "SSLPROF-FE-001"
+    },
+    {
+      "vservername": "LBV-APP-002",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "LBV-OOS-001",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "CSV-DOH-001",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "CSV-DOH-002",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "CSV-WEB-001",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "CSV-WEB-002",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    },
+    {
+      "vservername": "CSV-EMPTY-001",
+      "cleartextport": 0,
+      "service": "0",
+      "quicflag": false,
+      "sslprofile": "ns_default_ssl_profile_frontend"
+    }
+  ]
+}

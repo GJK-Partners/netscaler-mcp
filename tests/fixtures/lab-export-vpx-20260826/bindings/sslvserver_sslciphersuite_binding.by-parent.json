@@ -1,0 +1,36 @@
+{
+  "bindingResource": "sslvserver_sslciphersuite_binding",
+  "parentResource": "sslvserver",
+  "parentKey": "vservername",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "VSRV-003",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslciphersuite_binding": [
+          {
+            "vservername": "VSRV-003",
+            "ciphername": "DEFAULT",
+            "stateflag": "512",
+            "description": "Default cipher list with encryption strength >= 128bit"
+          }
+        ]
+      }
+    },
+    {
+      "parentName": "VSRV-002",
+      "outcome": "OK",
+      "data": {
+        "sslvserver_sslciphersuite_binding": [
+          {
+            "vservername": "VSRV-002",
+            "ciphername": "DEFAULT",
+            "stateflag": "512",
+            "description": "Default cipher list with encryption strength >= 128bit"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "manifestVersion": "1.1",
+  "collectorVersion": "1.0.1",
+  "collectedAtUtc": "2026-09-25T09:00:00.0000000Z",
+  "resources": {
+    "config/csvserver": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "csvserver",
+      "objectCount": 4,
+      "payloadSha256": "A10F6FA8C887210D95409F3570C4C94D5A82988476BDA2E1F302FB67F0B3EEAE"
+    },
+    "config/lbvserver": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "lbvserver",
+      "objectCount": 1,
+      "payloadSha256": "45A71BE77DA9E26BCC3E5F670FB17AAA7A0C4D143859424F1435BDEE3F1D3EFE"
+    },
+    "config/servicegroup": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "servicegroup",
+      "objectCount": 1,
+      "payloadSha256": "38D2088E36A9B35E28C4DED3EE67AB3CE84120701B32E10B95BE813C0DCA83F6"
+    },
+    "config/service": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "service",
+      "objectCount": 0,
+      "payloadSha256": "0C726689E8412ED89C9EF156E0E25C75FB88B4E117A716CE52B520E5C40D8274"
+    },
+    "config/vpnvserver": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "vpnvserver",
+      "objectCount": 0,
+      "payloadSha256": "0C726689E8412ED89C9EF156E0E25C75FB88B4E117A716CE52B520E5C40D8274"
+    }
+  },
+  "files": {
+    "bindings/csvserver_binding.by-parent.json": "D5D650CF69531AB26820E26864EB1F4B31D539E79C6E7422151D950E4DA75606",
+    "bindings/lbvserver_binding.by-parent.json": "6867886C2D9A230089A543CC3F06E6BD344D16DB34953798C87FE363F3079459",
+    "bindings/servicegroup_binding.by-parent.json": "F5D86F902CD4FD094F344D86F749F26D941EC1A5C891C42D92272694EA3E0486"
+  }
+}

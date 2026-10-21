@@ -1,0 +1,38 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "authenticationvserver": [
+    {
+      "name": "VSRV-001",
+      "ip": "0.0.0.0",
+      "td": "0",
+      "ipv46": "0.0.0.0",
+      "port": 0,
+      "range": "1",
+      "servicetype": "SSL",
+      "type": "CONTENT",
+      "curstate": "UP",
+      "status": 0,
+      "cachetype": "SERVER",
+      "precedence": "RULE",
+      "authentication": "ON",
+      "curaaausers": "0",
+      "weight": "0",
+      "clttimeout": "180",
+      "somethod": "NONE",
+      "sothreshold": "0",
+      "sopersistence": "DISABLED",
+      "sopersistencetimeout": "0",
+      "downstateflush": "DISABLED",
+      "acttype": "0",
+      "disableprimaryondown": "DISABLED",
+      "listenpolicy": "NONE",
+      "httpprofilename": "nshttp_default_strict_validation",
+      "appflowlog": "ENABLED",
+      "vstype": "128",
+      "secondary": false,
+      "groupextraction": false
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+[project]
+name = "netscaler-mcp"
+version = "1.0.1"
+description = "Vraag je NetScaler wat er verloopt, wat er dan breekt en wat je moet doen - met bewijs, en met een eerlijk 'dat kan ik niet vaststellen'."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "GJK Partners" }]
+requires-python = ">=3.11"
+keywords = ["netscaler", "citrix", "mcp", "model-context-protocol", "certificates", "cve"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: System Administrators",
+    # Deliberately Windows and nothing else: every part is Windows-only today,
+    # reading included - nsmcp.disclosure imports msvcrt unconditionally, so
+    # reading fails to import on Linux/macOS. See README's Platform section.
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    # Gepind op 1.30.0: mcp 2.0.0 verplaatst/verwijdert mcp.server.fastmcp
+    # (breaking change); een bump is een bewuste taak met een eigen groene
+    # run, zie .github/dependabot.yml.
+    "mcp==1.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=6",
+    "ruff==0.16.6",
+    "mypy>=1.11",
+    "pip-audit>=2.7",
+    "cyclonedx-bom>=7.3.1",
+]
+
+[project.urls]
+Repository = "https://github.com/GJK-Partners/netscaler-mcp"
+Issues = "https://github.com/GJK-Partners/netscaler-mcp/issues"
+Security = "https://github.com/GJK-Partners/netscaler-mcp/blob/master/SECURITY.md"
+
+[project.scripts]
+netscaler-mcp = "nsmcp.start:main"
+
+[build-system]
+# PEP 639: the SPDX "license" string and license-files above need
+# setuptools 77 or newer; older setuptools fails metadata validation.
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# The full set: pycodestyle errors/warnings, pyflakes, bugbear, import order,
+# pyupgrade, the two targeted bandit checks (exec/eval, insecure hash use) and
+# pylint errors. `ruff format` has run once across the tree (style commit); this
+# is the set it and `ruff check --fix` are measured against from here on.
+select = ["E", "F", "W", "B", "I", "UP", "S102", "S307", "PLE"]
+ignore = [
+    # 74 lines remain over 120 chars after `ruff format`, measured on this tree
+    # (mostly single-line MCP tool docstrings/descriptions and pinned test
+    # literals - table rows, CVE-verdict strings). These are the exact
+    # byte-for-byte product surface and test fixtures this task must not
+    # reword; wrapping them is a content edit dressed up as a style fix.
+    "E501",
+]
+
+[tool.ruff.lint.isort]
+# Keep an aliased import in the same statement as its siblings, so a comment
+# above the statement stays with the import it explains.
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# Two test files place a handful of imports mid-file by design: one keeps an
+# import local and commented as such, the other groups its second half's
+# imports with the section that uses them (its module docstring documents
+# the two-halves structure). Moving them is a cosmetic reorder with no test
+# value; everywhere else E402 stays a guard.
+"tests/test_hidden_rules.py" = ["E402"]
+"tests/test_parity_nshc.py" = ["E402"]

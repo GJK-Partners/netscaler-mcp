@@ -1,0 +1,37 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "systemcmdpolicy": [
+    {
+      "policyname": "operator",
+      "action": "ALLOW",
+      "cmdspec": "(^show\\s+lb\\s+.*)|(^stat\\s+.*)",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "read-only",
+      "action": "ALLOW",
+      "cmdspec": "(^show\\s+(?!system).*)|(^stat\\s+.*)",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "network",
+      "action": "ALLOW",
+      "cmdspec": "^(show|set|add|rm)\\s+(vlan|route|interface)\\s+.*",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "sysadmin",
+      "action": "ALLOW",
+      "cmdspec": "^(?!shell)(?!set\\s+system).*",
+      "feature": "SYSTEM"
+    },
+    {
+      "policyname": "superuser",
+      "action": "ALLOW",
+      "cmdspec": ".*",
+      "feature": "SYSTEM"
+    }
+  ]
+}

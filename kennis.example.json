@@ -1,0 +1,10 @@
+{
+  "versie": "VOORBEELD - dit pakket bevat geen echte CVE-basis",
+  "datum": "2026-08-26",
+  "toelichting": "Voorbeeldpakket om het product te kunnen draaien. De echte CVE-basis, cipherbaseline en vervaltermijnen reizen apart; zonder die inhoud meldt status_cve_controle nul bulletins en dat is dan de waarheid, geen groen licht.",
+  "cve": [],
+  "begrippen": {
+    "vserver": "Virtuele server: het object waarop een NetScaler verkeer aanneemt en verdeelt.",
+    "servicegroep": "Servicegroep: een verzameling backend-leden die samen een dienst leveren."
+  }
+}

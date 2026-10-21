@@ -1,0 +1,427 @@
+{
+  "manifestVersion": "1.1",
+  "collectorVersion": "1.0.0",
+  "collectedAtUtc": "2026-08-26T10:28:17.7884008Z",
+  "resources": {
+    "config/nsversion": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nsversion",
+      "objectCount": 1,
+      "payloadSha256": "FFEEE58ECCACC34EF332E998FE348036526B0768B987E220D57E839ADB4FBF62"
+    },
+    "config/lbvserver": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "lbvserver",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/csvserver": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "csvserver",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/sslcertkey": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "sslcertkey",
+      "objectCount": 4,
+      "payloadSha256": "9756451677D803A7C535D60111946CA2FCB7D5AA9E34BFB919D5A4A823515B98"
+    },
+    "config/nshardware": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nshardware",
+      "objectCount": 1,
+      "payloadSha256": "EB31EE30C6C448FBF842BA5C00505099D49925FDA505FC0EBAF22A636B63C65D"
+    },
+    "config/hanode": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "hanode",
+      "objectCount": 1,
+      "payloadSha256": "A34DEE6B1455B0A3705ECF90795F15EADA6FEA08C4FF380C8486A3080BF9B72C"
+    },
+    "config/vpnvserver": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "vpnvserver",
+      "objectCount": 2,
+      "payloadSha256": "A63EB8446A2ECC6CC95F36021A94685308382DA0D324D75F13DED38A0A30D679"
+    },
+    "config/servicegroup": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "servicegroup",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/service": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "service",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/server": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "server",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/lbmonitor": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "lbmonitor",
+      "objectCount": 31,
+      "payloadSha256": ""
+    },
+    "config/cspolicy": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "cspolicy",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/csaction": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "csaction",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/nsip": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nsip",
+      "objectCount": 6,
+      "payloadSha256": "1ABC3ED3377E476CEBCD56847AE752C0BA76EB41EA101B02EEB074FA84431E25"
+    },
+    "config/systemcmdpolicy": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "systemcmdpolicy",
+      "objectCount": 9,
+      "payloadSha256": "5D6E217A6CB538BCD7BC621D80E8F09C99FC72B82C16F926D1D889C76278CBCC"
+    },
+    "config/sslparameter": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "sslparameter",
+      "objectCount": 1,
+      "payloadSha256": "0551F3768A4CA8D407C0616CE1A793B5147C89E28CE4395062CAF236F3918CBE"
+    },
+    "config/systemparameter": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "systemparameter",
+      "objectCount": 1,
+      "payloadSha256": "150B4587631CCD68844F04AA75B80D104E49ADABEAD13402AAE8C459765C1883"
+    },
+    "config/authenticationldapaction": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "authenticationldapaction",
+      "objectCount": 0,
+      "payloadSha256": ""
+    },
+    "config/aaaparameter": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "aaaparameter",
+      "objectCount": 1,
+      "payloadSha256": "76CB4D6E221F4C807A6D1714B7C93B3A2DB3877AAF417C9784247C7AF55AEAB1"
+    },
+    "config/nsparam": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nsparam",
+      "objectCount": 1,
+      "payloadSha256": "126143224ABCAD9D1EAC105F2C770E236C13B8682BED9742300AAA672D93C481"
+    },
+    "config/sslprofile": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "sslprofile",
+      "objectCount": 9,
+      "payloadSha256": "9A24C7EE4BD9170E02E239680793AE8E926DF566E01F3D6C14328830D3F6BF82"
+    },
+    "config/auditsyslogparams": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "auditsyslogparams",
+      "objectCount": 1,
+      "payloadSha256": "1C8FB3A80B3AC90DEEF6C6A884EB796DE3BE469EAF8F397126CC0A68A7AEA4E2"
+    },
+    "config/rewritepolicy": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "rewritepolicy",
+      "objectCount": 71,
+      "payloadSha256": "DB89D9899BE887C354C9741CF633A3206733381D54B35D4163F3A886BA1A2638"
+    },
+    "config/rewriteaction": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "rewriteaction",
+      "objectCount": 66,
+      "payloadSha256": "9BBE1887A244CF6CEC16A974E1431DE1185312CBA650424DADB8C1CAB617DF32"
+    },
+    "config/responderpolicy": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "responderpolicy",
+      "objectCount": 7,
+      "payloadSha256": "047022CADD77D09A1064B50F1DD9AD39A882B582827F4F65A5FDBF656295EEAC"
+    },
+    "config/nsfeature": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nsfeature",
+      "objectCount": 1,
+      "payloadSha256": "ABF29315A6D8AB6C30EB7AC3D33AAC109E5FAAC7BB2BAF6817E1C25ECA28E0B3"
+    },
+    "config/nslicense": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nslicense",
+      "objectCount": 1,
+      "payloadSha256": "525ECF24C22918875B4DD96749F4E3BFD6EB08F3CB0B4CB1B4AB13498D4F3427"
+    },
+    "config/nslicenseserver": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "nslicenseserver",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/systemuser": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "systemuser",
+      "objectCount": 1,
+      "payloadSha256": "23442F5DC7A0F5F1299253390EB1DEBDEF79411678A0FB482C57F88160398F96"
+    },
+    "config/mgmtparam": {
+      "status": "NOT_SUPPORTED",
+      "httpStatus": 400,
+      "propertyName": "mgmtparam",
+      "objectCount": 0,
+      "payloadSha256": ""
+    },
+    "config/ntpserver": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "ntpserver",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/dnsnameserver": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "dnsnameserver",
+      "objectCount": 1,
+      "payloadSha256": "723DE73B9F8B3CC5793A982F780D9062AEAFC9D587AF7AF35409047D525BA0E4"
+    },
+    "config/snmpcommunity": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "snmpcommunity",
+      "objectCount": 0,
+      "payloadSha256": ""
+    },
+    "config/snmpmanager": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "snmpmanager",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/auditsyslogpolicy": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "auditsyslogpolicy",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/auditsyslogaction": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "auditsyslogaction",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/appfwpolicy": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "appfwpolicy",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/appfwprofile": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "appfwprofile",
+      "objectCount": 10,
+      "payloadSha256": "719D1EE211DF9B5D446C2C8C36B45B66263BA21B8923AE96D5FC81F5B54F7464"
+    },
+    "config/botpolicy": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "botpolicy",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/botprofile": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "botprofile",
+      "objectCount": 3,
+      "payloadSha256": "7EBF53EFD9357DB5F9D67DDFC978AD8E446C0516A95D613481DADB75D66A0219"
+    },
+    "config/botsettings": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "botsettings",
+      "objectCount": 1,
+      "payloadSha256": "4363988B44B140BD57A38548D02E14E45B286F6B0D629FD8A8FEE4C98F8D8F5E"
+    },
+    "config/nshttpprofile": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nshttpprofile",
+      "objectCount": 5,
+      "payloadSha256": "24B5C7EE2D3DF93D0A49BA290CB5A1193723091F81F9FD1B0CA356A91BD05A1E"
+    },
+    "config/sslvserver": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "sslvserver",
+      "objectCount": 3,
+      "payloadSha256": "27CC89C2CC38193CFB0BF9E502A3B73DFB7D9D8D6C61A61B7526D8E402794CDD"
+    },
+    "config/authenticationvserver": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "authenticationvserver",
+      "objectCount": 1,
+      "payloadSha256": "794492F01DF9BAEADB7905B33D8F15C7F5178AB2312E39624B61D34B27A57A91"
+    },
+    "config/reputationsettings": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "reputationsettings",
+      "objectCount": 1,
+      "payloadSha256": "DE3AC99F4567CF9B46CD6B870E927DFE6E08F99C18F214144CE7BBEFB3F9504C"
+    },
+    "config/botglobal_botpolicy_binding": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "botglobal_botpolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/rewriteglobal_rewritepolicy_binding": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "rewriteglobal_rewritepolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/vpnvserver_botpolicy_binding": {
+      "status": "NOT_SUPPORTED",
+      "httpStatus": 400,
+      "propertyName": "vpnvserver_botpolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": ""
+    },
+    "config/lbvserver_rewritepolicy_binding?bulkbindings=yes": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "lbvserver_rewritepolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/lbvserver_botpolicy_binding?bulkbindings=yes": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "lbvserver_botpolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/csvserver_rewritepolicy_binding?bulkbindings=yes": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "csvserver_rewritepolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/csvserver_botpolicy_binding?bulkbindings=yes": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "csvserver_botpolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/vpnvserver_rewritepolicy_binding?bulkbindings=yes": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "vpnvserver_rewritepolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/vpnvserver_appfwpolicy_binding?bulkbindings=yes": {
+      "status": "EMPTY",
+      "httpStatus": null,
+      "propertyName": "vpnvserver_appfwpolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": "648BB46A371893FC9D140476879270146DC788BE52545963AB83F9978C6631B7"
+    },
+    "config/authenticationvserver_appfwpolicy_binding?bulkbindings=yes": {
+      "status": "NOT_SUPPORTED",
+      "httpStatus": 400,
+      "propertyName": "authenticationvserver_appfwpolicy_binding",
+      "objectCount": 0,
+      "payloadSha256": ""
+    },
+    "config/systemfile?args=filename:iprep.log,filelocation:%2Fvar%2Flog": {
+      "status": "NOT_SUPPORTED",
+      "httpStatus": null,
+      "propertyName": "systemfile",
+      "objectCount": 0,
+      "payloadSha256": ""
+    },
+    "config/nsrunningconfig": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nsrunningconfig",
+      "objectCount": 1,
+      "payloadSha256": "CFD4C8AF589FD45EB3A5F9DFB6D0FAD9D3FF4DB147F25D0B209F4DD54BFF150D"
+    },
+    "config/nssavedconfig": {
+      "status": "OK",
+      "httpStatus": null,
+      "propertyName": "nssavedconfig",
+      "objectCount": 1,
+      "payloadSha256": "10E663C7DA065395C848E4E1A35B9A21E70888E25BD9F6A6918500ABDD55574C"
+    }
+  },
+  "files": {
+    "bindings/vpnvserver_binding.by-parent.json": "2C07D40CA1FD99B5EA4560AFF76FD7CBC53E061E2C073ED3BB1B561937FCE62A",
+    "bindings/lbmonitor_binding.by-parent.json": "D9F1E8C1F3E02E7AC703D40E816680EC65F10A5DD63593A63D2CEAA9B3DDE289",
+    "bindings/sslcertkey_binding.by-parent.json": "F781458E56C37BB463B72694294ECC6758227F57E576717A1E310701330EDA79",
+    "bindings/sslvserver_sslcertkey_binding.by-parent.json": "A5D6664DD25089EE1E442D50A1AFBB0F2CC91525BC28DF9AE8138BF82AB296BD",
+    "bindings/sslvserver_sslciphersuite_binding.by-parent.json": "B6812CB41EA9C68D61ACEC70DD7B7DE8CFE0EE4E16E953E744AC2271465654C1",
+    "bindings/sslvserver_ecccurve_binding.by-parent.json": "CA412CE6B0B1224BFDF2FA4986AB6CCABDF7F58E3F0E32AF0E2BA498B69036B1",
+    "bindings/sslprofile_sslcipher_binding.by-parent.json": "B94382549637C0ADAFF10A27B04CBD4E9D47B1A7CA34314994C8BAAC1A64A316",
+    "parsed/runningconfig.txt": "CFD4C8AF589FD45EB3A5F9DFB6D0FAD9D3FF4DB147F25D0B209F4DD54BFF150D",
+    "parsed/savedconfig.txt": "10E663C7DA065395C848E4E1A35B9A21E70888E25BD9F6A6918500ABDD55574C"
+  },
+  "pseudonymisation": {
+    "version": 1
+  }
+}

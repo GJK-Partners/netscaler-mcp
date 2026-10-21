@@ -1,0 +1,17 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "responderpolicy": [
+    {
+      "name": "RSPOL-001",
+      "rule": "HTTP.REQ.IS_VALID.NOT",
+      "action": "RESET",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 1,
+      "priority": "0",
+      "feature": "RESPONDER"
+    }
+  ]
+}

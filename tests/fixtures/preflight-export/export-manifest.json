@@ -1,0 +1,56 @@
+{
+  "manifestVersion": "1.1",
+  "collectorVersion": "1.0.0",
+  "collectedAtUtc": "2026-09-05T10:00:00.0000000Z",
+  "resources": {
+    "config/nsversion": {
+      "status": "OK",
+      "propertyName": "nsversion",
+      "objectCount": 1,
+      "payloadSha256": "CCE47473C174ECF6FE9FB3B33BDEBDD07F7C70E4EEFD080840208CC24E891263"
+    },
+    "config/nshardware": {
+      "status": "OK",
+      "propertyName": "nshardware",
+      "objectCount": 1,
+      "payloadSha256": "936A86E0D57663B18C45A1C23C46D11AB561B490723B3D651BAFB036F67FF709"
+    },
+    "config/nslicense": {
+      "status": "OK",
+      "propertyName": "nslicense",
+      "objectCount": 1,
+      "payloadSha256": "706EC855F5BC8CFFDEECE1B56723E78E9DF506B1E50E507F83015079FF751A2E"
+    },
+    "config/nslicenseserver": {
+      "status": "EMPTY",
+      "propertyName": "nslicenseserver",
+      "objectCount": 0
+    },
+    "config/nsrunningconfig": {
+      "status": "OK",
+      "propertyName": "nsrunningconfig",
+      "objectCount": 1
+    },
+    "config/nsconfig": {
+      "status": "OK",
+      "propertyName": "nsconfig",
+      "objectCount": 1,
+      "payloadSha256": "793BE4AA73EB167C88498EF13D0B8697288CA984D7587F68B0533E9CD2DCF335"
+    },
+    "config/systembackup": {
+      "status": "OK",
+      "propertyName": "systembackup",
+      "objectCount": 1,
+      "payloadSha256": "A3E6167293A19E169A70E3517A3FC7EF41726862CD262F646A913D1FC1381BAA"
+    },
+    "config/systemfile?args=filelocation:%2Fvar%2Fnsinstall": {
+      "status": "OK",
+      "propertyName": "systemfile",
+      "objectCount": 1,
+      "payloadSha256": "2D564A45BDE247C8EE566672AD2FCBCD5C98330929D2F8B4E3388DCCA520CE17"
+    }
+  },
+  "files": {
+    "parsed/runningconfig.txt": "61baa9cf6d1a9ec707a5bd71c4ec1b778fe8a278d727ca04b2c3aeb62c363b46"
+  }
+}

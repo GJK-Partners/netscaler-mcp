@@ -1,0 +1,37 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "sslparameter": {
+    "quantumsize": "8192",
+    "crlmemorysizemb": "256",
+    "strictcachecks": "NO",
+    "ssltriggertimeout": "100",
+    "sendclosenotify": "YES",
+    "encrypttriggerpktcount": "45",
+    "denysslreneg": "ALL",
+    "insertionencoding": "Unicode",
+    "ocspcachesize": "10",
+    "pushflag": "0",
+    "dropreqwithnohostheader": "NO",
+    "snihttphostmatch": "CERT",
+    "pushenctriggertimeout": "1",
+    "cryptodevdisablelimit": "0",
+    "undefactioncontrol": "CLIENTAUTH",
+    "undefactiondata": "NOOP",
+    "defaultprofile": "DISABLED",
+    "svctls1112disable": "NO",
+    "montls1112disable": "NO",
+    "softwarecryptothreshold": "0",
+    "hybridfipsmode": "DISABLED",
+    "sigdigesttype": [
+      "ALL"
+    ],
+    "sslierrorcache": "DISABLED",
+    "sslimaxerrorcachemem": "0",
+    "insertcertspace": "YES",
+    "ndcppcompliancecertcheck": "NO",
+    "heterogeneoussslhw": "DISABLED",
+    "operationqueuelimit": "150"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "botprofile": [
+    {
+      "name": "BOT-LAB-001",
+      "errorurl": "/",
+      "feature": "SYSTEM"
+    }
+  ]
+}

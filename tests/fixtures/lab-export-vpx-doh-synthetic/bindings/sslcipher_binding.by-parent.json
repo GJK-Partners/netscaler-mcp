@@ -1,0 +1,35 @@
+{
+  "bindingResource": "sslcipher_binding",
+  "parentResource": "sslcipher",
+  "parentKey": "ciphergroupname",
+  "shape": "list",
+  "parents": [
+    {
+      "parentName": "CIPHERGRP-LAB-001",
+      "outcome": "OK",
+      "data": {
+        "sslcipher_binding": [
+          {
+            "ciphergroupname": "CIPHERGRP-LAB-001",
+            "sslcipher_sslciphersuite_binding": [
+              {
+                "ciphergroupname": "CIPHERGRP-LAB-001",
+                "ciphername": "TLS1.2-ECDHE-RSA-AES256-GCM-SHA384",
+                "stateflag": "512",
+                "cipherpriority": "1",
+                "peflags": "4"
+              },
+              {
+                "ciphergroupname": "CIPHERGRP-LAB-001",
+                "ciphername": "TLS1.2-ECDHE-RSA-AES128-GCM-SHA256",
+                "stateflag": "512",
+                "cipherpriority": "2",
+                "peflags": "4"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

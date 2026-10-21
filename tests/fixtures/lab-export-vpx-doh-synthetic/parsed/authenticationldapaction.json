@@ -1,0 +1,12 @@
+{
+  "authenticationldapaction": [
+    {
+      "name": "LDAP-ACT-001",
+      "serverip": "203.0.113.20",
+      "serverport": 636,
+      "sectype": "SSL",
+      "authentication": "ENABLED",
+      "authtimeout": "3"
+    }
+  ]
+}

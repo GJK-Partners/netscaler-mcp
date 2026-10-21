@@ -1,0 +1,16 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "lbvserver_rewritepolicy_binding": [
+    {
+      "name": "LBV-APP-001",
+      "policyname": "RWPOL-001",
+      "stateflag": "536936449",
+      "priority": "100",
+      "gotopriorityexpression": "END",
+      "bindpoint": "REQUEST",
+      "invoke": false
+    }
+  ]
+}

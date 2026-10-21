@@ -1,0 +1,12 @@
+{
+  "versie": "2026.09",
+  "datum": "2026-09-01",
+  "cve": [],
+  "uitleg": {},
+  "begrippen": {},
+  "aangeboden": {
+    "datum": "2026-09-01",
+    "bron": "NetScaler release notes 14.1, geraadpleegd 1-9-2026",
+    "builds": {"14.1": "73.33", "13.1": "63.18"}
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "versie": "demo-2026.09.28-ctx697096",
+  "datum": "2026-09-28",
+  "bron": "Vendorbulletins CTX696604, CTX696939 en CTX697096 (27-9-2026), opgehaald 28-9-2026; NCSC-2026-0394",
+  "cve": [
+    {
+      "bulletin": "CTX696604",
+      "datum": "2026-06-30",
+      "getroffen": {
+        "14.1": "< 72.61",
+        "13.1": "< 63.18",
+        "14.1-FIPS": "< 72.61",
+        "13.1-FIPS": "< 37.272"
+      },
+      "fix": {
+        "14.1": "66.00",
+        "13.1": "63.18",
+        "14.1-FIPS": "72.61",
+        "13.1-FIPS": "37.272"
+      },
+      "cves": [
+        {
+          "id": "CVE-2026-8451",
+          "cvss": 8.8,
+          "kern": "Memory overread in de SAML-IdP-verwerking (vendor: insufficient input validation); alleen als de appliance als SAML IdP is geconfigureerd",
+          "voorwaarde": "is_saml_idp"
+        },
+        {
+          "id": "CVE-2026-8452",
+          "cvss": 8.8,
+          "kern": "Memory overflow met onvoorspelbaar gedrag of DoS (vendorlabel); community (watchTowr, 14-8-2026) werkte dit uit tot pre-auth RCE; raakt een appliance met een Gateway- (SSL VPN, ICA Proxy, CVPN, RDP Proxy) of AAA-vserver",
+          "voorwaarde": "heeft_gateway_of_aaa_vserver"
+        },
+        {
+          "id": "CVE-2026-8655",
+          "cvss": 8.8,
+          "kern": "Meerdere memory overflows met DoS; alleen bij een LB-vserver van type Oracle, een DNS-proxy of een recursieve DNS-resolver",
+          "voorwaarde": "heeft_lb_oracle_of_dns"
+        },
+        {
+          "id": "CVE-2026-10816",
+          "cvss": 7.1,
+          "kern": "Ongeauthenticeerd willekeurig bestanden lezen via NSIP, cluster-IP of SNIP met management-toegang; elke appliance heeft een NSIP",
+          "voorwaarde": "altijd"
+        },
+        {
+          "id": "CVE-2026-10817",
+          "cvss": 6.9,
+          "kern": "Memory overread; alleen met TCP timestamp ingeschakeld in een TCP-profiel dat aan een vserver (LB, CS, VPN) of service hangt",
+          "voorwaarde": "heeft_tcp_timestamp_profiel"
+        },
+        {
+          "id": "CVE-2026-13474",
+          "cvss": 8.7,
+          "kern": "DoS via misvormde HTTP/2-verzoeken; alleen met HTTP/2 ingeschakeld in een HTTP-profiel dat aan een vserver of service hangt",
+          "voorwaarde": "heeft_http2_profiel"
+        }
+      ],
+      "advies": "Upgrade naar 14.1-72.61 of hoger (14.1-FIPS/NDcPP 72.61; 13.1-63.18; 13.1-FIPS/NDcPP 37.272).",
+      "extraStapNaUpgrade": "Voor CVE-2026-13474: op appliances zonder HTTP Strict Profiles na de upgrade `set ns httpProfile <profiel> -http2SmallWndTimeout 30` zetten (vendor)."
+    },
+    {
+      "bulletin": "CTX696939",
+      "datum": "2026-08-19",
+      "getroffen": {
+        "14.1": "< 73.32",
+        "13.1": "< 63.21",
+        "14.1-FIPS": "< 73.32",
+        "13.1-FIPS": "< 37.277"
+      },
+      "fix": {
+        "14.1": "66.00",
+        "13.1": "63.21",
+        "14.1-FIPS": "73.32",
+        "13.1-FIPS": "37.277"
+      },
+      "cves": [
+        {
+          "id": "CVE-2026-19490",
+          "cvss": 9.3,
+          "kern": "Authenticatie-omzeiling via een alternatief pad op een Gateway- (SSL VPN, ICA Proxy, CVPN, RDP Proxy) of AAA-vserver; vanaf 14.1-43.56, 13.1-61.28 en 14.1-FIPS-66.68 alleen met een SAML-action, op oudere builds ook zonder",
+          "voorwaarde": {
+            "vanaf": {
+              "14.1": "43.56",
+              "13.1": "61.28",
+              "14.1-FIPS": "66.68"
+            },
+            "predicaat": "heeft_gateway_of_aaa_met_saml_action",
+            "anders": "heeft_gateway_of_aaa_vserver"
+          }
+        },
+        {
+          "id": "CVE-2026-19489",
+          "cvss": 8.8,
+          "kern": "Memory overflow met onvoorspelbaar gedrag of DoS; alleen met SIP ALG op een LSN-groep",
+          "voorwaarde": "heeft_lsn_sip_alg"
+        }
+      ],
+      "advies": "Upgrade naar 14.1-73.32 of hoger (14.1-FIPS/NDcPP 73.32; 13.1-63.21; 13.1-FIPS/NDcPP 37.277).",
+      "extraStapNaUpgrade": ""
+    },
+    {
+      "bulletin": "CTX697096",
+      "datum": "2026-09-27",
+      "getroffen": {
+        "14.1": "< 73.37",
+        "13.1": "< 64.23",
+        "14.1-FIPS": "< 73.37",
+        "13.1-FIPS": "< 37.279"
+      },
+      "fix": {
+        "14.1": "66.00",
+        "13.1": "64.23",
+        "14.1-FIPS": "73.37",
+        "13.1-FIPS": "37.279"
+      },
+      "cves": [
+        {
+          "id": "CVE-2026-88771",
+          "cvss": 9.5,
+          "kern": "Ongeauthenticeerde uitvoering van willekeurige opdrachten door onvoldoende invoervalidatie; raakt elke appliance, ook in de standaardconfiguratie; misbruik in het wild waargenomen (CISA KEV 27-9-2026)",
+          "voorwaarde": "altijd"
+        },
+        {
+          "id": "CVE-2026-88772",
+          "cvss": 9.5,
+          "kern": "Memory overflow met uitvoering van code of DoS; alleen met DTLS ingeschakeld, wat standaard aan staat op een Gateway-vserver; deze versie toetst op de aanwezigheid van een Gateway-vserver en niet op de DTLS-stand zelf; misbruik in het wild waargenomen",
+          "voorwaarde": "heeft_gateway_vserver"
+        },
+        {
+          "id": "CVE-2026-88773",
+          "cvss": 9.3,
+          "kern": "HTTP request smuggling zodra HTTP-functionaliteit in gebruik is; in deze versie niet nader toetsbaar en daarom als geraakt geteld",
+          "voorwaarde": "altijd"
+        },
+        {
+          "id": "CVE-2026-88774",
+          "cvss": 7.0,
+          "kern": "Omzeiling van een feature-policy via een HTTP-URL-expressie in beleid; in deze versie niet nader toetsbaar en daarom als geraakt geteld",
+          "voorwaarde": "altijd"
+        },
+        {
+          "id": "CVE-2026-88775",
+          "cvss": 8.8,
+          "kern": "Memory overflow met onvoorspelbaar gedrag of DoS op een Gateway- (SSL VPN, ICA Proxy, CVPN, RDP Proxy) of AAA-vserver",
+          "voorwaarde": "heeft_gateway_of_aaa_vserver"
+        },
+        {
+          "id": "CVE-2026-88776",
+          "cvss": 8.8,
+          "kern": "Memory overflow met onvoorspelbaar gedrag of DoS bij een LB-vserver van type Oracle; deze versie telt ook DNS-proxy en recursieve resolver mee (ruimere toets)",
+          "voorwaarde": "heeft_lb_oracle_of_dns"
+        },
+        {
+          "id": "CVE-2026-88777",
+          "cvss": 8.8,
+          "kern": "Memory overflow met onvoorspelbaar gedrag of DoS bij LB/CS of CGNAT (LSN/NAT64) met een niet-HTTP laag-7-protocol (bijv. FTP, RTSP-ALG, DNS64); in deze versie niet nader toetsbaar en daarom als geraakt geteld",
+          "voorwaarde": "altijd"
+        },
+        {
+          "id": "CVE-2026-88778",
+          "cvss": 8.8,
+          "kern": "Voorspelbare TCP initial sequence numbers als Enhanced ISN Generation uitstaat (show ns tcpparam); naast de upgrade is een TCP-configuratiestap nodig; in deze versie niet nader toetsbaar en daarom als geraakt geteld",
+          "voorwaarde": "altijd"
+        }
+      ],
+      "advies": "Upgrade met spoed naar 14.1-73.37 of hoger (14.1-FIPS 73.37; 13.1-64.23; 13.1-FIPS/NDcPP 37.279). Stel voor de upgrade de logging en een geheugendump veilig (NCSC-2026-0394) en houd rekening met eerdere compromittatie bij CVE-2026-88771 en CVE-2026-88772.",
+      "extraStapNaUpgrade": "Voor CVE-2026-88778: Enhanced ISN Generation inschakelen in de TCP-parameters en dat controleren met show ns tcpparam."
+    }
+  ],
+  "uitleg": {
+    "status_overzicht": "Het build bepaalt welke securitybulletins van toepassing zijn; de HA-stand zegt of deze knoop het verkeer afhandelt.",
+    "status_cve_controle": "Twee lagen: zit het build onder de fix-build, en staat de voorwaarde uit het bulletin in de configuratie. Build geraakt met de voorwaarde afwezig betekent: upgraden blijft de juiste actie, maar de kritieke route is nu niet open.",
+    "certificaat_wat_verloopt_er": "De dagen zijn wat de appliance zelf rapporteert (daystoexpiration). Een certificaat met nul bindingen kan nog steeds in gebruik zijn als uitgever van andere certificaten.",
+    "certificaat_wat_breekt_er": "De uitgifterelatie wordt een niveau diep gevolgd: verloopt de uitgever, dan bevat de keten van elk uitgegeven certificaat een verlopen schakel.",
+    "certificaat_wat_moet_ik_doen": "Een voorstel komt alleen als de impact vaststaat; een open leesgat blokkeert het bewust.",
+    "dienst_status": "OUT OF SERVICE betekent dat de appliance dit lid bewust geen verkeer meer geeft; de dienst blijft UP zolang er nog een lid UP is."
+  },
+  "begrippen": {
+    "servicegroup": "Een groep servers (leden) achter een virtuele server. De appliance verdeelt het verkeer over de leden die UP zijn.",
+    "virtuele server": "Het adres waarop een dienst wordt aangeboden; de NetScaler stuurt het verkeer door naar de leden erachter.",
+    "linkcertkeyname": "Het veld waarmee een certificaat naar zijn uitgever wijst. Verloopt de uitgever, dan raakt dat elk certificaat dat ernaar wijst.",
+    "fix-build": "Het build waarin de vendor een kwetsbaarheid heeft verholpen. Alles daaronder is geraakt; de build die je installeert kan hoger zijn dan het bulletin noemt.",
+    "OUT OF SERVICE": "De toestand van een lid dat bewust uit de dienst is gehaald. De dienst zelf blijft beschikbaar zolang een ander lid UP is.",
+    "daystoexpiration": "Het aantal hele dagen tot de vervaldatum, zoals de appliance het zelf telt."
+  }
+}

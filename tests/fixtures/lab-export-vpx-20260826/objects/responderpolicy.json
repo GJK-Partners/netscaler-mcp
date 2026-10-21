@@ -1,0 +1,95 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "responderpolicy": [
+    {
+      "name": "Top_URL",
+      "rule": "ANALYTICS.STREAM(\"Top_URL\").COLLECT_STATS",
+      "action": "NOOP",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 0,
+      "priority": "0",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "Top_CLIENTS",
+      "rule": "ANALYTICS.STREAM(\"Top_CLIENTS\").COLLECT_STATS",
+      "action": "NOOP",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 0,
+      "priority": "0",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "Top_URL_CLIENTS_LBVSERVER",
+      "rule": "ANALYTICS.STREAM(\"Top_URL_CLIENTS_LBVSERVER\").COLLECT_STATS",
+      "action": "NOOP",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 0,
+      "priority": "0",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "Top_URL_CLIENTS_CSVSERVER",
+      "rule": "ANALYTICS.STREAM(\"Top_URL_CLIENTS_CSVSERVER\").COLLECT_STATS",
+      "action": "NOOP",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 0,
+      "priority": "0",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "Top_MSSQL_QUERY_DB_LBVSERVER",
+      "rule": "ANALYTICS.STREAM(\"Top_MSSQL_QUERY_DB_LBVSERVER\").COLLECT_STATS",
+      "action": "NOOP",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 0,
+      "priority": "0",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "Top_MYSQL_QUERY_DB_LBVSERVER",
+      "rule": "ANALYTICS.STREAM(\"Top_MYSQL_QUERY_DB_LBVSERVER\").COLLECT_STATS",
+      "action": "NOOP",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 0,
+      "priority": "0",
+      "builtin": [
+        "IMMUTABLE"
+      ],
+      "feature": "SYSTEM"
+    },
+    {
+      "name": "RSPOL-001",
+      "rule": "true",
+      "action": "ACT_ECHO_HDR",
+      "hits": "0",
+      "undefhits": "0",
+      "activepolicy": 1,
+      "priority": "0",
+      "feature": "SYSTEM"
+    }
+  ]
+}

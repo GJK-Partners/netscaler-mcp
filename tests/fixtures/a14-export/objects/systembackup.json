@@ -1,0 +1,84 @@
+{
+  "errorcode": 0,
+  "message": "Done",
+  "severity": "NONE",
+  "systembackup": [
+    {
+      "filename": "gjk_pre_14_1_20260609_094121.tgz",
+      "level": "full",
+      "includekernel": "NO",
+      "size": 4654,
+      "uselocaltimezone": false,
+      "creationtime": "Tue Jun  9 09:41:21 2026",
+      "version": "NS13.1-63.16",
+      "createdby": "nsroot",
+      "ipaddress": "203.0.113.11"
+    },
+    {
+      "filename": "gjk_spike_preupgrade_20260905.tgz",
+      "level": "full",
+      "includekernel": "NO",
+      "size": 4926,
+      "uselocaltimezone": false,
+      "creationtime": "Sat Sep  5 13:10:32 2026",
+      "version": "NS14.1-72.57",
+      "createdby": "nsroot",
+      "ipaddress": "203.0.113.11"
+    },
+    {
+      "filename": "gjk_pre_66_59_20260906_103404.tgz",
+      "level": "full",
+      "includekernel": "NO",
+      "size": 4935,
+      "uselocaltimezone": false,
+      "creationtime": "Sun Sep  6 10:34:04 2026",
+      "version": "NS14.1-72.57",
+      "createdby": "nsroot",
+      "ipaddress": "203.0.113.11"
+    },
+    {
+      "filename": "gjk_pre_66_59_20260906_104655.tgz",
+      "level": "full",
+      "includekernel": "NO",
+      "size": 4935,
+      "uselocaltimezone": false,
+      "creationtime": "Sun Sep  6 10:46:55 2026",
+      "version": "NS14.1-72.57",
+      "createdby": "nsroot",
+      "ipaddress": "203.0.113.11"
+    },
+    {
+      "filename": "gjk_pre_72_57_20260906_105247.tgz",
+      "level": "full",
+      "includekernel": "NO",
+      "size": 4855,
+      "uselocaltimezone": false,
+      "creationtime": "Sun Sep  6 10:52:47 2026",
+      "version": "NS14.1-66.59",
+      "createdby": "nsroot",
+      "ipaddress": "203.0.113.11"
+    },
+    {
+      "filename": "gjk_pre_66_59_20260906_105651.tgz",
+      "level": "full",
+      "includekernel": "NO",
+      "size": 4971,
+      "uselocaltimezone": false,
+      "creationtime": "Sun Sep  6 10:56:51 2026",
+      "version": "NS14.1-72.57",
+      "createdby": "nsroot",
+      "ipaddress": "203.0.113.11"
+    },
+    {
+      "filename": "gjk_pre_72_57_20260906_110052.tgz",
+      "level": "full",
+      "includekernel": "NO",
+      "size": 4855,
+      "uselocaltimezone": false,
+      "creationtime": "Sun Sep  6 11:00:53 2026",
+      "version": "NS14.1-66.59",
+      "createdby": "nsroot",
+      "ipaddress": "203.0.113.11"
+    }
+  ]
+}
