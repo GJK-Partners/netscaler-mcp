@@ -202,7 +202,7 @@ def test_no_public_document_still_names_the_internal_version():
 
 
 def test_the_data_flow_document_carries_the_public_version():
-    assert "1.0.2" in _read("docs/klant/BEVEILIGING-EN-DATASTROMEN.md")
+    assert "1.0.3" in _read("docs/klant/BEVEILIGING-EN-DATASTROMEN.md")
 
 
 def test_the_security_policy_promises_the_window_the_gate_asks_for():

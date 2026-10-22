@@ -8,6 +8,43 @@ All notable changes to this project are documented here. The format follows
 
 Nothing yet.
 
+## [1.0.3] - 2026-10-22
+
+1.0.3 closes what the follow-up review of 1.0.2 measured: four Important
+findings and two Minors, one line each. After the upgrade, re-pin the scripts
+(`python -m nsmcp.powershell --pin <scriptmap>`): the pins of
+`Invoke-GjkUpgradeFase.ps1` and `Invoke-GjkConfigOpslaan.ps1` change.
+
+### Changed
+- The TLS grade, the expiry criterion of the TLS baseline and the licence line
+  of the scorecard count `daystoexpiration` from today, like the expiry list
+  and the preflight since 1.0.2; an export of unknown or future age gives "niet
+  beoordeeld" there, never a favourable expiry verdict (P-3).
+- A CVE line in the knowledge package can carry `naconfiguratieVerplicht: true`
+  (optional, a JSON boolean): firmware alone does not complete that remedy. On
+  or above the fix-build `status_cve_controle` then says `NIET VASTGESTELD`
+  with a read gap "(naconfiguratie)" and the advice with the step, unless the
+  condition is positively absent; the scorecard counts the same verdict. A
+  package without the field behaves as before (K-3).
+
+### Security
+- A read gap of an unusable parent in a by-parent binding file names the
+  parent by its position in the file, never by its raw name or a free outcome
+  value; at `beperkt` such a name reached `certificaat_wat_breekt_er` unmasked
+  and uncut (P-1).
+- Every Python child process starts in isolated mode (`-I`) and every child the
+  product starts runs in one fixed working directory (System32 under
+  `%SystemRoot%`): a planted `nsmcp` package in the working directory of the
+  server replaced the gate module of the upgrade and save scripts (P-2).
+- A refusal of the pseudonym table goes through the same character filter as
+  every answer; a path with a bidi or zero-width character reached the client
+  unfiltered (Minor).
+
+### Tests
+- The refusal on a script directory that cannot be listed has its own test;
+  replacing that refusal with "no siblings" used to leave the suite green
+  (RH-1).
+
 ## [1.0.2] - 2026-10-21
 
 1.0.2 closes what a newcomer's test of the public release and an independent
