@@ -146,6 +146,18 @@ kan schrijven, kan ook de pin aanpassen en draait dan willekeurige PowerShell me
 de rechten van het serveraccount. Behandel het configuratiebestand daarom met
 dezelfde zorg als een geplande taak: alleen de beheerder mag eraan schrijven.
 
+**Kindprocessen lezen geen code uit een werkmap.** Sinds 1.0.3 start het product
+elk kindproces (PowerShell, een `.py`-runner, de presenter) in een vaste werkmap
+(`System32` onder `%SystemRoot%`), nooit in de werkmap van de server. Elke
+Python-aanroep die een script of het product zelf doet (`-m nsmcp.upgrade_gate`,
+`-m nsmcp.upgrade_measure`, een `.py`-runner of -presenter) draait in de
+geisoleerde modus van Python (`-I`): de werkmap, de map van het script en
+`PYTHONPATH` staan dan niet op het zoekpad voor modules. Gemeten in 1.0.2: een
+geplant `nsmcp`-pakket in een door een aanleverende partij beschrijfbare werkmap
+verving de poortmodule, terwijl elke scriptpin klopte. De pins van
+`Invoke-GjkUpgradeFase.ps1` en `Invoke-GjkConfigOpslaan.ps1` veranderen hierdoor;
+draai na de upgrade opnieuw `python -m nsmcp.powershell --pin <scriptmap>`.
+
 **De identiteit van de aanroeper is zelfverklaard.** De clientnaam komt uit de
 MCP-handshake, wordt per sessie vastgepind en getoetst aan een lijst geleende
 gezagsnamen. Er is geen authenticatie. Wie de server kan aanroepen, kan zich

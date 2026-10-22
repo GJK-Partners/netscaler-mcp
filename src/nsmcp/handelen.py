@@ -73,7 +73,14 @@ from pathlib import Path
 from nsmcp.answer import Answer, Certainty, Finding
 from nsmcp.backup import BACKUP_LEVEL, backup_name
 from nsmcp.collect import _stop_child_process
-from nsmcp.powershell import PowerShellMissing, check_script_pins, powershell_path, script_policy, start_powershell
+from nsmcp.powershell import (
+    PowerShellMissing,
+    check_script_pins,
+    child_working_directory,
+    powershell_path,
+    script_policy,
+    start_powershell,
+)
 from nsmcp.upgrade import is_safe_run_name, runner_current_build, runner_floor, runner_package
 from nsmcp.upgrade_plan import PHASE_NAMES
 
@@ -1264,7 +1271,10 @@ def upgrade_command(runner: Path, script_arguments: list[str]) -> list[str]:
     check_script_pins(runner)
     if runner.suffix.lower() == ".py":
         interpreter = getattr(sys, "_base_executable", None) or sys.executable
-        return [interpreter, str(runner), *script_arguments]
+        # 1.0.3: isolated mode (`-I`), like every Python child of this
+        # product: no working directory, script directory or PYTHON*
+        # variable on the module path of the child.
+        return [interpreter, "-I", str(runner), *script_arguments]
     exe = powershell_path()
     if not exe.is_file():
         raise PowerShellMissing(f"Windows PowerShell niet gevonden op {exe}; er wordt geen proces gestart")
@@ -1291,13 +1301,14 @@ def _default_upgrade_process_runner(argv: list[str], timeout_s: int) -> tuple[in
     try:
         process = subprocess.Popen(
             argv,
+            cwd=child_working_directory(),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
         )
-    except OSError as exc:
+    except (OSError, PowerShellMissing) as exc:
         raise ActionError(f"kon de faserunner niet starten: {exc}") from None
     try:
         stdout, stderr = process.communicate(timeout=timeout_s)
@@ -1607,10 +1618,16 @@ def start_detached(arguments: list[str], *, log_path: Path) -> str:
         )
     child = None
     try:
+        # 1.0.3: a fixed working directory, never the server's own one.
+        try:
+            working_directory = child_working_directory()
+        except PowerShellMissing as exc:
+            raise ActionError(f"kon de faserunner niet losgekoppeld starten: {exc}") from None
         for index, kwargs in enumerate(attempts):
             try:
                 child = subprocess.Popen(
                     arguments,
+                    cwd=working_directory,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     stdin=subprocess.DEVNULL,

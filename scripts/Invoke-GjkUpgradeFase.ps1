@@ -605,7 +605,7 @@ function _GjkAanroepPython {
     param([Parameter(Mandatory = $true)] [string] $Module, [Parameter(Mandatory = $true)] [string] $JsonIn)
     $foutBestand = [System.IO.Path]::GetTempFileName()
     try {
-        $stdout = $JsonIn | & $GatePython -m $Module 2>$foutBestand
+        $stdout = $JsonIn | & $GatePython -I -m $Module 2>$foutBestand
         $code = $LASTEXITCODE
         $stderrTekst = ''
         if (Test-Path -LiteralPath $foutBestand) { $stderrTekst = Get-Content -LiteralPath $foutBestand -Raw -ErrorAction SilentlyContinue }

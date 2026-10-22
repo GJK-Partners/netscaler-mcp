@@ -187,6 +187,34 @@ def powershell_path() -> Path:
     return Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
 
 
+def child_working_directory() -> Path:
+    """1.0.3: the ONE working directory of every child process this product
+    starts (PowerShell, a `.py` runner, a presenter), set explicitly instead
+    of inherited from the server.
+
+    MEASURED before: the server's children inherited its working directory,
+    and the PowerShell bridge then started `& $GatePython -m <module>` there.
+    `-m` searches the working directory first, so a planted `nsmcp` package in
+    a supplier-writable directory the server was started in replaced the gate
+    module. The bridge now runs in isolated mode (`-I`); this directory is the
+    second half: fixed, absolute and not writable by a supplier - the
+    System32 directory of the same `%SystemRoot%` `powershell_path()` reads
+    (the directory Windows itself starts services in), or `/` elsewhere.
+    Fail-closed: a relative or absent directory raises, no process starts."""
+    if sys.platform == "win32":
+        system_root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT") or r"C:\Windows"
+        directory = Path(system_root) / "System32"
+    else:
+        directory = Path("/")
+    if not directory.is_absolute():
+        raise PowerShellMissing(
+            f"werkmap voor een kindproces {directory} is niet absoluut; er wordt geen proces gestart"
+        )
+    if not directory.is_dir():
+        raise PowerShellMissing(f"werkmap voor een kindproces {directory} bestaat niet; er wordt geen proces gestart")
+    return directory
+
+
 def start_powershell(arguments: list[str]) -> subprocess.Popen[str]:
     """Starts Windows PowerShell with `arguments`, or raises.
 
@@ -214,6 +242,7 @@ def start_powershell(arguments: list[str]) -> subprocess.Popen[str]:
         raise PowerShellMissing(f"Windows PowerShell niet gevonden op {executable}; er wordt geen proces gestart")
     return subprocess.Popen(
         [str(executable), *arguments],
+        cwd=child_working_directory(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

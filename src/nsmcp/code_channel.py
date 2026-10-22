@@ -59,6 +59,7 @@ from pathlib import Path
 
 from nsmcp.collect import _stop_child_process
 from nsmcp.confirm import TTL_S, _fingerprint, _normalize_code, marker_line
+from nsmcp.powershell import PowerShellMissing, child_working_directory
 from nsmcp.upgrade import _bounded_run_echo
 
 # The one refusal an operator sees when a channel fails. Frozen text: it is
@@ -767,8 +768,13 @@ class SsoCodeChannel:
             ensure_ascii=True,
         )
         try:
+            # 1.0.3: a `.py` presenter in isolated mode (`-I`) and every
+            # presenter in the fixed working directory of all children, so
+            # neither the server's working directory nor the presenter's own
+            # directory lands on its module path.
             process = subprocess.Popen(
-                [sys.executable, str(self._path)] if self._path.suffix == ".py" else [str(self._path)],
+                [sys.executable, "-I", str(self._path)] if self._path.suffix == ".py" else [str(self._path)],
+                cwd=child_working_directory(),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -776,7 +782,7 @@ class SsoCodeChannel:
                 encoding="utf-8",
                 errors="replace",
             )
-        except OSError as exc:
+        except (OSError, PowerShellMissing) as exc:
             raise CodeChannelError(f"de presenter kon niet gestart worden: {exc}") from None
         # `with process:` closes
         # stdin/stdout/stderr on EVERY exit from this block, including the

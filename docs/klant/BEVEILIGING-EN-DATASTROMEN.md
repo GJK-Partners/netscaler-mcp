@@ -333,6 +333,10 @@ Drie instellingen en regels bepalen wat daarbij gebeurt:
   PowerShell kan het op naam inlezen. Zonder `scriptpin` wordt er niets gecontroleerd. De pin is
   zo sterk als de bescherming van het configuratiebestand: wie dat kan schrijven, kan ook de pin
   aanpassen.
+- **Kindprocessen** (sinds 1.0.3) starten in een vaste werkmap (`System32` onder
+  `%SystemRoot%`), nooit in die van de server, en elke Python-aanroep draait geisoleerd
+  (`python -I`): een werkmap, de map van een script en `PYTHONPATH` leveren dan geen code.
+  De pins van de faserunner en het opslaanscript zijn daardoor anders dan in 1.0.2.
 - **`uitvoeringsbeleid`** kiest het PowerShell-uitvoeringsbeleid: `Bypass` (standaard; de scripts
   van het product zijn niet gesigneerd), `AllSigned` of `RemoteSigned` (Windows beslist dan zelf
   over de handtekening).
