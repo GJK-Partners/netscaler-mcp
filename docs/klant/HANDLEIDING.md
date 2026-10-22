@@ -820,6 +820,12 @@ begrenzing bij een verlopen certificaat), het vervalcriterium van de TLS-basisli
 de licentieregel van de scorekaart: een export van onbekende leeftijd geeft daar geen
 gunstig vervaloordeel, maar "niet beoordeeld".
 
+De grens is voor al die onderdelen dezelfde (sinds 1.0.3): 0 dagen over betekent
+"verloopt vandaag", nog niet verlopen; pas een negatief aantal is verlopen. De lijst,
+de TLS-grade en de licentieregel spreken elkaar op de grensdag dus niet tegen. Let op:
+tot en met 1.0.2 begrensde de grade (in lijn met NSHC) een certificaat met 0 dagen al
+als verlopen; die ene grensdag wijkt nu bewust af.
+
 Wilt u weten wat het product NIET heeft kunnen lezen, gebruik dan
 `rapport_dekking` (hoofdstuk rapport): dat noemt per bron of hij gelezen is en
 of de kruiscontrole op de bindingen rondkwam. "2 van de 11 bindingsbestanden

@@ -530,8 +530,29 @@ def _to_days(days) -> int | None:
         return None
 
 
+def is_expired(n: int) -> bool:
+    """THE expiry boundary for every consumer of a day count (the list, the
+    TLS grade, the TLS criterion through `_classify`, the licence line).
+
+    0 days left = the certificate expires TODAY and is not yet expired; a
+    negative count = expired. MEASURED before 1.0.3 (R3-3): the list used
+    `< 0` and the TLS grade and the licence line `<= 0`, so on the boundary
+    day the list said "verloopt over 0 dagen" next to a grade with
+    "verlopen certificaat". One definition, imported, never copied."""
+    return n < 0
+
+
+def expiry_phrase(n: int) -> str:
+    """The words for a day count left today, on the boundary of `is_expired`."""
+    if is_expired(n):
+        return "is verlopen"
+    if n == 0:
+        return "verloopt vandaag"
+    return f"verloopt over {n} dagen"
+
+
 def _classify(n: int) -> str:
-    if n < 0:
+    if is_expired(n):
         return "expired"
     if n <= THRESHOLDS["critical"]:
         return "critical"
@@ -673,7 +694,7 @@ def what_expires(export, knowledge: Knowledge, horizon_days: int, *, today: date
         if days > horizon_days:
             continue
         level = _classify(days)
-        outcome = "is verlopen" if days < 0 else f"verloopt over {days} dagen ({level})"
+        outcome = expiry_phrase(days) if is_expired(days) else f"{expiry_phrase(days)} ({level})"
         rows.append(
             (
                 _impact_key(state, days),
@@ -686,7 +707,7 @@ def what_expires(export, knowledge: Knowledge, horizon_days: int, *, today: date
                     evidence=f"{RESOURCE}: {key_bits}; {counted_from_today(age_days)}",
                     reason=state.reason,
                     days_left=days,
-                    expired=days < 0,
+                    expired=is_expired(days),
                 ),
             )
         )

@@ -507,7 +507,7 @@ def grade_per_vserver(export, *, today: date | None = None) -> tuple[Grade, ...]
     # `remaining_days` the certificate list and the preflight use - and an
     # export whose age cannot be established gives no positive expiry
     # verdict: the vserver is NIET BEOORDEELD, never "not expired".
-    from nsmcp.expiry import age_of, remaining_days
+    from nsmcp.expiry import age_of, is_expired, remaining_days
 
     age_days, age_reason = age_of(export, today)
     vservers, vserver_gap = export.objects(VSERVER_RESOURCE)
@@ -758,7 +758,9 @@ def grade_per_vserver(export, *, today: date | None = None) -> tuple[Grade, ...]
                 # the cap is decided on the days left TODAY.
                 days = remaining_days(field_token(cert, "daystoexpiration"), age_days)
                 size = field_token(cert, "publickeysize")
-                if days is not None and days <= 0:
+                # R3-3: the one boundary (`expiry.is_expired`): 0 days left is
+                # "verloopt vandaag", not yet expired.
+                if days is not None and is_expired(days):
                     expired = True
                 # An ECC certificate is never a weak RSA key.
                 if size.isdigit() and int(size) < gate["minRsaBits"] and not _is_ecc_cert(cert):

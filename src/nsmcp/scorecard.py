@@ -196,7 +196,7 @@ def _number(value, *, negative=False):
 
 
 def _license(control, export, today=None):
-    from nsmcp.expiry import age_of, counted_from_today, remaining_days
+    from nsmcp.expiry import age_of, counted_from_today, expiry_phrase, is_expired, remaining_days
 
     row, gaps = _single(export, "config/nslicense")
     days = _number(row.get("daystoexpiration"), negative=True)
@@ -226,7 +226,13 @@ def _license(control, export, today=None):
         control,
         "FAIL" if days <= 30 else "PASS",
         "Hoog" if days <= 0 else "Midden" if days <= 30 else "Info",
-        (f"config/nslicense: verlopen ({days} dagen)" if days <= 0 else f"config/nslicense: verloopt over {days} dagen")
+        # R3-3: the one boundary (`expiry.is_expired`); 0 days left is
+        # "verloopt vandaag", not yet expired, and stays severity Hoog.
+        (
+            f"config/nslicense: verlopen ({days} dagen)"
+            if is_expired(days)
+            else f"config/nslicense: {expiry_phrase(days)}"
+        )
         + f", {counted_from_today(age_days)}",
     )
 

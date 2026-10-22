@@ -111,7 +111,8 @@ def test_a_fresh_export_with_the_same_count_is_not_expired(tmp_path):
 @pytest.mark.parametrize(
     ("raw", "expired_grade", "criterion_status"),
     [
-        (57, True, "FAIL"),  # exactly on the boundary: 0 days left today
+        (56, True, "FAIL"),  # -1 day today: expired
+        (57, False, "FAIL"),  # 0 days left today: expires today, not yet expired (R3-3)
         (58, False, "FAIL"),  # 1 day left: critical, still a deviation
         (200, False, "PASS"),  # 143 days left
         (-3, True, "FAIL"),  # already negative at the scan
@@ -165,3 +166,39 @@ def test_the_licence_line_counts_from_today(tmp_path):
     # No readable export date: no positive licence verdict.
     unknown = licence(200, None)
     assert unknown.status != "PASS", unknown
+
+
+@pytest.mark.parametrize(("raw", "expired"), [(56, True), (57, False), (58, False)])
+def test_on_the_boundary_day_list_grade_and_licence_agree(tmp_path, raw, expired):
+    """R3-3: ONE definition for every consumer (`expiry.is_expired`): 0 days
+    left today is "verloopt vandaag", not yet expired; a negative count is
+    expired. MEASURED before: on scan value 57 the list said "verloopt over 0
+    dagen" (not expired) while both grades carried "verlopen certificaat" and
+    the licence line said "verlopen (0 dagen)"."""
+    export = _export(tmp_path / "certs", raw)
+    findings = what_expires(export, K, 90, today=TODAY).findings
+    dated = [f for f in findings if f.days_left is not None]
+    assert len(dated) == 4, findings
+    for finding in dated:
+        assert finding.expired is expired, finding
+        if raw == 57:
+            assert finding.outcome.startswith("verloopt vandaag"), finding
+            assert "over 0 dagen" not in finding.outcome, finding
+    graded = _graded(export, TODAY)
+    assert graded
+    for grade in graded:
+        assert (EXPIRED_MARK in grade.kenmerken) is expired, (raw, grade)
+
+    root = tmp_path / "licence" / "export"
+    _export(tmp_path / "licence", 400)
+    path = root / "objects" / "nslicense.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["nslicense"]["daystoexpiration"] = raw
+    path.write_text(json.dumps(document), encoding="utf-8")
+    seal_manifest(root)
+    card = _scorecard(load_export(root), TODAY)
+    line = next(r for r in card.values() if "config/nslicense" in r.evidence)
+    assert line.status == "FAIL", line
+    assert ("verlopen" in line.evidence) is expired, line
+    if raw == 57:
+        assert "verloopt vandaag" in line.evidence, line
