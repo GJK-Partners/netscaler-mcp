@@ -1118,7 +1118,11 @@ def test_an_unusable_parent_name_in_the_object_source_is_a_read_gap(tmp_path):
     e = load_export(dir_)
     dekking = e.binding_parents(BINDING_FILE)
     assert len(dekking.gaps) == 1
-    assert "vservername" in dekking.gaps[0].reason
+    # R3H-2: parentKey is a value from the binding file and is described,
+    # never repeated; the object stays findable by its position.
+    assert "het veld dat parentKey noemt" in dekking.gaps[0].reason
+    assert "vservername" not in dekking.gaps[0].reason
+    assert "(object 2)" in dekking.gaps[0].source
     assert "None" not in dekking.gaps[0].reason, "de ruwe waarde hoort niet gereproduceerd te worden"
 
 
@@ -1437,7 +1441,10 @@ def test_an_object_in_the_source_distinguishes_a_missing_key_from_a_json_null(tm
     assert "de sleutel ontbreekt" in reden_ontbreekt, f"onverwachte reden: {reden_ontbreekt}"
     assert "JSON null" not in reden_ontbreekt
     assert "JSON null" in reden_null, f"onverwachte reden: {reden_null}"
-    assert "vservername" in reden_ontbreekt and "vservername" in reden_null
+    # R3H-2: the field is described, its name (parentKey, a value from the
+    # binding file) is not repeated - the distinction above stays.
+    assert "het veld dat parentKey noemt" in reden_ontbreekt and "het veld dat parentKey noemt" in reden_null
+    assert "vservername" not in reden_ontbreekt and "vservername" not in reden_null
 
 
 # ---------------------------------------------------------------------------

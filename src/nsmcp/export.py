@@ -1899,17 +1899,26 @@ class Export:
         _content, _key, gap = self._object_payload(resource)
         return gap
 
-    def objects(self, resource: str) -> tuple[list[dict], ReadGap | None]:
+    def objects(self, resource: str, *, key_label: str | None = None) -> tuple[list[dict], ReadGap | None]:
+        """The list of objects of `resource`, or a read gap.
+
+        `key_label` (R3H-1): a caller that composed `resource` from a value
+        out of a supplied file - the cross-check in `binding_parents` - passes
+        how the key is to be NAMED, so the key (that same value) is described
+        in the reason instead of repeated. A resource name the product itself
+        chose keeps its key in the reason.
+        """
         content, key, gap = self._object_payload(resource)
         if gap is not None:
             return [], gap
         if content is _READ_EMPTY:
             return [], None
+        named_key = key_label if key_label is not None else repr(key)
         if not isinstance(content, list):
             return [], ReadGap(
                 source=resource,
                 reason=(
-                    f"objectbestand draagt geen lijst onder de verwachte sleutel {key!r};"
+                    f"objectbestand draagt geen lijst onder de verwachte sleutel {named_key};"
                     " op de verkeerde plek kijken is geen lege lijst"
                 ),
             )
@@ -1945,7 +1954,7 @@ class Export:
                 return [], ReadGap(
                     source=resource,
                     reason=(
-                        f"objectbestand draagt onder {key!r} een element (positie {position})"
+                        f"objectbestand draagt onder {named_key} een element (positie {position})"
                         f" dat geen object is (type={type(element).__name__})"
                     ),
                 )
@@ -2772,12 +2781,19 @@ class Export:
         # file of both lab exports); any other value is described, never
         # repeated. The source is still opened - the object-name gate above
         # already decided that - only the wording changes.
+        #
+        # R3H-1: the nested reason of `objects()` names the key it looked
+        # under, and that key IS `parentResource`. So when the value is
+        # described here, the key is described there too - otherwise
+        # "(waarde niet herhaald)" was followed by the value itself.
         identity = _expected_binding_resource(file_name)
         if identity is not None and identity.startswith(f"{parent_resource}_"):
             source_label = resource
+            key_label = None
         else:
             source_label = "de objectbron die dit bestand in parentResource noemt (waarde niet herhaald)"
-        objects, object_gap = self.objects(resource)
+            key_label = "de sleutel die parentResource noemt"
+        objects, object_gap = self.objects(resource, key_label=key_label)
         if object_gap is not None:
             gaps.append(
                 ReadGap(
@@ -2815,11 +2831,17 @@ class Export:
                 # comparison runs, not only to verdict-bearing fields: an
                 # object whose name cannot be established cannot be laid
                 # against the parent list either way.
+                #
+                # R3H-2: `parent_key` is a value FROM the binding file, so it
+                # is described, never repeated (it came out unmasked and
+                # uncut). WHERE stays in the source: the 1-based position of
+                # the object, one gap per object, so the count is visible too.
                 gaps.append(
                     ReadGap(
                         source=f"{source_label} (object {position})",
                         reason=(
-                            f"{parent_key} is niet bruikbaar: {shape_or_missing_at(o, parent_key)};"
+                            "het veld dat parentKey noemt (waarde niet herhaald) is niet bruikbaar:"
+                            f" {shape_or_missing_at(o, parent_key)};"
                             f" niet vast te stellen of dit object een parent-vermelding heeft in"
                             f" {file_name}"
                         ),
