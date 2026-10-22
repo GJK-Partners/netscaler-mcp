@@ -286,6 +286,15 @@ die het product niet kan lezen, een bulletin dat twee keer voorkomt, of een CVE 
 één bulletin (of twee keer in één bulletin) staat. Zo'n pakket telt niets dubbel en verlaagt
 geen vloer; elk antwoord zegt dat het kennispakket onbruikbaar is.
 
+**Verplichte naconfiguratie (sinds 1.0.3).** Voor sommige CVE's is firmware alleen niet de
+volledige oplossing: de vendor vraagt na de upgrade ook een configuratiestap. Een CVE-regel in het
+pakket zegt dat met het optionele veld `"naconfiguratieVerplicht": true`; de stap zelf staat in
+`extraStapNaUpgrade` van het bulletin. Op of boven de fix-build zegt `status_cve_controle` voor
+zo'n CVE `NIET VASTGESTELD` met een leesgat "(naconfiguratie)" en het advies met de stap erbij,
+want de firmwarevergelijking bewijst alleen de firmwarehelft. Alleen als de voorwaarde van de CVE
+aantoonbaar afwezig is, blijft het `NIET GERAAKT`. Ontbreekt het veld, dan verandert er niets;
+een waarde die geen `true` of `false` is, weigert het pakket.
+
 ### De scripts vastpinnen (`scriptpin`) en het uitvoeringsbeleid (`uitvoeringsbeleid`)
 
 Het product start PowerShell-scripts: het verzamelscript, het schrijfscript, de faserunner en de
@@ -1577,7 +1586,9 @@ hoofdstuk `rapport` aanstaat (standaard aan) en er een `onderhoud`-sectie in de 
   mogelijk" als het veld in deze build nog niet bestaat, of "de extra stap noemt geen herkenbaar
   commando" als de zin in het kennispakket geen `set ns <object> ... -<parameter>` bevat. Dit is
   altijd een EIGEN controle, nooit een bijzin bij het CVE-oordeel: een build kan `NIET GERAAKT`
-  zijn door de CVE zelf terwijl de extra stap nog openstaat, of andersom.
+  zijn door de CVE zelf terwijl de extra stap nog openstaat, of andersom. Draagt de CVE-regel
+  `naconfiguratieVerplicht`, dan zegt het CVE-oordeel op of boven de fix-build zelf al
+  `NIET VASTGESTELD` (zie "Verplichte naconfiguratie" hierboven).
 - **Het genormaliseerde configuratie-anker**, met per soort het aantal uitgesloten blob-regels
   (`set ns encryptionParams`, `set ns rpcNode`, `-encrypted`) — elk `gelijk`, `verschillend` of
   `niet vastgesteld`. Deze komen uitsluitend uit het ledger: de regel `voormeting_vast` van R0 en

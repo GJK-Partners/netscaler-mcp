@@ -51,6 +51,13 @@ _TOP_FIELDS = {"versie", "datum", "toelichting", "bron", "cve", "uitleg", "begri
 _OFFERED_FIELDS = {"datum", "bron", "builds"}
 _BULLETIN_FIELDS = {"bulletin", "datum", "getroffen", "fix", "cves", "advies", "extraStapNaUpgrade"}
 _CVE_FIELDS = {"id", "cvss", "kern", "voorwaarde"}
+# 1.0.3: optional per CVE. `true` says firmware alone does not complete the
+# vendor remedy for this CVE: the bulletin also asks a configuration step
+# after the upgrade (the bulletin's `extraStapNaUpgrade` names it). Per CVE
+# and not per bulletin on purpose: CTX697096 carries eight CVEs and only one
+# of them needs such a step. Absent means false, so an older package loads
+# and behaves unchanged; a value that is not a JSON boolean is refused.
+POST_UPGRADE_CONFIG_FIELD = "naconfiguratieVerplicht"
 
 # The three fields of a BUILD-DEPENDENT condition, and nothing else.
 # CTX696939 states CVE-2026-19490 differently per build: from 14.1-43.56 and
@@ -550,6 +557,11 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
             problem = _condition_problem(cve["voorwaarde"])
             if problem:
                 return _absent(f"kennispakket: {problem}")
+            if POST_UPGRADE_CONFIG_FIELD in cve and type(cve[POST_UPGRADE_CONFIG_FIELD]) is not bool:
+                # The identifier was checked above; the value is never echoed.
+                return _absent(
+                    f"kennispakket: '{POST_UPGRADE_CONFIG_FIELD}' van CVE {cve['id']!r} moet true of false zijn"
+                )
     # B1. Absent is allowed and stays backwards compatible; a wrong shape is
     # not - see _offered_problem() for why this one field is refused at load
     # time rather than judged later.

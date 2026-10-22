@@ -62,7 +62,7 @@ from dataclasses import dataclass, field, replace
 
 from nsmcp.answer import Answer, Certainty, Finding, ReadGap, repeatable_token
 from nsmcp.export import RUNNING_CONFIG_FILE
-from nsmcp.knowledge import AFFECTED_FORM, Knowledge
+from nsmcp.knowledge import AFFECTED_FORM, POST_UPGRADE_CONFIG_FIELD, Knowledge
 
 _VERSION = re.compile(r"NS(\d+\.\d+):\s*Build\s+(\d+)\.(\d+)")
 # The loader owns the shape of an affected range; the verdict parses it with
@@ -2705,6 +2705,22 @@ def _verdict_sentence(
     return f"{NIET_VASTGESTELD} - de voorwaarde {predicate} is niet vast te stellen"
 
 
+def _post_upgrade_gap(identity: str) -> ReadGap:
+    """1.0.3 K-3: the typed read gap of a CVE whose package line says firmware
+    alone does not complete the remedy (`naconfiguratieVerplicht`). A
+    firmware comparison proves only the firmware half; whether the required
+    configuration step was carried out is not read by this version, so the
+    verdict on or above the floor is NIET VASTGESTELD, never NIET GERAAKT."""
+    return ReadGap(
+        source=f"{identity} (naconfiguratie)",
+        reason=(
+            "het bulletin vraagt na de upgrade een verplichte configuratiestap (zie het advies);"
+            " of die is uitgevoerd, is in deze lezing niet beoordeeld - de firmwarevloer alleen"
+            " bewijst geen volledige oplossing"
+        ),
+    )
+
+
 def _cve_findings(
     export,
     bulletin,
@@ -2717,8 +2733,11 @@ def _cve_findings(
     branch_reason: str = "de build is niet te lezen",
     branch_gap: ReadGap | None = None,
     records: list | None = None,
+    followups: list | None = None,
 ) -> tuple[list[Finding], list[str]]:
-    """The verdict line plus the condition line, per CVE of one bulletin."""
+    """The verdict line plus the condition line, per CVE of one bulletin.
+    `followups` collects the identity of every CVE whose verdict the
+    required post-upgrade configuration step demoted (K-3)."""
     findings: list[Finding] = []
     verdicts: list[str] = []
     entries = bulletin.get("cves")
@@ -2736,18 +2755,42 @@ def _cve_findings(
             condition, evidence, gap = cache[predicate]
         if gap is not None and gap not in read_gaps:
             read_gaps.append(gap)
-        verdict = _verdict(build_layer, condition)
+        identity = str(cve["id"])
+        # K-3: on or above the floor a CVE with a required post-upgrade
+        # configuration step is NIET VASTGESTELD, unless its condition is
+        # POSITIVELY absent (then the step does not apply). Below the floor
+        # the verdict is the ordinary one and the advice names the step.
+        followup_gap = (
+            _post_upgrade_gap(identity)
+            if build_layer == "gepatcht" and cve.get(POST_UPGRADE_CONFIG_FIELD) is True and condition != _ABSENT
+            else None
+        )
+        if followup_gap is not None:
+            if followup_gap not in read_gaps:
+                read_gaps.append(followup_gap)
+            if followups is not None:
+                followups.append(identity)
+        verdict = NIET_VASTGESTELD if followup_gap is not None else _verdict(build_layer, condition)
         verdicts.append(verdict)
         if records is not None:
-            records.append(CveVerdict(verdict, cve["cvss"], gap))
-        identity = str(cve["id"])
+            # The typed verdict follows the text: the same verdict, and the
+            # gap the sentence names.
+            records.append(CveVerdict(verdict, cve["cvss"], followup_gap or gap))
         established = verdict != NIET_VASTGESTELD
         reason = "" if established else f"buildlaag: {build_evidence}; voorwaardelaag: {evidence}"
-        outcome = (
-            f"{NIET_VASTGESTELD} - {choice}"
-            if predicate is None
-            else _verdict_sentence(verdict, build_layer, predicate, condition, branch, choice)
-        )
+        if followup_gap is not None:
+            reason += f"; naconfiguratie: {followup_gap.reason}"
+        if followup_gap is not None:
+            outcome = (
+                f"{NIET_VASTGESTELD} - de build zit op of boven de fix-build, maar dit bulletin vraagt"
+                " na de upgrade een verplichte naconfiguratie; of die is uitgevoerd, is niet beoordeeld"
+            )
+        else:
+            outcome = (
+                f"{NIET_VASTGESTELD} - {choice}"
+                if predicate is None
+                else _verdict_sentence(verdict, build_layer, predicate, condition, branch, choice)
+            )
         findings.append(
             _label_finding(
                 subject=identity,
@@ -3092,6 +3135,7 @@ def _judge_package(export, knowledge: Knowledge, records: list) -> Answer:
                 )
                 build_layer, build_evidence = "gepatcht", f"build {build_label} >= fix-build {fix}"
 
+        followups: list[str] = []
         cve_findings, cve_verdicts = _cve_findings(
             export,
             bulletin,
@@ -3102,18 +3146,40 @@ def _judge_package(export, knowledge: Knowledge, records: list) -> Answer:
             rule_branch,
             build,
             records=records,
+            followups=followups,
         )
         findings.extend(cve_findings)
         verdicts.extend(cve_verdicts)
 
+        extra = str(bulletin.get("extraStapNaUpgrade", "")).strip()
         if build_layer == "kwetsbaar":
             advice = str(bulletin["advies"])
-            extra = str(bulletin.get("extraStapNaUpgrade", "")).strip()
             if extra:
                 advice += f" Na de upgrade is er een extra stap: {extra}"
             findings.append(
                 _label_finding(
                     subject=f"{name} advies", outcome=advice, certainty=Certainty.ESTABLISHED, evidence="kennispakket"
+                )
+            )
+        elif followups:
+            # K-3: the firmware floor is reached, the required step is not
+            # read - the advice stays visible, and is not a fact about this
+            # appliance.
+            step = (
+                f"Na de upgrade is er een verplichte stap: {extra}"
+                if extra
+                else "Het kennispakket noemt de verplichte stap niet; zie het bulletin zelf."
+            )
+            findings.append(
+                _label_finding(
+                    subject=f"{name} advies",
+                    outcome=(
+                        f"De firmwarevloer is gehaald; voor {', '.join(followups)} is firmware alleen niet"
+                        f" de volledige oplossing. {step}"
+                    ),
+                    certainty=Certainty.NOT_ESTABLISHED,
+                    evidence="kennispakket",
+                    reason="uitvoering en effect van de naconfiguratie zijn in deze lezing niet beoordeeld",
                 )
             )
 
