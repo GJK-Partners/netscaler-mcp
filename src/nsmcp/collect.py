@@ -31,7 +31,13 @@ from pathlib import Path
 from nsmcp.answer import ReadGap, repeatable_token
 from nsmcp.export import MISSING as _MISSING, TARGET_FILE, USABLE, load_export, shape_of
 from nsmcp.limits import neutralise_hidden
-from nsmcp.powershell import PowerShellMissing, ScriptPinMismatch, script_policy, start_powershell
+from nsmcp.powershell import (
+    ChildWorkingDirectoryUnusable,
+    PowerShellMissing,
+    ScriptPinMismatch,
+    script_policy,
+    start_powershell,
+)
 from nsmcp.retention import Retention, _discard_previous, keep, prune
 from nsmcp.target import CertAgreement, Target
 
@@ -217,6 +223,10 @@ def _run_powershell(arguments: list[str], timeout_s: int, stop: SwapGate | None 
     except ScriptPinMismatch as exc:
         # 1.0.2: the message names the file name only.
         raise CollectNotStarted(f"{NOT_STARTED}{exc}") from None
+    except ChildWorkingDirectoryUnusable as exc:
+        # 1.0.3 (R3-5): the real reason, not "PowerShell niet gevonden"; the
+        # message names the kind of problem, never the local path.
+        raise CollectNotStarted(f"kon PowerShell niet starten: {exc}") from None
     except PowerShellMissing:
         # The merge keeps the absolute starter AND the masking of the OS error: the
         # PowerShellMissing text names the absolute install path, which is a

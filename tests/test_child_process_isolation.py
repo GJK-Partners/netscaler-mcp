@@ -198,3 +198,60 @@ def test_a_python_presenter_starts_isolated_in_the_fixed_working_directory(tmp_p
     observed = json.loads(seen.read_text(encoding="utf-8"))
     assert observed["isolated"] == 1, observed
     assert Path(observed["cwd"]) == child_working_directory(), observed
+
+
+def _unusable_working_directory(monkeypatch, tmp_path) -> Path:
+    """`%SystemRoot%` on an existing directory WITHOUT a System32 below it,
+    while PowerShell itself is found (its path is pinned to a real file)."""
+    if sys.platform != "win32":
+        pytest.skip("the system root is a Windows notion")
+    root = tmp_path / "GEHEIM-WERKMAP-ROOT"
+    root.mkdir()
+    monkeypatch.setenv("SystemRoot", str(root))
+    exe = tmp_path / "powershell.exe"
+    exe.write_text("", encoding="ascii")
+    monkeypatch.setattr(powershell, "powershell_path", lambda: exe)
+    return root
+
+
+def test_r3_5_an_unusable_working_directory_is_named_as_such_in_a_scan(monkeypatch, tmp_path):
+    """R3-5: MEASURED before, a scan said "Windows PowerShell niet gevonden"
+    when the fixed working directory was the reason. The reason is now the
+    working directory, without a local path."""
+    from nsmcp import collect
+
+    _unusable_working_directory(monkeypatch, tmp_path)
+    spy = _Spy()
+    monkeypatch.setattr(powershell.subprocess, "Popen", spy)
+    with pytest.raises(collect.CollectNotStarted) as caught:
+        collect._run_powershell(["-NoProfile"], 5)
+    text = str(caught.value)
+    assert "werkmap" in text, text
+    assert "niet gevonden" not in text, text
+    assert "GEHEIM-WERKMAP-ROOT" not in text and str(tmp_path) not in text, text
+    assert spy.calls == [], "no process may start"
+
+
+def test_r3_5_the_other_starters_name_the_working_directory_without_a_path(monkeypatch, tmp_path):
+    _unusable_working_directory(monkeypatch, tmp_path)
+    spy = _Spy()
+    monkeypatch.setattr(handelen.subprocess, "Popen", spy)
+    monkeypatch.setattr(code_channel.subprocess, "Popen", spy)
+    messages = []
+    for call in (
+        lambda: handelen._default_upgrade_process_runner(["x"], 5),
+        lambda: handelen.start_detached(["x"], log_path=tmp_path / "log.txt"),
+    ):
+        with pytest.raises(handelen.ActionError) as caught:
+            call()
+        messages.append(str(caught.value))
+    presenter = tmp_path / "presenter.py"
+    presenter.write_text("print('{}')\n", encoding="ascii")
+    channel = code_channel.SsoCodeChannel(presenter, "https://voorbeeld.invalid/goedkeuring", 5)
+    with pytest.raises(code_channel.CodeChannelError) as caught:
+        channel("certificaat_vervangen", "[TARGET] doos", {"dienst": "x"}, "AB2345", "voorstel", "A", "lab")
+    messages.append(str(caught.value))
+    for text in messages:
+        assert "werkmap" in text, text
+        assert "GEHEIM-WERKMAP-ROOT" not in text and str(tmp_path) not in text, text
+    assert spy.calls == [], "no process may start"

@@ -56,6 +56,16 @@ class ScriptPinMismatch(PowerShellMissing):
     message names the FILE NAME only, never a local path."""
 
 
+class ChildWorkingDirectoryUnusable(PowerShellMissing):
+    """1.0.3 (R3-5): the fixed working directory of a child process
+    (`child_working_directory`) is not usable. A subclass of
+    `PowerShellMissing` for the same reason as `ScriptPinMismatch`: every
+    caller already turns that into "no process was started". Its own class so
+    a caller can say the REAL reason instead of "PowerShell niet gevonden"
+    (MEASURED before: a scan said exactly that). The message names the kind
+    of problem, never the local path."""
+
+
 # The execution policies a configuration may name (`uitvoeringsbeleid`).
 # `Bypass` is the default because the product's own scripts are not signed;
 # `AllSigned`/`RemoteSigned` hand the decision back to Windows for an operator
@@ -207,11 +217,14 @@ def child_working_directory() -> Path:
     else:
         directory = Path("/")
     if not directory.is_absolute():
-        raise PowerShellMissing(
-            f"werkmap voor een kindproces {directory} is niet absoluut; er wordt geen proces gestart"
+        raise ChildWorkingDirectoryUnusable(
+            "de vaste werkmap voor kindprocessen is niet bruikbaar (het pad is niet absoluut);"
+            " er wordt geen proces gestart"
         )
     if not directory.is_dir():
-        raise PowerShellMissing(f"werkmap voor een kindproces {directory} bestaat niet; er wordt geen proces gestart")
+        raise ChildWorkingDirectoryUnusable(
+            "de vaste werkmap voor kindprocessen is niet bruikbaar (de map bestaat niet); er wordt geen proces gestart"
+        )
     return directory
 
 
