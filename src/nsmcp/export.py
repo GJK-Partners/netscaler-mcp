@@ -678,7 +678,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
             ReadGap(
                 source=file_name,
                 reason=(
-                    "de bindingResource in het bestand komt niet overeen met de identiteit"
+                    f"{_binding_resource_echo(key)} in het bestand komt niet overeen met de identiteit"
                     f" {expected_key!r} die de opgevraagde bestandsnaam zelf verwacht; bewijs voor"
                     " een ander object telt niet mee voor dit bestand"
                 ),
@@ -778,8 +778,20 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
 
 # 1.0.3: the file-level values the list reader may echo. A shape outside
 # this set and a mismatching bindingResource are supplied text and can carry
-# an object name as well, so neither is echoed verbatim any more.
+# an object name as well. A shape is echoed only when it is a known one; a
+# bindingResource only when it has the shape of a binding identity (lower
+# case NITRO resource name ending in "_binding", at most 64 characters) - the
+# wrong identity is the useful part of that diagnosis, a free value is not.
 _KNOWN_BINDING_SHAPES = frozenset({"aggregate", "list"})
+_BINDING_RESOURCE_FORM = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*_binding")
+
+
+def _binding_resource_echo(value) -> str:
+    if isinstance(value, str) and len(value) <= 64 and _BINDING_RESOURCE_FORM.fullmatch(value):
+        return f"bindingResource {value!r}"
+    return "een bindingResource die geen bindingsidentiteit is"
+
+
 # The outcomes the released collector writes for a parent it could not use.
 # Only these are echoed into a reason: an outcome is a value the supplied file
 # carries, and a free value can carry an object name just as well as the
@@ -1051,7 +1063,7 @@ def _aggregate_identity_gap(file_name: str, raw) -> ReadGap | None:
         return ReadGap(
             source=file_name,
             reason=(
-                "de bindingResource in het bestand komt niet overeen met de identiteit"
+                f"{_binding_resource_echo(resource)} in het bestand komt niet overeen met de identiteit"
                 f" {expected!r} die de opgevraagde bestandsnaam zelf verwacht; bewijs voor"
                 " een ander object telt niet mee voor dit bestand"
             ),

@@ -425,7 +425,8 @@ def test_binding_element_that_is_not_an_object_is_a_read_gap_not_a_crash(tmp_pat
     bindings, gap = e.bindings(BINDING_FILE)
     assert bindings == []
     assert gap is not None, "een niet-object element in de lijst mag nooit stilzwijgend doorstromen naar what_breaks()"
-    assert "LB_VS_A" in gap.reason
+    # 1.0.3 (P-1): the parent is named by its position, never by its name.
+    assert "parent op positie 1" in gap.reason and "LB_VS_A" not in gap.reason
 
 
 def test_bindingresource_for_a_different_object_is_a_read_gap(tmp_path):
@@ -485,7 +486,8 @@ def test_outcome_empty_with_data_is_a_read_gap_not_a_silent_emptiness(tmp_path):
     bindings, gap = e.bindings(BINDING_FILE)
     assert bindings == []
     assert gap is not None, "EMPTY met data is een tegenstrijdige lezing, geen betrouwbare leegte"
-    assert "LB_VS_A" in gap.reason
+    # 1.0.3 (P-1): the parent is named by its position, never by its name.
+    assert "parent op positie 1" in gap.reason and "LB_VS_A" not in gap.reason
 
 
 def test_outcome_empty_without_data_remains_a_read_emptiness(tmp_path):
