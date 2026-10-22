@@ -660,7 +660,11 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
             [],
             ReadGap(
                 source=file_name,
-                reason=f"bindingsvorm {shape!r} wordt niet ondersteund; alleen de 'list'-vorm is ontleed",
+                reason=(
+                    f"bindingsvorm {shape!r} wordt niet ondersteund; alleen de 'list'-vorm is ontleed"
+                    if isinstance(shape, str) and shape in _KNOWN_BINDING_SHAPES
+                    else "een onbekende bindingsvorm wordt niet ondersteund; alleen de 'list'-vorm is ontleed"
+                ),
             ),
             {},
         )
@@ -674,7 +678,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
             ReadGap(
                 source=file_name,
                 reason=(
-                    f"bindingResource {key!r} in het bestand komt niet overeen met de identiteit"
+                    "de bindingResource in het bestand komt niet overeen met de identiteit"
                     f" {expected_key!r} die de opgevraagde bestandsnaam zelf verwacht; bewijs voor"
                     " een ander object telt niet mee voor dit bestand"
                 ),
@@ -687,7 +691,14 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
 
     flat: list[dict] = []
     grouped: dict[str, list[dict] | None] = {}
-    for parent in parents:
+    # 1.0.3: an unusable parent is named by its 1-based POSITION in the file,
+    # never by its raw parentName. MEASURED before: the reader refuses the
+    # whole file on such a parent, so the structural name harvest never
+    # collects that name - and a reason that echoed it reached the answer at
+    # `beperkt` unmasked and uncut (a name of 5007 characters came out whole).
+    # The position is enough to find the entry in the file; the name is not
+    # needed to say what is wrong with it.
+    for parent_position, parent in enumerate(parents, start=1):
         if not isinstance(parent, dict):
             return (
                 [],
@@ -695,6 +706,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
                 {},
             )
         parent_name = parent.get("parentName", "(naamloos)")
+        where = f"parent op positie {parent_position}"
         outcome = parent.get("outcome")
         if outcome == "EMPTY":
             # A genuinely read emptiness (for example a profile without bound
@@ -709,7 +721,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
                     ReadGap(
                         source=file_name,
                         reason=(
-                            f"parent {parent_name!r} heeft outcome EMPTY maar draagt toch data"
+                            f"{where} heeft outcome EMPTY maar draagt toch data"
                             " (tegenstrijdige lezing); niet vast te stellen welke van de twee klopt"
                         ),
                     ),
@@ -724,7 +736,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
                 ReadGap(
                     source=file_name,
                     reason=(
-                        f"parent {parent_name!r} is niet bruikbaar gelezen (outcome={outcome!r}); de vlakke"
+                        f"{where} is niet bruikbaar gelezen ({_outcome_echo(outcome)}); de vlakke"
                         " lijst is daardoor niet compleet te vertrouwen"
                     ),
                 ),
@@ -734,12 +746,12 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
         if not isinstance(data, dict):
             return (
                 [],
-                ReadGap(source=file_name, reason=f"parent {parent_name!r} heeft outcome OK maar geen bruikbare data"),
+                ReadGap(source=file_name, reason=f"{where} heeft outcome OK maar geen bruikbare data"),
                 {},
             )
         value = data.get(key)
         if not isinstance(value, list):
-            return [], ReadGap(source=file_name, reason=f"parent {parent_name!r} draagt geen lijst onder {key!r}"), {}
+            return [], ReadGap(source=file_name, reason=f"{where} draagt geen lijst onder {key!r}"), {}
         for position, element in enumerate(value, start=1):
             if not isinstance(element, dict):
                 # A non-object element (for example a bare string) hashes
@@ -752,7 +764,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
                     ReadGap(
                         source=file_name,
                         reason=(
-                            f"parent {parent_name!r} draagt onder {key!r} een element (positie"
+                            f"{where} draagt onder {key!r} een element (positie"
                             f" {position}) dat geen object is (type={type(element).__name__})"
                         ),
                     ),
@@ -762,6 +774,26 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
         if isinstance(parent_name, str):
             grouped[parent_name] = value
     return flat, None, grouped
+
+
+# 1.0.3: the file-level values the list reader may echo. A shape outside
+# this set and a mismatching bindingResource are supplied text and can carry
+# an object name as well, so neither is echoed verbatim any more.
+_KNOWN_BINDING_SHAPES = frozenset({"aggregate", "list"})
+# The outcomes the released collector writes for a parent it could not use.
+# Only these are echoed into a reason: an outcome is a value the supplied file
+# carries, and a free value can carry an object name just as well as the
+# parentName field can (measured: outcome set to the parent's own name).
+_PARENT_OUTCOME_WORDS = frozenset({"FAILED", "PARTIAL", "RBAC_DENIED", "NOT_SUPPORTED", "MISSING"})
+
+
+def _outcome_echo(outcome) -> str:
+    """The outcome of an unusable parent as a reason fragment: the word itself
+    when it is one the collector writes, otherwise only that it is none of
+    OK/EMPTY - never the supplied value."""
+    if isinstance(outcome, str) and outcome in _PARENT_OUTCOME_WORDS:
+        return f"outcome={outcome}"
+    return "outcome is niet OK of EMPTY en geen bekende collectorwaarde"
 
 
 def _expected_binding_resource(file_name: str) -> str | None:
@@ -1019,7 +1051,7 @@ def _aggregate_identity_gap(file_name: str, raw) -> ReadGap | None:
         return ReadGap(
             source=file_name,
             reason=(
-                f"bindingResource {resource!r} in het bestand komt niet overeen met de identiteit"
+                "de bindingResource in het bestand komt niet overeen met de identiteit"
                 f" {expected!r} die de opgevraagde bestandsnaam zelf verwacht; bewijs voor"
                 " een ander object telt niet mee voor dit bestand"
             ),

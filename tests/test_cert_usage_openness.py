@@ -152,7 +152,9 @@ _VARIANTS = {"fixture": None, "leesgaten": _gap_variant, "mislukte-parent": _fai
 _MUST_SHOW = {
     "fixture": {"SAML-ACTIE-01", "SAML-ACTIE-02", "SAML-IDP-01", "SG-BACKEND-01"},
     "leesgaten": {"SAML-ACTIE-01", "SAML-IDP-01", "SG-BACKEND-01", "SAML-ACTIE-03", "SG-EXTRA-01", "SG-ONBEKEND-01"},
-    "mislukte-parent": {"SAML-ACTIE-01", "SAML-IDP-01", "SG-KAPOT-01"},
+    # 1.0.3: SG-KAPOT-01 is no longer a must-show - the read gap of the
+    # unusable parent names its position, not its name (P-1).
+    "mislukte-parent": {"SAML-ACTIE-01", "SAML-IDP-01"},
 }
 
 
@@ -215,7 +217,8 @@ def test_no_real_fixture_name_reaches_a_limited_or_minimal_certificate_answer(tm
         assert "kent SG-EXTRA-01" in joined
         assert "ca-vlag heeft een vorm" in joined
     if variant == "mislukte-parent":
-        assert "parent 'SG-KAPOT-01' is niet bruikbaar gelezen" in joined
+        assert re.search(r"parent op positie \d+ is niet bruikbaar gelezen \(outcome=FAILED\)", joined)
+        assert "SG-KAPOT-01" not in joined
 
     for level, tag in ((Disclosure.LIMITED, "beperkt"), (Disclosure.MINIMAL, "minimaal")):
         answers = _answers(tmp_path, export_dir, level, tag)
@@ -237,10 +240,12 @@ def test_the_probe_fails_without_the_certificate_use_family(tmp_path, monkeypatc
 
 def test_a_failed_servicegroup_parent_is_masked_through_the_list_shape_harvest(tmp_path):
     """The one read of the servicegroup file that knows a parent the reader
-    could not use: `Export.binding_names` harvesting the LIST shape. The read
-    gap names the parent, and the parent cross-check yields no name at all on
-    a file the shared reader refuses - so without that harvest the name would
-    leak at beperkt in all three tools."""
+    could not use: `Export.binding_names` harvesting the LIST shape. Up to
+    1.0.2 the read gap named the parent; since 1.0.3 it names the parent's
+    position (P-1), so the name is absent at volledig too. The harvest stays
+    as the second safeguard: the parent cross-check yields no name at all on
+    a file the shared reader refuses, and any other text that carries this
+    name is still masked at beperkt."""
     export = load_export(_export(tmp_path, "mislukte-parent"))
     # Premise: the only other road to this name is closed on this export.
     assert export.binding_parents(SERVICEGROUP_BINDING).names == ()
@@ -253,7 +258,8 @@ def test_a_failed_servicegroup_parent_is_masked_through_the_list_shape_harvest(t
     }
     for tool, answer in answers.items():
         full = render(answer, Disclosure.FULL, tool=tool, extra_names=names_from_export(export), caller_name="CERT-LOS")
-        assert "SG-KAPOT-01" in full, f"{tool}: premisse - de naam staat bij volledig in het leesgat"
+        assert "is niet bruikbaar gelezen" in full, f"{tool}: premisse - het leesgat staat bij volledig"
+        assert "SG-KAPOT-01" not in full, f"{tool}: het leesgat noemt de positie, niet de naam"
         limited = render(
             answer,
             Disclosure.LIMITED,
