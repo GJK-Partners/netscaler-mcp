@@ -202,3 +202,15 @@ def test_on_the_boundary_day_list_grade_and_licence_agree(tmp_path, raw, expired
     assert ("verlopen" in line.evidence) is expired, line
     if raw == 57:
         assert "verloopt vandaag" in line.evidence, line
+
+
+def test_the_tls_module_names_its_boundary_day_deviation_from_nshc():
+    """R3H-3: since R3-3 the grade no longer caps to `T` on 0 days left, where
+    NSHC does. CHANGELOG and HANDLEIDING say so; the module that claims to
+    mirror NSHC must say so too, so a later parity measurement does not read
+    it as an unexplained difference."""
+    import nsmcp.tls_baseline as module
+
+    doc = " ".join((module.__doc__ or "").split())
+    assert "except on the boundary day" in doc, doc[:600]
+    assert "verloopt vandaag" in doc and "expiry.is_expired" in doc, doc[:600]

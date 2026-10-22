@@ -4,6 +4,12 @@ Mirrors backend/readonly/Invoke-NshcSslGrade.ps1 of NSHC 1.0.1: the same three
 dimensions with the same weights, the same letter thresholds, the same HSTS cap
 and the same certificate gate, all read from the vendored ruleset
 `nshc-ssl-baseline` 2026.08 (rulesets.py) - never from a number in this file.
+The certificate gate is the same except on the boundary day, deliberately: 0
+days left today is "verloopt vandaag", not yet expired (`expiry.is_expired`,
+since 1.0.3 the one boundary for the expiry list, this grade, the criterion
+and the licence line), so that day does not take the expired-certificate cap,
+where NSHC caps at `<= 0`. A parity measurement on that day sees this
+difference; it is not a drift.
 
 WHAT A LETTER MEANS HERE, said before anyone reads one: this is a
 CONFIGURATION weighing, not a live SSL-Labs scan and not a pen test. What the
