@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -280,7 +280,11 @@ def test_appfw_scope_and_direct_binding_branches(tmp_path):
 )
 def test_license_expiry_branch_severities(tmp_path, days, status, severity):
     control = next(c for c in CONTROLS if c.id == "ANNA-LIC-001")
-    result = scorecard._license(control, make_export(tmp_path, {"config/nslicense": {"daystoexpiration": days}}))
+    # On the export's own day (age 0): the ladder itself. The age correction
+    # since 1.0.3 is pinned in test_expiry_age_consumers.py.
+    result = scorecard._license(
+        control, make_export(tmp_path, {"config/nslicense": {"daystoexpiration": days}}), date(2026, 8, 26)
+    )
     assert (result.status, result.severity) == (status, severity)
 
 
@@ -382,7 +386,7 @@ def test_grade_projection_uses_establishment_and_source_baseline(tmp_path, monke
         "config/sslvserver",
         read_gap=ReadGap(source="config/sslcertkey", reason="test bron-gat") if gap else None,
     )
-    monkeypatch.setattr(scorecard, "grade_per_vserver", lambda e: (g,))
+    monkeypatch.setattr(scorecard, "grade_per_vserver", lambda e, **_: (g,))
     export = make_export(tmp_path, {"config/sslvserver": []})
     r = next(r for r in scorecard_results(export, KNOWLEDGE) if r.control.id == "GJK-L1-013")
     assert (r.status, r.severity) == (status, severity)
@@ -396,7 +400,7 @@ def test_mixed_safe_and_unknown_grades_never_aggregate_to_pass(tmp_path, monkeyp
     unknown = replace(
         safe, letter="NIET BEOORDEELD", score=None, read_gap=ReadGap(source="config/sslcertkey", reason="test bron-gat")
     )
-    monkeypatch.setattr(scorecard, "grade_per_vserver", lambda e: (safe, unknown))
+    monkeypatch.setattr(scorecard, "grade_per_vserver", lambda e, **_: (safe, unknown))
     r = next(
         r
         for r in scorecard_results(make_export(tmp_path, {"config/sslvserver": []}), KNOWLEDGE)

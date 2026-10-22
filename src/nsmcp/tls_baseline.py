@@ -176,6 +176,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 
 from nsmcp.answer import Answer, Certainty, Finding, NotAssessed, ReadGap
 from nsmcp.knowledge import Knowledge
@@ -500,7 +501,15 @@ def _cap(letter: str, cap: str) -> str:
     return cap if _CAP_ORDER.index(letter) < _CAP_ORDER.index(cap) else letter
 
 
-def grade_per_vserver(export) -> tuple[Grade, ...]:
+def grade_per_vserver(export, *, today: date | None = None) -> tuple[Grade, ...]:
+    # 1.0.3: `daystoexpiration` counts from the SCAN. The expired-certificate
+    # cap is decided on the count FROM TODAY - the same `age_of` /
+    # `remaining_days` the certificate list and the preflight use - and an
+    # export whose age cannot be established gives no positive expiry
+    # verdict: the vserver is NIET BEOORDEELD, never "not expired".
+    from nsmcp.expiry import age_of, remaining_days
+
+    age_days, age_reason = age_of(export, today)
     vservers, vserver_gap = export.objects(VSERVER_RESOURCE)
     if vserver_gap is not None:
         return ()
@@ -677,6 +686,11 @@ def grade_per_vserver(export) -> tuple[Grade, ...]:
                     continue
                 if not field_token(cert, "daystoexpiration").lstrip("-").isdigit():
                     missing.append(f"{CERT_RESOURCE}.daystoexpiration")
+                elif age_days is None:
+                    missing.append(
+                        f"{CERT_RESOURCE}.daystoexpiration (telt vanaf de scan; leeftijd export niet"
+                        f" vast te stellen: {age_reason})"
+                    )
                 if not field_token(cert, "publickeysize").isdigit():
                     missing.append(f"{CERT_RESOURCE}.publickeysize")
 
@@ -739,9 +753,12 @@ def grade_per_vserver(export) -> tuple[Grade, ...]:
                 # non-string on purpose (it feeds paths and evidence) - it
                 # is a DEAD GUARD here. field_token reproduces the value as
                 # PowerShell's own [string] cast would, exactly like NSHC.
-                days = field_token(cert, "daystoexpiration")
+                # 1.0.3: the token gate above (NSHC's integer shape) has
+                # passed for every bound certificate, and the age is known;
+                # the cap is decided on the days left TODAY.
+                days = remaining_days(field_token(cert, "daystoexpiration"), age_days)
                 size = field_token(cert, "publickeysize")
-                if days.lstrip("-").isdigit() and int(days) <= 0:
+                if days is not None and days <= 0:
                     expired = True
                 # An ECC certificate is never a weak RSA key.
                 if size.isdigit() and int(size) < gate["minRsaBits"] and not _is_ecc_cert(cert):
@@ -774,8 +791,8 @@ def grade_per_vserver(export) -> tuple[Grade, ...]:
     return tuple(grades)
 
 
-def tls_baseline(export, knowledge: Knowledge) -> Answer:
-    grades = grade_per_vserver(export)
+def tls_baseline(export, knowledge: Knowledge, *, today: date | None = None) -> Answer:
+    grades = grade_per_vserver(export, today=today)
     findings: list[Finding] = []
     read_gaps: list[ReadGap] = []
     for grade in grades:
@@ -895,15 +912,24 @@ class BaselineResult:
         return tuple(g for c in self.criteria for g in c.read_gaps)
 
 
-def baseline_result(export) -> BaselineResult:
+def baseline_result(export, *, today: date | None = None) -> BaselineResult:
     """NSHC L1-010, not a second grader: protocols plus ALL certificates.
 
     Shared profile precedence and expiry thresholds are authoritative. Absent
     SSLv2 (including the measured profile limitation) never establishes PASS.
     This helper leaves the public TLS grade answer byte-for-byte unchanged.
     """
-    from nsmcp.expiry import _SIGNATURE_ALG_PATTERN, bucket
+    from nsmcp.expiry import _SIGNATURE_ALG_PATTERN, age_of, bucket_from_today
     from nsmcp.export import MISSING, shape_or_missing
+
+    # 1.0.3: the expiry criterion classifies the count FROM TODAY, with the
+    # grade above and the certificate list (one `age_of`, one
+    # `bucket_from_today`); an unknown age is one read gap, never a PASS.
+    age_days, age_reason = age_of(export, today)
+    age_gap = ReadGap(
+        source=CERT_RESOURCE,
+        reason=f"daystoexpiration telt vanaf de scan; leeftijd export niet vast te stellen: {age_reason}",
+    )
 
     vservers, vg = export.objects(VSERVER_RESOURCE)
     profiles, pg = export.objects(PROFILE_RESOURCE)
@@ -975,9 +1001,15 @@ def baseline_result(export) -> BaselineResult:
         for cert in certificates:
             raw = cert.get(key, MISSING)
             if key == "daystoexpiration":
-                classification = bucket(raw) if type(raw) in (int, float, str) else "unknown"
+                classification = bucket_from_today(raw, age_days) if type(raw) in (int, float, str) else "unknown"
                 if classification == "unknown":
-                    gaps.append(gap_for(cert, key, CERT_RESOURCE))
+                    # The field itself is readable (it classifies at age 0)
+                    # and only the age is missing: one gap that says so.
+                    if age_days is None and type(raw) in (int, float, str) and bucket_from_today(raw, 0) != "unknown":
+                        if age_gap not in gaps:
+                            gaps.append(age_gap)
+                    else:
+                        gaps.append(gap_for(cert, key, CERT_RESOURCE))
                 elif classification in ("expired", "critical", "warning"):
                     fails += 1
             elif key == "signaturealg":

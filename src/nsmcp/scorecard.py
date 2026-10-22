@@ -3,7 +3,10 @@
 X counts PASS/FAIL only; Y excludes five external controls (18 or 19).
 Severity belongs to each outcome, following released NSHC 1.0.1 branches.
 Deliberate parity deviations: absent daystoexpiration is a read gap, never
-PASS/Info; missing feature licence flags never establish non-applicability.
+PASS/Info; missing feature licence flags never establish non-applicability;
+since 1.0.3 every daystoexpiration (licence, TLS grade, TLS baseline) is
+counted from TODAY - the scan count minus the age of the export - and an
+export of unknown age gives no positive expiry verdict.
 HA-004 consumes the current HA engine's hash-verified running/saved drift,
 which provides stronger evidence than NSHC's constant unassessed placeholder.
 Backup POLICY (L1-007) remains wholly outside Y. No advice is generated.
@@ -192,7 +195,9 @@ def _number(value, *, negative=False):
     return None
 
 
-def _license(control, export):
+def _license(control, export, today=None):
+    from nsmcp.expiry import age_of, counted_from_today, remaining_days
+
     row, gaps = _single(export, "config/nslicense")
     days = _number(row.get("daystoexpiration"), negative=True)
     if gaps:
@@ -207,11 +212,22 @@ def _license(control, export):
             reason += " (licensingmode EXPRESS)"
         gap = _field_gap(row, "daystoexpiration", "config/nslicense")
         return _result(control, NB, "Hoog", "config/nslicense", (gap,), reason=reason)
+    # 1.0.3: the licence count is the appliance's count at the SCAN as well;
+    # the same correction as every certificate count (`expiry.age_of`).
+    age_days, age_reason = age_of(export, today)
+    if age_days is None:
+        gap = ReadGap(
+            source="config/nslicense",
+            reason=f"daystoexpiration telt vanaf de scan; leeftijd export niet vast te stellen: {age_reason}",
+        )
+        return _result(control, NB, "Hoog", "config/nslicense", (gap,))
+    days = remaining_days(days, age_days)
     return _result(
         control,
         "FAIL" if days <= 30 else "PASS",
         "Hoog" if days <= 0 else "Midden" if days <= 30 else "Info",
-        f"config/nslicense: verloopt over {days} dagen",
+        (f"config/nslicense: verlopen ({days} dagen)" if days <= 0 else f"config/nslicense: verloopt over {days} dagen")
+        + f", {counted_from_today(age_days)}",
     )
 
 
@@ -462,7 +478,8 @@ def scorecard_results(export, knowledge: Knowledge, *, now: datetime | None = No
     now = now or datetime.now(UTC)
     dimensions = {d.name: d for d in mgmt_plane_result(export)}
     ha, ha_gaps = ha_result(export)
-    grades = grade_per_vserver(export)
+    today = now.astimezone(UTC).date()
+    grades = grade_per_vserver(export, today=today)
     headers = header_coverage(export)
     records, cve_gaps = cve_verdicts(export, knowledge)
     results = []
@@ -534,7 +551,7 @@ def scorecard_results(export, knowledge: Knowledge, *, now: datetime | None = No
                 applicability="niet van toepassing" if d.state == "niet van toepassing" else None,
             )
         elif suffix == "010":
-            baseline = baseline_result(export)
+            baseline = baseline_result(export, today=today)
             r = _result(
                 c, baseline.status, "Hoog", "; ".join(item.evidence for item in baseline.criteria), baseline.read_gaps
             )
@@ -593,7 +610,7 @@ def scorecard_results(export, knowledge: Knowledge, *, now: datetime | None = No
                 gaps,
             )
         elif c.id == "ANNA-LIC-001":
-            r = _license(c, export)
+            r = _license(c, export, today)
         elif c.id == "ANNA-SEC-HTTP-HEADERS-001":
             gaps = [g for h in headers for g in h.read_gaps]
             count = sum(h.word == "aanwezig en gebonden" for h in headers)

@@ -806,7 +806,10 @@ gaan over die gecorrigeerde dagen. Een certificaat dat bij een scan van 56 dagen
 geleden nog 100 dagen had, staat dus op 44 dagen. Is de datum van de export niet
 te lezen, dan is de vervaldatum per certificaat "niet vastgesteld"; het product
 toont dan nooit het ruwe getal alsof het vanaf vandaag telt. Hetzelfde geldt voor
-toets 5 van `status_update_preflight`.
+toets 5 van `status_update_preflight` en, sinds 1.0.3, voor de TLS-grade (de
+begrenzing bij een verlopen certificaat), het vervalcriterium van de TLS-basislijn en
+de licentieregel van de scorekaart: een export van onbekende leeftijd geeft daar geen
+gunstig vervaloordeel, maar "niet beoordeeld".
 
 Wilt u weten wat het product NIET heeft kunnen lezen, gebruik dan
 `rapport_dekking` (hoofdstuk rapport): dat noemt per bron of hij gelezen is en
