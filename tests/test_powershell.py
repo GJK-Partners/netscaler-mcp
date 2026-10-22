@@ -367,6 +367,36 @@ def test_sr5_the_pin_command_prints_the_pins_of_the_given_scripts(tmp_path, caps
 _REPO_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 
+def test_rh1_an_unreadable_script_directory_refuses_the_start(tmp_path, monkeypatch, restore_policy):
+    """1.0.3 RH-1: the refusal when the script's own directory cannot be
+    listed. Every pin present and matching, so ONLY the unreadable directory
+    can refuse: a version that treats an unlistable directory as "no
+    siblings" lets the start through and fails here."""
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
+
+    main, sibling = _scripts(tmp_path)
+    set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(main), "transport.ps1": _sha(sibling)}))
+    real_iterdir = Path.iterdir
+
+    def unreadable(self):
+        if self == main.parent:
+            raise PermissionError("geen leesrecht op de map")
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", unreadable)
+    started = _spy_popen(monkeypatch)
+    for start in (
+        lambda: start_powershell(["-NoProfile", "-File", str(main)]),
+        lambda: handelen_module.upgrade_command(main, ["-Fase", "R0"]),
+    ):
+        with pytest.raises(ScriptPinMismatch) as refused:
+            start()
+        message = str(refused.value)
+        assert "kon niet gelezen worden voor de pincontrole" in message and "PermissionError" in message, message
+        assert str(tmp_path) not in message, message
+    assert started == []
+
+
 def test_sr5_an_unpinned_sibling_script_refuses_the_start(tmp_path, monkeypatch, restore_policy):
     from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, set_script_policy
 
