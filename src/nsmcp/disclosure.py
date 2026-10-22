@@ -47,7 +47,7 @@ from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 
-from nsmcp.answer import NAME_CUT_NOTE, Answer, Certainty
+from nsmcp.answer import NAME_CUT_NOTE, Answer, Certainty, safe_text
 from nsmcp.cert_usage import names_in_cert_usage_sources
 from nsmcp.chain import ENTRY_RESOURCES, NOT_FOLLOWED, SERVICEGROUP_BINDING, names_in_chain_sources
 from nsmcp.compare import names_in_compare_sources
@@ -571,7 +571,19 @@ def _collect_names(answer: Answer, extra_names: tuple[str, ...], invented_name: 
     return sorted((n for n in names if n.strip()), key=len, reverse=True)
 
 
-class PseudonymTableBroken(ToolError):
+class _FilteredTableError(ToolError):
+    """1.0.3: the two table refusals that name a CONFIGURED path pass their
+    message through `safe_text` - the same character filter and ceiling as
+    every answer. MEASURED before: `mask_error` passes an intended ToolError
+    through unchanged, so a path component carrying U+202E reached the
+    client unfiltered. In the class, not at the raise sites: fifteen sites
+    build these messages, and a sixteenth cannot forget it."""
+
+    def __init__(self, message: str = "", *args) -> None:
+        super().__init__(safe_text(str(message)), *args)
+
+
+class PseudonymTableBroken(_FilteredTableError):
     """The pseudonym table exists, but can no longer be read as a JSON object.
 
     ToolError subclass (not a bare ValueError): this is an INTENDED refusal
@@ -590,7 +602,7 @@ class PseudonymTableBroken(ToolError):
     """
 
 
-class PseudonymTableLocked(ToolError):
+class PseudonymTableLocked(_FilteredTableError):
     """1.0.2: the lock next to the pseudonym table could not be taken -
     it could not be opened (measured in the review: a DIRECTORY at the lock
     path gave a PermissionError) or another process kept it past the time
