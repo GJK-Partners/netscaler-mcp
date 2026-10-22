@@ -479,8 +479,9 @@ Het product beschermt wat binnen zijn eigen grens ligt. Daarbuiten liggen vier z
 
 Versie 1.0.3, 22-10-2026. Gewijzigd sinds 1.0.2: elk kindproces start in een vaste werkmap en
 elke Python-aanroep geisoleerd (zie "Scripts en paden"; de pins van de faserunner en het
-opslaanscript veranderen daardoor); een leesgat noemt een onbruikbare bindingsparent bij zijn
-positie, nooit bij zijn naam, en een weigering van de vertaaltabel gaat door hetzelfde tekenfilter
+opslaanscript veranderen daardoor); een leesgat over een bindingsbestand (beide vormen, elke
+lezer) noemt een onbruikbare parent bij zijn positie in het bestand (vanaf 1 geteld), nooit bij
+zijn naam of een andere waarde uit dat bestand, en een weigering van de vertaaltabel gaat door hetzelfde tekenfilter
 als elk antwoord. Sinds 1.0.2: in de stand `beperkt` staat de vertaaltabel naast het
 configuratiebestand (of in `onderhoud.ledgermap`), nooit naast de export; elk veld van een
 antwoord gaat door een tekenfilter en een objectnaam wordt op 128 tekens afgekapt; de

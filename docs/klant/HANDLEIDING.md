@@ -295,6 +295,11 @@ want de firmwarevergelijking bewijst alleen de firmwarehelft. Alleen als de voor
 aantoonbaar afwezig is, blijft het `NIET GERAAKT`. Ontbreekt het veld, dan verandert er niets;
 een waarde die geen `true` of `false` is, weigert het pakket.
 
+Het veld vraagt een engine 1.0.3 of nieuwer. Een oudere engine laadt een pakket met dit veld
+zonder melding en negeert het stil: die blijft op of boven de fix-build het te gunstige
+`NIET GERAAKT` geven, en weigert ook een foute waarde niet. De uitrolvolgorde is daarom: eerst
+elke afnemer naar engine 1.0.3, pas daarna een pakket met `naconfiguratieVerplicht`.
+
 ### De scripts vastpinnen (`scriptpin`) en het uitvoeringsbeleid (`uitvoeringsbeleid`)
 
 Het product start PowerShell-scripts: het verzamelscript, het schrijfscript, de faserunner en de

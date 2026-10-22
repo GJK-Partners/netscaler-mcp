@@ -11,7 +11,8 @@ Nothing yet.
 ## [1.0.3] - 2026-10-22
 
 1.0.3 closes what the follow-up review of 1.0.2 measured: four Important
-findings and two Minors, one line each. After the upgrade, re-pin the scripts
+findings and two Minors, one line each, plus what the review of 1.0.3 itself
+measured (R3-1 to R3-5). After the upgrade, re-pin the scripts
 (`python -m nsmcp.powershell --pin <scriptmap>`): the pins of
 `Invoke-GjkUpgradeFase.ps1` and `Invoke-GjkConfigOpslaan.ps1` change.
 
@@ -26,12 +27,37 @@ findings and two Minors, one line each. After the upgrade, re-pin the scripts
   with a read gap "(naconfiguratie)" and the advice with the step, unless the
   condition is positively absent; the scorecard counts the same verdict. A
   package without the field behaves as before (K-3).
+- `naconfiguratieVerplicht` needs engine 1.0.3 or newer. An older engine loads
+  a package with the field without a message and silently ignores it (it keeps
+  the too favourable `NIET GERAAKT` on or above the fix-build and does not
+  refuse a wrong value), so the rollout order is: engine first, package with
+  the field after every consumer runs 1.0.3 (R3-2).
+- One expiry boundary for the expiry list, the TLS grade, the TLS criterion and
+  the licence line (`expiry.is_expired`): 0 days left today is "verloopt
+  vandaag", not yet expired; a negative count is expired. On the boundary day
+  the list said "verloopt over 0 dagen" while the grade said "verlopen
+  certificaat". The grade thereby leaves its earlier NSHC-aligned cap on that
+  one day (R3-3).
+- When the fixed working directory for child processes is not usable, a scan
+  says so instead of "Windows PowerShell niet gevonden", and no message names
+  its local path (R3-5).
 
 ### Security
 - A read gap of an unusable parent in a by-parent binding file names the
   parent by its position in the file, never by its raw name or a free outcome
   value; at `beperkt` such a name reached `certificaat_wat_breekt_er` unmasked
   and uncut (P-1).
+- The same rule now holds for every by-parent reader, in both shapes: a reason
+  says where in the file (the 1-based position of the parent entry) and how
+  many, never a value the file carries. The aggregate reader still named the
+  raw parent in five reasons, and `rapport_dekking` cross-checks every binding
+  file, also those outside the tolerant name harvest: at `beperkt` the name
+  came out unmasked and uncut, 16 of 16 probes. Also covered: the nested read,
+  an unknown shape, and the parent source of the cross-check (named only when
+  it is the one the file identity implies) (R3-1).
+- A `bindingResource` that does not match the file name is never repeated, also
+  when it has the form of a binding identity; only the identity the requested
+  file name implies is named (R3-4).
 - Every Python child process starts in isolated mode (`-I`) and every child the
   product starts runs in one fixed working directory (System32 under
   `%SystemRoot%`): a planted `nsmcp` package in the working directory of the
