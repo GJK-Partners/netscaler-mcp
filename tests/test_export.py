@@ -457,7 +457,9 @@ def test_bindingresource_for_a_different_object_is_a_read_gap(tmp_path):
     assert bindings == []
     assert gap is not None, "bewijs voor een ander object mag nooit meetellen als bewijs voor dit bestand"
     assert "sslvserver_sslcertkey_binding" in gap.reason, "de reden moet de VERWACHTE identiteit benoemen"
-    assert "lbvserver_appfwpolicy_binding" in gap.reason, "de reden moet ook de AANWEZIGE (foute) identiteit benoemen"
+    # 1.0.3 (R3-4): the value the refused file carries is never repeated,
+    # also when it has the form of a binding identity.
+    assert "lbvserver_appfwpolicy_binding" not in gap.reason, "de AANWEZIGE waarde uit het bestand wordt niet herhaald"
 
 
 def test_outcome_empty_with_data_is_a_read_gap_not_a_silent_emptiness(tmp_path):

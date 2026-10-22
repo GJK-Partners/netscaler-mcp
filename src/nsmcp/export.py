@@ -673,18 +673,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
         return [], ReadGap(source=file_name, reason="bindingsbestand draagt geen bruikbare bindingResource-sleutel"), {}
     expected_key = _expected_binding_resource(file_name)
     if expected_key is None or key != expected_key:
-        return (
-            [],
-            ReadGap(
-                source=file_name,
-                reason=(
-                    f"{_binding_resource_echo(key)} in het bestand komt niet overeen met de identiteit"
-                    f" {expected_key!r} die de opgevraagde bestandsnaam zelf verwacht; bewijs voor"
-                    " een ander object telt niet mee voor dit bestand"
-                ),
-            ),
-            {},
-        )
+        return [], ReadGap(source=file_name, reason=_identity_mismatch_reason(expected_key)), {}
     parents = raw.get("parents")
     if not isinstance(parents, list):
         return [], ReadGap(source=file_name, reason="bindingsbestand draagt geen parents-lijst"), {}
@@ -692,12 +681,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
     flat: list[dict] = []
     grouped: dict[str, list[dict] | None] = {}
     # 1.0.3: an unusable parent is named by its 1-based POSITION in the file,
-    # never by its raw parentName. MEASURED before: the reader refuses the
-    # whole file on such a parent, so the structural name harvest never
-    # collects that name - and a reason that echoed it reached the answer at
-    # `beperkt` unmasked and uncut (a name of 5007 characters came out whole).
-    # The position is enough to find the entry in the file; the name is not
-    # needed to say what is wrong with it.
+    # never by its raw parentName - see `_parent_at`.
     for parent_position, parent in enumerate(parents, start=1):
         if not isinstance(parent, dict):
             return (
@@ -706,7 +690,7 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
                 {},
             )
         parent_name = parent.get("parentName", "(naamloos)")
-        where = f"parent op positie {parent_position}"
+        where = _parent_at(parent_position)
         outcome = parent.get("outcome")
         if outcome == "EMPTY":
             # A genuinely read emptiness (for example a profile without bound
@@ -776,20 +760,39 @@ def _flatten_by_parent(file_name: str, raw) -> tuple[list[dict], ReadGap | None,
     return flat, None, grouped
 
 
-# 1.0.3: the file-level values the list reader may echo. A shape outside
-# this set and a mismatching bindingResource are supplied text and can carry
-# an object name as well. A shape is echoed only when it is a known one; a
-# bindingResource only when it has the shape of a binding identity (lower
-# case NITRO resource name ending in "_binding", at most 64 characters) - the
-# wrong identity is the useful part of that diagnosis, a free value is not.
+# 1.0.3: THE rule for every reason a by-parent binding reader writes, in
+# both shapes. A reason says WHERE in the file (the 1-based position of the
+# parent entry) and HOW MANY, never a value the file carries: not the
+# parentName, not an object name inside the data, not a resource name.
+#
+# MEASURED twice. First on the list shape (P-1): the reader refuses the
+# whole file on an unusable parent, so the structural name harvest never
+# collects that name, and a reason that echoed it reached the answer at
+# `beperkt` unmasked and uncut (a name of 5007 characters came out whole).
+# Then on the aggregate shape (R3-1): `rapport_dekking` cross-checks EVERY
+# binding file in the manifest, also the ones outside the tolerant harvest
+# (`disclosure.AGGREGATE_BINDING_FILES`), and five aggregate reasons still
+# named the parent - 16 of 16 probes leaked at `beperkt`. Masking a value
+# afterwards depends on knowing it; a reason that never carries it does not.
+# The position is enough to find the entry in the file.
+def _parent_at(position: int) -> str:
+    return f"parent op positie {position}"
+
+
+# The file-level values a reader may echo. A shape is echoed only when it is
+# a known one. The `bindingResource` of a file whose identity does not match
+# is never echoed (R3-4): it is supplied text, also when it has the form of a
+# binding identity. Only the identity the REQUESTED file name implies - the
+# product's own expectation - is named.
 _KNOWN_BINDING_SHAPES = frozenset({"aggregate", "list"})
-_BINDING_RESOURCE_FORM = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*_binding")
 
 
-def _binding_resource_echo(value) -> str:
-    if isinstance(value, str) and len(value) <= 64 and _BINDING_RESOURCE_FORM.fullmatch(value):
-        return f"bindingResource {value!r}"
-    return "een bindingResource die geen bindingsidentiteit is"
+def _identity_mismatch_reason(expected: str | None) -> str:
+    return (
+        f"de bindingResource in het bestand komt niet overeen met de identiteit {expected!r} die de"
+        " opgevraagde bestandsnaam zelf verwacht (de waarde uit het bestand wordt niet herhaald); bewijs"
+        " voor een ander object telt niet mee voor dit bestand"
+    )
 
 
 # The outcomes the released collector writes for a parent it could not use.
@@ -925,7 +928,7 @@ def value_shape(value) -> str:
     return f"een waarde van het type {type(value).__name__}"
 
 
-def _aggregate_single_row(file_name: str, resource: str, data, parent_name: str) -> tuple[dict | None, ReadGap | None]:
+def _aggregate_single_row(file_name: str, resource: str, data, where: str) -> tuple[dict | None, ReadGap | None]:
     """The ONE data row of one parent in an aggregate file: the object under
     `data.<resource>`, or a list carrying exactly that one object.
 
@@ -935,14 +938,13 @@ def _aggregate_single_row(file_name: str, resource: str, data, parent_name: str)
     exactly one object is accepted next to the object: NITRO answers the same
     singleton in both shapes depending on the resource, the same both-shapes
     rule `Export.single()` applies to singleton object files.
+
+    `where` is the parent's place in the file (`_parent_at`), never its name.
     """
     if not isinstance(data, dict):
         return None, ReadGap(
             source=file_name,
-            reason=(
-                f"data van parent {parent_name} heeft niet de verwachte vorm: {value_shape(data)}"
-                " in plaats van een object"
-            ),
+            reason=(f"data van {where} heeft niet de verwachte vorm: {value_shape(data)} in plaats van een object"),
         )
     value = data.get(resource, MISSING)
     if isinstance(value, dict):
@@ -953,7 +955,7 @@ def _aggregate_single_row(file_name: str, resource: str, data, parent_name: str)
         return None, ReadGap(
             source=file_name,
             reason=(
-                f"data.{resource} draagt meer dan een document voor parent {parent_name}"
+                f"data.{resource} draagt meer dan een document voor {where}"
                 f" ({len(value)} stuks); niet vast te stellen welk daarvan de bindingen van dit"
                 " object zijn, en de overige zouden stil wegvallen"
             ),
@@ -961,7 +963,7 @@ def _aggregate_single_row(file_name: str, resource: str, data, parent_name: str)
     return None, ReadGap(
         source=file_name,
         reason=(
-            f"data.{resource} van parent {parent_name} heeft niet de verwachte vorm:"
+            f"data.{resource} van {where} heeft niet de verwachte vorm:"
             f" {value_shape(value)} in plaats van een object of een lijst met precies een object"
         ),
     )
@@ -999,20 +1001,28 @@ def _aggregate_documents(file_name: str, raw) -> tuple[dict[str, dict | None], R
     ):
         return {}, ReadGap(source=file_name, reason="bindingsbestand heeft niet de verwachte aggregate-vorm")
     docs: dict[str, dict | None] = {}
+    first_position: dict[str, int] = {}
+    # Every reason below names the parent by its position (`_parent_at`),
+    # never by its parentName: a refused file is never harvested for names.
     for position, parent in enumerate(raw["parents"], start=1):
+        where = _parent_at(position)
         if not isinstance(parent, dict):
             return {}, ReadGap(
                 source=file_name,
-                reason=f"parent-vermelding {position} draagt {value_shape(parent)} in plaats van een object",
+                reason=f"{where} draagt {value_shape(parent)} in plaats van een object",
             )
-        if parent.get("outcome") not in ("OK", "EMPTY"):
-            return {}, ReadGap(source=file_name, reason="een parent is niet bruikbaar gelezen")
+        outcome = parent.get("outcome")
+        if outcome not in ("OK", "EMPTY"):
+            return {}, ReadGap(
+                source=file_name,
+                reason=f"{where} is niet bruikbaar gelezen ({_outcome_echo(outcome)})",
+            )
         name = _usable_text(parent.get("parentName"))
         if name is None:
             return {}, ReadGap(
                 source=file_name,
                 reason=(
-                    f"parent-vermelding {position} draagt geen bruikbare parentName"
+                    f"{where} draagt geen bruikbare parentName"
                     f" ({value_shape(parent.get('parentName', MISSING))}); niet vast te stellen voor"
                     " welk object deze vermelding geldt"
                 ),
@@ -1021,11 +1031,13 @@ def _aggregate_documents(file_name: str, raw) -> tuple[dict[str, dict | None], R
             return {}, ReadGap(
                 source=file_name,
                 reason=(
-                    f"dubbele parent {name}: dit bestand draagt meer dan een vermelding voor"
-                    " hetzelfde object; niet vast te stellen welke daarvan de gelezen bindingen"
-                    " zijn, en de ene zou de andere stil overschrijven"
+                    f"dubbele {where}: dezelfde parentName als op positie {first_position[name]}; dit"
+                    " bestand draagt meer dan een vermelding voor hetzelfde object; niet vast te"
+                    " stellen welke daarvan de gelezen bindingen zijn, en de ene zou de andere stil"
+                    " overschrijven"
                 ),
             )
+        first_position[name] = position
         data = parent.get("data")
         if parent.get("outcome") == "EMPTY":
             # Mirrors the EMPTY branch of `_flatten_by_parent`: a genuinely
@@ -1037,13 +1049,13 @@ def _aggregate_documents(file_name: str, raw) -> tuple[dict[str, dict | None], R
                 return {}, ReadGap(
                     source=file_name,
                     reason=(
-                        f"parent {name} heeft outcome EMPTY maar draagt toch data"
+                        f"{where} heeft outcome EMPTY maar draagt toch data"
                         " (tegenstrijdige lezing); niet vast te stellen welke van de twee klopt"
                     ),
                 )
             docs[name] = None
             continue
-        doc, doc_gap = _aggregate_single_row(file_name, resource, data, name)
+        doc, doc_gap = _aggregate_single_row(file_name, resource, data, where)
         if doc_gap is not None:
             return {}, doc_gap
         docs[name] = doc
@@ -1060,14 +1072,7 @@ def _aggregate_identity_gap(file_name: str, raw) -> ReadGap | None:
         return ReadGap(source=file_name, reason="bindingsbestand draagt geen bruikbare bindingResource-sleutel")
     expected = _expected_binding_resource(file_name)
     if expected is None or resource != expected:
-        return ReadGap(
-            source=file_name,
-            reason=(
-                f"{_binding_resource_echo(resource)} in het bestand komt niet overeen met de identiteit"
-                f" {expected!r} die de opgevraagde bestandsnaam zelf verwacht; bewijs voor"
-                " een ander object telt niet mee voor dit bestand"
-            ),
-        )
+        return ReadGap(source=file_name, reason=_identity_mismatch_reason(expected))
     return None
 
 
@@ -1093,6 +1098,11 @@ def aggregate_nested_rows(document: dict, key: str, file_name: str, owner: str) 
     not a list of objects is a read gap - a number used to raise TypeError
     and a string used to iterate per character and come out as "niets
     gebonden".
+
+    `owner` is how the reason refers to the parent. The shared reader passes
+    its position (`_parent_at`), never its name; dienst.py passes the service
+    or servicegroup it was asked about, which is already the subject of its
+    answer and came from a source that was read usably.
     """
     raw = document.get(key, MISSING)
     if raw is MISSING:
@@ -1123,24 +1133,29 @@ def _binding_rows(
         if gap is not None:
             return {}, gap
         grouped: dict[str, list | None] = {}
-        for parent, document in docs.items():
+        # `docs` holds exactly one entry per parent entry, in file order (a
+        # duplicate refuses the file), so the enumeration IS the position.
+        for position, (parent, document) in enumerate(docs.items(), start=1):
             if document is None:
                 grouped[parent] = None
                 continue
             pairs: list[tuple[str, dict]] = []
             for key in children:
-                rows, nested_gap = aggregate_nested_rows(document, key, file_name, parent)
+                rows, nested_gap = aggregate_nested_rows(document, key, file_name, _parent_at(position))
                 if nested_gap is not None:
                     return {}, nested_gap
                 pairs.extend((key, row) for row in rows)
             grouped[parent] = pairs
         return grouped, None
     if children is not None and shape != "list":
-        token = shape if isinstance(shape, str) and _OBJECT_NAME.fullmatch(shape) else None
-        named = f"bindingsvorm {token!r}" if token is not None else f"een bindingsvorm met {value_shape(shape)}"
+        # Never the supplied value (it can carry a name as well as any other
+        # field); the two known shapes never reach this branch.
         return {}, ReadGap(
             source=file_name,
-            reason=f"{named} wordt niet ondersteund; alleen de vormen 'list' en 'aggregate' worden ontleed",
+            reason=(
+                f"een onbekende bindingsvorm ({value_shape(shape)}) wordt niet ondersteund; alleen de vormen"
+                " 'list' en 'aggregate' worden ontleed"
+            ),
         )
     _flat, flat_gap, grouped_rows = _flatten_by_parent(file_name, raw)
     if flat_gap is not None:
@@ -2751,13 +2766,24 @@ class Export:
             return ParentCoverage(names=tuple(present), gaps=tuple(gaps))
 
         resource = f"config/{parent_resource}"
+        # R3-1: `parentResource` is a value FROM the file. It is named in a
+        # reason only when it is the parent source the file's own identity
+        # implies (`<parentResource>_..._binding`, measured on every binding
+        # file of both lab exports); any other value is described, never
+        # repeated. The source is still opened - the object-name gate above
+        # already decided that - only the wording changes.
+        identity = _expected_binding_resource(file_name)
+        if identity is not None and identity.startswith(f"{parent_resource}_"):
+            source_label = resource
+        else:
+            source_label = "de objectbron die dit bestand in parentResource noemt (waarde niet herhaald)"
         objects, object_gap = self.objects(resource)
         if object_gap is not None:
             gaps.append(
                 ReadGap(
                     source=f"{file_name} (parentlijst)",
                     reason=(
-                        f"de parentlijst is niet te kruiscontroleren tegen {resource}:"
+                        f"de parentlijst is niet te kruiscontroleren tegen {source_label}:"
                         f" {object_gap.reason}; of elk object daar een parent-vermelding in dit"
                         " bestand heeft, is daarmee niet vast te stellen"
                     ),
@@ -2775,7 +2801,7 @@ class Export:
                 # follows.
                 gaps.append(
                     ReadGap(
-                        source=f"{resource} (object {position})",
+                        source=f"{source_label} (object {position})",
                         reason=(
                             f"dit object draagt {shape_of(o)}; niet vast te stellen of het een"
                             f" parent-vermelding heeft in {file_name}"
@@ -2791,7 +2817,7 @@ class Export:
                 # against the parent list either way.
                 gaps.append(
                     ReadGap(
-                        source=f"{resource} (object {position})",
+                        source=f"{source_label} (object {position})",
                         reason=(
                             f"{parent_key} is niet bruikbaar: {shape_or_missing_at(o, parent_key)};"
                             f" niet vast te stellen of dit object een parent-vermelding heeft in"
@@ -2809,7 +2835,7 @@ class Export:
                     ReadGap(
                         source=f"{file_name} (parentlijst)",
                         reason=(
-                            f"{resource} kent {name}, maar dit bestand draagt daarvoor geen"
+                            f"{source_label} kent {name}, maar dit bestand draagt daarvoor geen"
                             f" parent-vermelding; de bindingen van {name} zijn niet gelezen en het"
                             " is dus niet vast te stellen welk certificaat daaraan hangt"
                         ),
@@ -2821,7 +2847,7 @@ class Export:
                     ReadGap(
                         source=f"{file_name} (parentlijst)",
                         reason=(
-                            f"dit bestand draagt een parent-vermelding voor {name}, maar {resource}"
+                            f"dit bestand draagt een parent-vermelding voor {name}, maar {source_label}"
                             " kent dat object niet; niet vast te stellen welke van de twee bronnen"
                             " klopt"
                         ),

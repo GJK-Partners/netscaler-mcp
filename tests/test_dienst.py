@@ -589,11 +589,11 @@ def test_the_name_family_covers_vserver_group_member_and_ip(tmp_path):
 
 
 def test_the_name_family_still_harvests_names_from_an_unusable_file(tmp_path):
-    """The family exists to make names MASKABLE, not to establish facts. A
-    read gap in `_aggregate_rows` still writes the parent name into the gap
-    text, so the harvest must be tolerant where the analysis is strict -
-    otherwise the very gap that reports a duplicate parent would leak its
-    name in the 'beperkt' setting."""
+    """The family exists to make names MASKABLE, not to establish facts: the
+    harvest stays tolerant where the analysis is strict. Since 1.0.3 (R3-1)
+    the gap that reports a duplicate parent names it by its POSITION, never
+    by its name, so the name no longer depends on this harvest to stay out
+    of the answer at 'beperkt'; the harvest is the second safety net."""
     root = _export(
         tmp_path,
         [{"name": "de_dienst", "effectivestate": "UP", "health": "100"}],
@@ -601,7 +601,8 @@ def test_the_name_family_still_harvests_names_from_an_unusable_file(tmp_path):
         [_sg_parent("de_groep", []), _sg_parent("de_groep", [])],
     )
     export = load_export(root)
-    assert "dubbele parent de_groep" in " ".join(g.reason for g in service_status(export, K, "de_dienst").read_gaps)
+    reasons = " ".join(g.reason for g in service_status(export, K, "de_dienst").read_gaps)
+    assert "dubbele parent op positie 2" in reasons and "de_groep" not in reasons, reasons
     assert "de_groep" in names_in_service_sources(export)
 
 
