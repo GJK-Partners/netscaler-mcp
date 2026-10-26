@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+import nsmcp
 from nsmcp.limits import (
     MAX_FILE_BYTES,
     MAX_JSON_DEPTH,
@@ -47,7 +49,6 @@ PREDICATES = frozenset(
         "heeft_lb_oracle_of_dns",
     }
 )
-_TOP_FIELDS = {"versie", "datum", "toelichting", "bron", "cve", "uitleg", "begrippen", "aangeboden"}
 _OFFERED_FIELDS = {"datum", "bron", "builds"}
 _BULLETIN_FIELDS = {"bulletin", "datum", "getroffen", "fix", "cves", "advies", "extraStapNaUpgrade"}
 _CVE_FIELDS = {"id", "cvss", "kern", "voorwaarde"}
@@ -78,6 +79,250 @@ _BUILD_FORM = re.compile(r"\d+\.\d+")
 # same pattern, so the loader and the verdict can never disagree about what
 # a range says.
 AFFECTED_FORM = re.compile(r"<\s*(\d+)\.(\d+)")
+
+# 1.1 D: THE ENGINE A PACKAGE NEEDS. A package names the lowest engine that
+# understands every field it carries, as MAJOR.MINOR.PATCH (ASCII digits,
+# fullmatch), and an older engine refuses it with the one sentence that
+# helps: update the engine first. Every 1.0.x engine refuses this field as
+# an unknown top-level field whatever its value (measured on the tags
+# v1.0.1, v1.0.2 and v1.0.3, each with a matching canonical pin), so a value
+# below 1.1.0 can never be right: it would promise a 1.0.x customer a package
+# its engine refuses.
+MINIMUM_ENGINE_FIELD = "minimaleEngine"
+_ENGINE_FORM = re.compile(r"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}")
+
+# The path of every field that came after 1.0.0, with the engine that
+# introduced it. A field introduced after LAST_ENGINE_WITHOUT_MINIMUM only
+# loads in a package whose `minimaleEngine` is at least that version: an
+# older engine would drop such a field in silence (the 1.0.2 engine did that
+# to `naconfiguratieVerplicht`) or refuse the package. Fields up to and
+# including 1.0.3 keep loading WITHOUT `minimaleEngine`: the existing package
+# line that 1.0.x customers use today. New structured meaning always gets a
+# path of its own with a type in `_FIELD_TYPES` and a line here - never a
+# wider reading of an existing text field.
+FIELD_INTRODUCED: dict[str, str] = {
+    "cve[].cves[].naconfiguratieVerplicht": "1.0.3",
+    MINIMUM_ENGINE_FIELD: "1.1.0",
+}
+LAST_ENGINE_WITHOUT_MINIMUM = "1.0.3"
+
+# THE TYPE OF EVERY VALUE, checked at load time BEFORE anything else reads a
+# value (before `capped_text`, `str()`, a date parse or a comparison). A
+# path names a field from the top: `cve[]` is every element of the list
+# `cve`. The token is the expected type as the refusal sentence names it.
+# Measured before (1.0.3): an object on `extraStapNaUpgrade` loaded - also
+# with a hidden `naconfiguratieVerplicht` inside it, which then gave
+# `NIET GERAAKT` without a read gap where the flag in its proper place gives
+# `NIET VASTGESTELD`. A text field is text and only text; text that looks
+# like JSON stays plain text and is never parsed.
+_TEXT = "tekst"
+_LIST = "een lijst"
+_OBJECT = "een object"
+_TEXT_MAP = "een object van tekst naar tekst"
+_BRANCH_MAP = "een object van tak naar tekst"
+_SCORE = "een getal van 0 tot en met 10"
+_FLAG = "true of false"
+_CONDITION_TYPE = "tekst of een object"
+_FIELD_TYPES: dict[str, str] = {
+    "versie": _TEXT,
+    "datum": _TEXT,
+    "toelichting": _TEXT,
+    "bron": _TEXT,
+    MINIMUM_ENGINE_FIELD: _TEXT,
+    "cve": _LIST,
+    "uitleg": _TEXT_MAP,
+    "begrippen": _TEXT_MAP,
+    "aangeboden": _OBJECT,
+    "aangeboden.datum": _TEXT,
+    "aangeboden.bron": _TEXT,
+    "aangeboden.builds": _BRANCH_MAP,
+    "cve[]": _OBJECT,
+    "cve[].bulletin": _TEXT,
+    "cve[].datum": _TEXT,
+    "cve[].getroffen": _BRANCH_MAP,
+    "cve[].fix": _BRANCH_MAP,
+    "cve[].cves": _LIST,
+    "cve[].advies": _TEXT,
+    "cve[].extraStapNaUpgrade": _TEXT,
+    "cve[].cves[]": _OBJECT,
+    "cve[].cves[].id": _TEXT,
+    "cve[].cves[].cvss": _SCORE,
+    "cve[].cves[].kern": _TEXT,
+    "cve[].cves[].voorwaarde": _CONDITION_TYPE,
+    "cve[].cves[].voorwaarde.vanaf": _BRANCH_MAP,
+    "cve[].cves[].voorwaarde.predicaat": _TEXT,
+    "cve[].cves[].voorwaarde.anders": _TEXT,
+    "cve[].cves[].naconfiguratieVerplicht": _FLAG,
+}
+# The tokens whose value is a container this loader walks into.
+_WALKED = frozenset({_LIST, _OBJECT, _CONDITION_TYPE})
+_UNKNOWN_FIELD = "onbekend veld"
+_UNKNOWN_FIELD_TAIL = "deze engine laadt geen veld dat ze niet kent"
+
+
+def _engine_version(text) -> tuple[int, int, int] | None:
+    """The three numbers of a MAJOR.MINOR.PATCH text, or None for anything
+    else. Compared as numbers: as text "1.10.0" would sort below "1.9.0"."""
+    if not isinstance(text, str) or _ENGINE_FORM.fullmatch(text) is None:
+        return None
+    major, minor, patch = text.split(".")
+    return int(major), int(minor), int(patch)
+
+
+def _engine_text(version: tuple[int, int, int]) -> str:
+    """A version rebuilt from its three numbers - never the package's own
+    spelling of it."""
+    return ".".join(str(part) for part in version)
+
+
+def _minimum_engine_problem(raw: dict) -> str:
+    """Why THIS engine may not load a package that names a minimum engine,
+    or "" when it may (or when the package names none: the existing line).
+
+    Runs before every other check on purpose: a package for a newer engine
+    may well carry a field this engine does not know, and the sentence that
+    helps then is "werk eerst de engine bij", not "onbekend veld"."""
+    if MINIMUM_ENGINE_FIELD not in raw:
+        return ""
+    value = raw[MINIMUM_ENGINE_FIELD]
+    if not isinstance(value, str):
+        return f"kennispakket: {MINIMUM_ENGINE_FIELD} moet {_TEXT} zijn"
+    wanted = _engine_version(value)
+    if wanted is None:
+        return (
+            f"kennispakket: {MINIMUM_ENGINE_FIELD} heeft niet de vorm MAJOR.MINOR.PATCH"
+            " (drie getallen van een tot drie ASCII-cijfers, gescheiden door een punt)"
+        )
+    floor = _engine_version(FIELD_INTRODUCED[MINIMUM_ENGINE_FIELD])
+    if floor is None or wanted < floor:
+        return (
+            f"{MINIMUM_ENGINE_FIELD} kan niet lager zijn dan {FIELD_INTRODUCED[MINIMUM_ENGINE_FIELD]}:"
+            " oudere engines kennen dit veld niet en weigeren het pakket"
+        )
+    engine = _engine_version(nsmcp.__version__)
+    if engine is None:
+        return "deze engine draagt geen leesbare versie; een pakket met minimaleEngine is daartegen niet te toetsen"
+    if wanted > engine:
+        return (
+            f"kennispakket vraagt engine {_engine_text(wanted)} of nieuwer; deze engine is"
+            f" {_engine_text(engine)}; werk eerst de engine bij"
+        )
+    return ""
+
+
+def _type_holds(token: str, value) -> bool:
+    if token == _TEXT:
+        return isinstance(value, str)
+    if token == _LIST:
+        return isinstance(value, list)
+    if token == _OBJECT:
+        return isinstance(value, dict)
+    if token in (_TEXT_MAP, _BRANCH_MAP):
+        return isinstance(value, dict) and all(isinstance(item, str) for item in value.values())
+    if token == _CONDITION_TYPE:
+        return isinstance(value, (str, dict))
+    if token == _FLAG:
+        return type(value) is bool
+    if token == _SCORE:
+        # A JSON number: never a boolean (in Python a bool IS an int), never
+        # NaN or an infinity (Python's parser reads both), 0 to 10 inclusive.
+        if type(value) is int:
+            return 0 <= value <= 10
+        return type(value) is float and math.isfinite(value) and 0 <= value <= 10
+    return False
+
+
+def _layout() -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """Per object path, its known keys (key -> child path); per list path,
+    the path of its elements. Derived from `_FIELD_TYPES` on every call, so
+    the table stays the one owner of what a package may carry. A key is
+    looked up LITERALLY in its parent's own set - a key spelled like a path
+    (a top-level key "cve[]") is not that path."""
+    children: dict[str, dict[str, str]] = {}
+    elements: dict[str, str] = {}
+    for path in _FIELD_TYPES:
+        if path.endswith("[]"):
+            elements[path[:-2]] = path
+        else:
+            parent, _, name = path.rpartition(".")
+            children.setdefault(parent, {})[name] = path
+    return children, elements
+
+
+def _unknown_field(place: str) -> str:
+    """The refusal for a key this engine does not know: the PLACE, never
+    the key - a key is text out of the package like any value."""
+    if not place:
+        return f"kennispakket bevat {_UNKNOWN_FIELD} op topniveau; {_UNKNOWN_FIELD_TAIL}"
+    return f"kennispakket: {place} bevat {_UNKNOWN_FIELD}; {_UNKNOWN_FIELD_TAIL}"
+
+
+def _structure_problem(raw: dict) -> tuple[str, frozenset[str]]:
+    """The first key this engine does not know or the first value of the
+    wrong type, in document order, as a fixed sentence that names the PATH
+    and the expected type and never the value or the key; plus the set of
+    field paths the package carries (for `FIELD_INTRODUCED`).
+
+    Strict on keys at every object level: the top level, a bulletin record,
+    a CVE record, `aangeboden` and the object form of `voorwaarde`. Measured
+    before (1.0.3): a CVE record was only checked for MISSING fields, so a
+    1.0.2 engine dropped `naconfiguratieVerplicht` without a word."""
+    children, elements = _layout()
+    present: set[str] = set()
+
+    def check(token: str, item, path: str, place: str) -> str:
+        if not _type_holds(token, item):
+            return f"kennispakket: {place} moet {token} zijn"
+        if token in _WALKED:
+            return visit(item, path, place)
+        return ""
+
+    def visit(value, path: str, place: str) -> str:
+        if isinstance(value, dict):
+            known = children.get(path, {})
+            if any(key not in known for key in value):
+                return _unknown_field(place)
+            for key, item in value.items():
+                child = known[key]
+                present.add(child)
+                problem = check(_FIELD_TYPES[child], item, child, f"{place}.{key}" if place else key)
+                if problem:
+                    return problem
+        elif isinstance(value, list):
+            element = elements.get(path)
+            if element is None:
+                return _unknown_field(place)
+            for index, item in enumerate(value):
+                present.add(element)
+                problem = check(_FIELD_TYPES[element], item, element, f"{place}[{index}]")
+                if problem:
+                    return problem
+        return ""
+
+    return visit(raw, "", ""), frozenset(present)
+
+
+def _introduction_problem(raw: dict, present: frozenset[str]) -> str:
+    """Why a field from after 1.0.3 is not covered by the package's own
+    `minimaleEngine`, or "" when every such field is. Runs after
+    `_minimum_engine_problem`, so a present minimum is already a valid one."""
+    without = _engine_version(LAST_ENGINE_WITHOUT_MINIMUM)
+    declared = _engine_version(raw.get(MINIMUM_ENGINE_FIELD))
+    for path in sorted(present):
+        since_text = FIELD_INTRODUCED.get(path)
+        if since_text is None:
+            continue
+        since = _engine_version(since_text)
+        if since is not None and without is not None and since <= without:
+            continue
+        if declared is None or since is None or declared < since:
+            said = "geen minimaleEngine" if declared is None else f"minimaleEngine {_engine_text(declared)}"
+            return (
+                f"het pakket gebruikt {path} (sinds engine {since_text}) maar zegt {said};"
+                " een oudere engine zou het veld stil negeren of het pakket weigeren"
+            )
+    return ""
+
 
 # What a customer answer says when the package does not carry the field.
 # Product copy (design 2.3, B1), pinned byte for byte in
@@ -456,15 +701,24 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
         return _absent("kennispakket moet een object zijn")
     if exceeds_depth(raw):
         return _absent(f"kennispakket is te diep genest (meer dan {MAX_JSON_DEPTH} niveaus)")
+    # 1.1 D, in this order: the engine the package asks for; then every key
+    # and every type, before anything below reads a value; then the
+    # introduction of each field against that minimum.
+    problem = _minimum_engine_problem(raw)
+    if problem:
+        return _absent(problem)
+    problem, present = _structure_problem(raw)
+    if problem:
+        return _absent(problem)
+    problem = _introduction_problem(raw, present)
+    if problem:
+        return _absent(problem)
     # The pin is checked on the SAME parsed document everything below reads -
     # never on a second read of the file, which could already hold other bytes.
     if isinstance(pin, KnowledgePin):
         problem = _pin_problem(raw, pin)
         if problem:
             return _absent(problem)
-    unknown = raw.keys() - _TOP_FIELDS
-    if unknown:
-        return _absent(f"kennispakket bevat onbekend veld: {', '.join(sorted(unknown))!r}")
     # SECURITY 12. `cve` is REQUIRED. A package without the key used to load as
     # valid and fresh with zero bulletins - measured: missing=False, four days
     # old, no bulletins at all. That is the one defect shape that produced a
@@ -487,13 +741,6 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
         missing_fields = _BULLETIN_FIELDS - entry.keys()
         if missing_fields:
             return _absent(f"kennispakket: cve-record mist veld: {', '.join(sorted(missing_fields))}")
-        if entry.keys() - _BULLETIN_FIELDS:
-            # HARDENING, same class: cve-record keys are attacker-supplied
-            # too, so !r on the joined list, not a raw paste - see the
-            # top-level unknown-field message above.
-            return _absent(
-                f"kennispakket: cve-record bevat onbekend veld: {', '.join(sorted(entry.keys() - _BULLETIN_FIELDS))!r}"
-            )
         # The identifier is attacker-supplied text, so !r: a line break in it
         # would otherwise forge a second line into this refusal reason.
         if _identity(entry["bulletin"]) in seen_bulletins:
@@ -749,7 +996,21 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
     )
 
 
-_DIGEST_USAGE = "Gebruik: python -m nsmcp.knowledge --digest <pad-naar-kennispakket>"
+_DIGEST_USAGE = (
+    "Gebruik: python -m nsmcp.knowledge --digest <pad-naar-kennispakket>\n"
+    "         python -m nsmcp.knowledge --controleer <pad-naar-kennispakket>"
+)
+
+
+def _check(path: Path) -> int:
+    """`--controleer <pad>`: does THIS engine load the package, and if not,
+    why - the loader's own reason, never the package's content."""
+    knowledge = load_knowledge(path, today=datetime.now(UTC).date())
+    if knowledge.missing:
+        print(f"deze engine ({nsmcp.__version__}) laadt dit kennispakket niet: {knowledge.reason}", file=sys.stderr)
+        return 1
+    print(f"deze engine ({nsmcp.__version__}) laadt dit kennispakket")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -763,6 +1024,8 @@ def main(argv: list[str] | None = None) -> int:
     the reads is refused rather than pinned.
     """
     arguments = sys.argv[1:] if argv is None else argv
+    if len(arguments) == 2 and arguments[0] == "--controleer":
+        return _check(Path(arguments[1]))
     if len(arguments) != 2 or arguments[0] != "--digest":
         print(_DIGEST_USAGE, file=sys.stderr)
         return 2

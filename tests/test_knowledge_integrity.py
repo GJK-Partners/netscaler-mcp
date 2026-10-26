@@ -217,6 +217,18 @@ def _refused_for_its_form(knowledge, field: str, form: str) -> None:
     assert knowledge.reason == f"kennispakket: {field} heeft niet de vorm {form}"
 
 
+def _refused(knowledge, field: str, form: str, value) -> None:
+    # 1.1 D: a value that is not text at all is refused by its TYPE, before
+    # the form is ever looked at - the same fixed shape: the field, never
+    # the value.
+    if isinstance(value, str):
+        _refused_for_its_form(knowledge, field, form)
+        return
+    assert knowledge.missing is True
+    assert knowledge.cve == ()
+    assert knowledge.reason == f"kennispakket: {field} moet tekst zijn"
+
+
 def test_a_cve_id_spelled_with_a_unicode_hyphen_is_refused(tmp_path):
     package = _original()
     twin = copy.deepcopy(package["cve"][0]["cves"][0])
@@ -252,7 +264,7 @@ def test_a_cve_id_outside_the_ascii_grammar_is_refused(tmp_path, value):
     package = _original()
     package["cve"][2]["cves"][0]["id"] = value
     knowledge = load_knowledge(_package(tmp_path, package), today=TODAY)
-    _refused_for_its_form(knowledge, "cve[2].cves[0].id", CVE_FORM)
+    _refused(knowledge, "cve[2].cves[0].id", CVE_FORM, value)
 
 
 @pytest.mark.parametrize(
@@ -278,7 +290,7 @@ def test_a_bulletin_id_outside_the_ascii_grammar_is_refused(tmp_path, value):
     package = _original()
     package["cve"][2]["bulletin"] = value
     knowledge = load_knowledge(_package(tmp_path, package), today=TODAY)
-    _refused_for_its_form(knowledge, "cve[2].bulletin", BULLETIN_FORM)
+    _refused(knowledge, "cve[2].bulletin", BULLETIN_FORM, value)
 
 
 @pytest.mark.parametrize(

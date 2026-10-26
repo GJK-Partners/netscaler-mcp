@@ -486,12 +486,18 @@ def test_a_build_dependent_condition_loads(tmp_path):
 def test_a_condition_object_with_the_wrong_keys_makes_the_package_absent(tmp_path):
     for broken in (
         {k: v for k, v in CHOICE.items() if k != "anders"},
-        {**CHOICE, "extra": "x"},
         {},
     ):
         k = _load(tmp_path, broken)
         assert k.missing is True, broken
         assert "vanaf" in k.reason and "predicaat" in k.reason and "anders" in k.reason
+    # 1.1 D: a key this engine does not know is refused by the strict
+    # structure check first, naming the place and never the key.
+    k = _load(tmp_path, {**CHOICE, "extra": "x"})
+    assert k.missing is True
+    assert k.reason == (
+        "kennispakket: cve[0].cves[0].voorwaarde bevat onbekend veld; deze engine laadt geen veld dat ze niet kent"
+    )
 
 
 def test_a_vanaf_that_is_not_a_build_per_branch_makes_the_package_absent(tmp_path):
@@ -613,13 +619,14 @@ def test_versie_above_the_cap_is_bounded_at_the_source(tmp_path):
 
 
 def test_a_non_string_versie_does_not_crash_the_reader(tmp_path):
-    """Same isinstance(str) pre-check the other fields get: a `versie` that
-    is not a string (a JSON number, here) must not raise - it is left
-    untouched, exactly like a non-string `advies`/`kern` value is today."""
+    """A `versie` that is not a string (a JSON number, here) must not raise.
+    1.0.x loaded it and left it untouched; since 1.1 D every value has a
+    recorded type, and a number on a text field refuses the package with a
+    named reason (tests/test_knowledge_versioning.py)."""
     p = _write(tmp_path, {"versie": 2026.09, "datum": "2026-09-01", "cve": []})
     k = load_knowledge(p, today=date(2026, 9, 5))
-    assert k.missing is False
-    assert k.version == 2026.09
+    assert k.missing is True
+    assert k.reason == "kennispakket: versie moet tekst zijn"
 
 
 def test_truncation_note_is_empty_when_nothing_was_cut(tmp_path):
