@@ -75,6 +75,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.bridge_io import read_stdin_text
 from nsmcp.upgrade import (
     PHASE_LIMITS_S,
@@ -184,14 +185,14 @@ def _rows_from_file(pad, *, strict: bool = False, skipped: list | None = None) -
     `skipped`: passed straight through to `read_ledger()` (see there) so a
     caller that wants a per-line skip count across every file this scans
     can collect it in one list - not built here."""
-    if not Path(pad).exists():
-        return ()
     try:
-        return read_ledger(pad, skipped=skipped)
+        return read_ledger(pad, skipped=skipped, missing_ok=True)
     except (OSError, UnicodeDecodeError) as exc:
+        # 1.1 B: a refusal of the `localpath` walk (a link in the place of a
+        # run file) is an OSError too, named with the sentence of its kind.
         if strict:
             raise LedgerUnreadable(
-                f"een regelbestand in de ledgermap kon niet gelezen worden ({type(exc).__name__})"
+                f"een regelbestand in de ledgermap kon niet gelezen worden ({localpath.describe(exc)})"
             ) from None
         return ()
 

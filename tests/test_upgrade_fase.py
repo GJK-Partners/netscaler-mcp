@@ -1891,14 +1891,17 @@ def test_an_unreadable_run_file_also_refuses_the_cross_tool_gate(tmp_path, monke
     import pathlib
 
     server = _two_target_write_server(tmp_path, open_target=TARGET_NAME)
-    real_read_bytes = pathlib.Path.read_bytes
+    # 1.1 B: a ledger file is read with one `localpath.read_local` walk.
+    from nsmcp import localpath
 
-    def unreadable(self, *a, **kw):
-        if self.suffix == ".jsonl":
+    real_read_local = localpath.read_local
+
+    def unreadable(path, *a, **kw):
+        if pathlib.Path(path).suffix == ".jsonl":
             raise PermissionError(13, "toegang geweigerd")
-        return real_read_bytes(self, *a, **kw)
+        return real_read_local(path, *a, **kw)
 
-    monkeypatch.setattr(pathlib.Path, "read_bytes", unreadable)
+    monkeypatch.setattr(localpath, "read_local", unreadable)
     r = _call(server, "onderhoud_backup_maken", {"doel": SECOND_TARGET_NAME})
     assert r.isError, _text(r)
 
@@ -1953,14 +1956,17 @@ def test_an_unreadable_run_file_also_refuses_the_phase_path(tmp_path, monkeypatc
         server.onderhoud.ledgermap / "andere-run.jsonl",
         _regel(run="andere-run", fase="R0", gebeurtenis="voormeting_vast", uitkomst="geslaagd"),
     )
-    real_read_bytes = pathlib.Path.read_bytes
+    # 1.1 B: a ledger file is read with one `localpath.read_local` walk.
+    from nsmcp import localpath
 
-    def unreadable(self, *a, **kw):
-        if self.suffix == ".jsonl":
+    real_read_local = localpath.read_local
+
+    def unreadable(path, *a, **kw):
+        if pathlib.Path(path).suffix == ".jsonl":
             raise PermissionError(13, "toegang geweigerd")
-        return real_read_bytes(self, *a, **kw)
+        return real_read_local(path, *a, **kw)
 
-    monkeypatch.setattr(pathlib.Path, "read_bytes", unreadable)
+    monkeypatch.setattr(localpath, "read_local", unreadable)
     r = _call(
         server,
         "onderhoud_upgrade_fase",

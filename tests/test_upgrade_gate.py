@@ -1107,14 +1107,17 @@ def test_an_unreadable_run_file_raises_in_strict_mode(tmp_path, monkeypatch):
     ledgermap = tmp_path / "ledger"
     ledgermap.mkdir()
     (ledgermap / "run-a.jsonl").write_text("{}\n", encoding="utf-8")
-    real_read_bytes = _pathlib.Path.read_bytes
+    # 1.1 B: a run file is read with one `localpath.read_local` walk.
+    from nsmcp import localpath
 
-    def unreadable(self, *a, **kw):
-        if self.suffix == ".jsonl":
+    real_read_local = localpath.read_local
+
+    def unreadable(path, *a, **kw):
+        if _pathlib.Path(path).suffix == ".jsonl":
             raise PermissionError(13, "toegang geweigerd")
-        return real_read_bytes(self, *a, **kw)
+        return real_read_local(path, *a, **kw)
 
-    monkeypatch.setattr(_pathlib.Path, "read_bytes", unreadable)
+    monkeypatch.setattr(localpath, "read_local", unreadable)
     assert _rows_for_target(ledgermap / "_.jsonl", "lab-02") == ()
     with pytest.raises(LedgerUnreadable):
         _rows_for_target(ledgermap / "_.jsonl", "lab-02", strict=True)

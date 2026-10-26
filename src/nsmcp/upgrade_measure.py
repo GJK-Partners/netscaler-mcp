@@ -209,8 +209,9 @@ def _read_register_or_none(pad) -> list[dict] | None:
     tekst = str(pad or "").strip()
     if not tekst:
         return None
-    if not Path(tekst).exists():
-        return None
+    # 1.1 B: one `localpath` walk (`read_ledger`); a missing register, a
+    # refusal (a link in its place) and an unreadable one are all None:
+    # `backupobject aanwezig` is then `niet beoordeeld`.
     try:
         return list(read_ledger(tekst))
     except OSError:

@@ -916,9 +916,11 @@ def _write_action_register(
         Path(pad).parent.mkdir(parents=True, exist_ok=True)
         append_line(Path(pad), row)
     except OSError as exc:
+        # 1.1 B: `append_line` walks the register's map with `localpath`; a
+        # refusal (a link in the place of the register) names its kind.
         return Finding(
             subject="actieregister",
-            outcome=f"duurzame registratie NIET vastgesteld ({type(exc).__name__})",
+            outcome=f"duurzame registratie NIET vastgesteld ({localpath.describe(exc)})",
             certainty=Certainty.NOT_ESTABLISHED,
             evidence="de registerschrijver meldde een I/O-fout",
             reason=(
@@ -4551,7 +4553,7 @@ def build_server(
             if fase != "R0" and not execution_attempt:
                 try:
                     voorstel_pad = ledger_path_for(onderhoud.ledgermap, run_name)
-                    voorstel_regels = read_ledger(voorstel_pad) if voorstel_pad.exists() else ()
+                    voorstel_regels = read_ledger(voorstel_pad, missing_ok=True)
                 except (ValueError, OSError):
                     voorstel_regels = ()
                 weigering = run_binding_refusal(
@@ -4804,7 +4806,7 @@ def build_server(
             # Weigering 4: the ORDER check is scoped to THIS
             # run's OWN file only - unlike the two above, it must not see a
             # different run's leftover phase state.
-            run_regels = read_ledger(ledger_path) if ledger_path.exists() else ()
+            run_regels = read_ledger(ledger_path, missing_ok=True)
             orde = order_gate(fase, run_regels)
             if orde.outcome != "open":
                 raise ToolError(_with_lift_notices(orde.reason))

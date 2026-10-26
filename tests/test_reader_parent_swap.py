@@ -795,3 +795,125 @@ def test_table_the_needle_never_reaches_an_answer(tmp_path, level):
     _assert_no_needle(text, tmp_path)
     if level is Disclosure.LIMITED:
         assert REASONS["koppeling"] in text
+
+
+# ---------------------------------------------------------------------------
+# Family: ledger (read and append) and action register, root = the file's map
+# ---------------------------------------------------------------------------
+
+
+def _ledger_row(run: str, doel: str = "lab") -> dict:
+    return {
+        "tijd": "2026-10-26T08:00:00Z",
+        "run": run,
+        "doel": doel,
+        "fase": "R0",
+        "gebeurtenis": "fase_gestart",
+        "poort": [],
+        "uitkomst": "",
+        "bewijs": "",
+        "actieid": "a-1",
+        "bevestiger": "u-1",
+        "gestart": "2026-10-26T08:00:00Z",
+        "geeindigd": None,
+    }
+
+
+def test_ledger_a_ledger_map_swapped_mid_walk_is_unreadable_and_never_read(tmp_path, seam):
+    from nsmcp.upgrade import append_line, read_ledger
+    from nsmcp.upgrade_gate import LedgerUnreadable, _rows_from_file
+
+    ledgermap = tmp_path / "ledger"
+    ledgermap.mkdir()
+    run_file = ledgermap / "run-1.jsonl"
+    append_line(run_file, _ledger_row("run-1"))
+    assert len(read_ledger(run_file)) == 1, "premisse"
+    outside = _outside_dir(tmp_path)
+    (outside / "run-1.jsonl").write_text(json.dumps(_ledger_row(NAALD)) + "\n", encoding="utf-8")
+    seam.opens.clear()
+    seam.events.clear()
+    _swap_before(seam, "ledger", lambda: _replace_by_junction(ledgermap, outside))
+
+    with pytest.raises(LedgerUnreadable) as refused:
+        _rows_from_file(run_file, strict=True)
+
+    assert str(refused.value) == (
+        "een regelbestand in de ledgermap kon niet gelezen worden (" + REASONS["koppeling"] + ")"
+    )
+    names = _opened_names(seam)
+    assert names[-1] == "ledger" and "run-1.jsonl" not in names, names
+
+
+def test_ledger_an_append_on_a_link_writes_no_line(tmp_path, seam):
+    from nsmcp.upgrade import append_line
+
+    ledgermap = tmp_path / "ledger"
+    ledgermap.mkdir()
+    outside = _outside_dir(tmp_path)
+    _junction(ledgermap / "run-1.jsonl", outside)
+
+    with pytest.raises(OSError) as refused:
+        append_line(ledgermap / "run-1.jsonl", _ledger_row("run-1"))
+
+    assert isinstance(refused.value, localpath.PathRefused) and refused.value.soort == "koppeling"
+    assert list(outside.iterdir()) == [] and seam.calls["WriteFile"] == 0
+
+
+def test_ledger_the_gate_cli_writes_no_line_on_a_refused_ledger_and_fails(tmp_path, seam):
+    from nsmcp import upgrade_gate
+
+    ledgermap = tmp_path / "ledger"
+    ledgermap.mkdir()
+    outside = _outside_dir(tmp_path)
+    _junction(ledgermap / "run-1.jsonl", outside)
+
+    with pytest.raises(OSError):
+        upgrade_gate.append_line(ledgermap / "run-1.jsonl", _ledger_row("run-1"))
+    assert list(outside.iterdir()) == []
+
+
+def test_register_a_link_in_the_place_of_the_register_is_not_assessed(tmp_path, seam):
+    from nsmcp.upgrade import backup_register_gate
+    from nsmcp.upgrade_measure import _read_register_or_none
+
+    register_map = tmp_path / "register"
+    register_map.mkdir()
+    outside = _outside_dir(tmp_path)
+    (outside / "x").mkdir()
+    _junction(register_map / "acties.jsonl", outside / "x")
+
+    lines = _read_register_or_none(str(register_map / "acties.jsonl"))
+
+    assert lines is None
+    assert backup_register_gate(lines, "lab").outcome == "niet beoordeeld"
+    assert "acties.jsonl" in _opened_names(seam)
+
+
+def test_register_the_writer_on_a_link_reports_it_and_writes_nothing(tmp_path, seam):
+    import dataclasses
+
+    from conftest import maintenance_config
+
+    from nsmcp.mcp_server import _write_action_register
+
+    config = maintenance_config(tmp_path)
+    register = tmp_path / "register" / "acties.jsonl"
+    register.parent.mkdir()
+    outside = _outside_dir(tmp_path)
+    _junction(register, outside)
+    onderhoud = dataclasses.replace(config, actieregister=register)
+
+    finding = _write_action_register(
+        onderhoud,
+        tool="onderhoud_backup_maken",
+        doel="lab",
+        actieid="a-1",
+        uitkomst="geslaagd",
+        bevestiger="u-1",
+        objectnaam="b-1",
+    )
+
+    assert finding is not None and finding.outcome == (
+        "duurzame registratie NIET vastgesteld (" + REASONS["koppeling"] + ")"
+    )
+    assert list(outside.iterdir()) == [] and seam.calls["WriteFile"] == 0

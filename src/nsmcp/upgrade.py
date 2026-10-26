@@ -39,9 +39,9 @@ refuses unless it still sits inside `ledgermap`.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
-import os
 import re
 import threading
 import time
@@ -50,7 +50,9 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.answer import Answer, Certainty, Finding, ReadGap
+from nsmcp.limits import MAX_FILE_BYTES
 from nsmcp.preflight import (
     ASSUMED_BUNDLE_MB,
     BACKUP_RESOURCE,
@@ -2692,36 +2694,45 @@ def append_line(path, line) -> None:
     closes that gap, best-effort: `os.fsync` on a directory file descriptor
     is a POSIX operation with no Windows equivalent, so a platform that
     cannot do this simply keeps the file's own fsync, unchanged from
-    before."""
-    pad = Path(path)
-    nieuw = not pad.exists()
-    tekst = json.dumps(line, ensure_ascii=False)
-    with open(pad, "a", encoding="utf-8", newline="\n") as f:
-        f.write(tekst + "\n")
-        f.flush()
-        os.fsync(f.fileno())
-    if nieuw:
-        _fsync_dir(pad.parent)
+    before.
+
+    1.1 B: appended through `localpath`, the file's own directory (the
+    ledger map, the action register's map) being the root: the chain to it
+    is held, the file opened as itself (created when missing) and refused
+    before a byte is written when it is a link or a reparse point; readers
+    and other appenders share it (`shared_writers`). `LocalHandle.write`
+    flushes the file (`FlushFileBuffers`). A refusal is an OSError for the
+    caller - no line, the caller's own `mislukt` route."""
+    tekst = localpath.absolute_text(path)
+    regel = (json.dumps(line, ensure_ascii=False) + "\n").encode("utf-8")
+    with localpath.open_local_for_append(tekst, root=localpath.parent_text(tekst), shared_writers=True) as handle:
+        nieuw = handle.size() == 0
+        handle.write(regel)
+        if nieuw:
+            _fsync_dir(handle)
 
 
-def _fsync_dir(map_pad: Path) -> None:
-    """Best-effort fsync of a directory's own entry list, POSIX-only - see
-    `append_line`'s docstring for why this exists and why it swallows every
-    `OSError` (including on Windows, where opening a directory this way is
-    simply not supported)."""
+def _fsync_dir(handle) -> bool:
+    """Best-effort flush of the directory entry of a new ledger file - see
+    `append_line`'s docstring for why this exists. 1.1 B: on the HELD
+    directory handle of the open append (`LocalHandle.flush_directory`),
+    never a second open of the directory by name. Measured on Windows: the
+    held directory carries the traverse right only, and `FlushFileBuffers`
+    refuses such a handle (ERROR_ACCESS_DENIED) - the file's own flush
+    stays, unchanged from before, when 1.0.3's `os.open` on a directory was
+    refused there as well. Returns whether the flush happened."""
     try:
-        fd = os.open(str(map_pad), os.O_RDONLY)
+        return handle.flush_directory()
     except OSError:
-        return
-    try:
-        os.fsync(fd)
-    except OSError:
-        pass
-    finally:
-        os.close(fd)
+        return False
 
 
-def read_ledger(path, *, skipped: list | None = None) -> tuple[dict, ...]:
+# A ledger is never read past this (a run file is far smaller): over it the
+# file is not readable, the caller's own "ledger niet leesbaar" route.
+LEDGER_MAX_BYTES = MAX_FILE_BYTES
+
+
+def read_ledger(path, *, skipped: list | None = None, missing_ok: bool = False) -> tuple[dict, ...]:
     """Every line of `path`, in file order, as a `dict`. A blank trailing
     line (or a missing file's caller passing an empty string) is simply
     skipped - never a parse error.
@@ -2759,8 +2770,25 @@ def read_ledger(path, *, skipped: list | None = None) -> tuple[dict, ...]:
     argument-less `RuntimeWarning` raised in that same window blanked the
     joined reason text, crashing `ReadGap.__post_init__`. `skipped` needs
     none of that: it is a plain list, local to this call, nothing global to
-    race."""
-    rauw = Path(path).read_bytes()
+    race.
+
+    1.1 B: read through `localpath`, the file's own directory (the ledger
+    map, the action register's map) being the root, sharing writing with a
+    running append: a link or reparse point on the way raises `PathRefused`
+    (an OSError) for the caller's own "ledger niet leesbaar" route. A
+    missing file raises `FileNotFoundError` as before, or is no rows with
+    `missing_ok` - one walk, no separate `exists()` by name first."""
+    tekst = localpath.absolute_text(path)
+    gelezen = localpath.read_local(
+        tekst, root=localpath.parent_text(tekst), max_bytes=LEDGER_MAX_BYTES, allow_missing=True, shared_writers=True
+    )
+    if not gelezen.exists:
+        if missing_ok:
+            return ()
+        raise FileNotFoundError(errno.ENOENT, "ledgerbestand ontbreekt")
+    if gelezen.over_cap:
+        raise OSError(errno.EFBIG, "ledgerbestand groter dan het plafond")
+    rauw = gelezen.data
     regels = []
     for volgnummer, regelbytes in enumerate(rauw.splitlines(), start=1):
         try:
@@ -3014,14 +3042,13 @@ def wait_for_start(path, run, phase, deadline_s=START_WAIT_S, skip_existing: int
     """
     einde = time.monotonic() + deadline_s
     while True:
-        if Path(path).exists():
-            matches = [
-                row
-                for row in read_ledger(path)
-                if row.get("run") == run and row.get("fase") == phase and row.get("gebeurtenis") == "fase_gestart"
-            ]
-            if len(matches) > skip_existing:
-                return matches[-1]
+        matches = [
+            row
+            for row in read_ledger(path, missing_ok=True)
+            if row.get("run") == run and row.get("fase") == phase and row.get("gebeurtenis") == "fase_gestart"
+        ]
+        if len(matches) > skip_existing:
+            return matches[-1]
         if time.monotonic() >= einde:
             return None
         time.sleep(0.2)
@@ -3031,11 +3058,9 @@ def started_rows(path, run, phase) -> int:
     """How many `fase_gestart` rows for `run`/`phase` the file already
     carries - `wait_for_start`'s `skip_existing`, counted BEFORE the runner
     is started so a retry cannot read the previous attempt as its own."""
-    if not Path(path).exists():
-        return 0
     return sum(
         1
-        for row in read_ledger(path)
+        for row in read_ledger(path, missing_ok=True)
         if row.get("run") == run and row.get("fase") == phase and row.get("gebeurtenis") == "fase_gestart"
     )
 
