@@ -51,6 +51,25 @@ the knowledge package.
   which is why CI now checks out the full history (`fetch-depth: 0`). The
   harness reads the matrix and the package with the size and depth ceilings
   of the tag (`nsmcp.limits`), and CI lints and format-checks `tools/` too.
+- `nsmcp.localpath`, the one owner of the local path rule (first part of the
+  runtime path rule; the readers follow). `open_local` opens a file or
+  directory component by component: spelling first, then the volume by its
+  drive type and device target without opening anything, then every component
+  with `NtCreateFile` relative to the held parent, as itself
+  (`FILE_OPEN_REPARSE_POINT`), the reparse tag read before the type. Inside an
+  approved directory every reparse point is refused, the directory itself
+  included: a root that is itself a junction or symbolic link is refused
+  ("koppeling"). Above it only a symbolic link or mount point is followed,
+  its target checked before anything of it is opened. Held directories are
+  shared for reading and writing but never for deletion, so they cannot be
+  renamed, deleted or replaced during the operation; the file itself is
+  shared for reading only, or for reading and writing for a file that is
+  appended to while it is read (`shared_writers`, for the ledger and the
+  runner log). Each refusal has one kind and a fixed sentence without the path
+  (`REASONS`); the status of the failing call and the path go only to the
+  server log with `NSMCP_DEBUG`. Append (`open_local_for_append`) and replace
+  (`replace_local`: an exclusive temporary file renamed by its handle) use the
+  same held chain.
 
 ### Changed
 - `uv.lock` is the one source of the dependencies. `requirements-build.txt` is no
@@ -180,6 +199,16 @@ the knowledge package.
   in `tools/regressie-1.0.x/`, also names a bulletin without a branch
   ("<bulletin>: ten minste een tak"), which the 1.0.3 engine of the harness
   still loads.
+- The start check of a configured path (`start._refuse_remote_or_stream`,
+  `_refuse_where_it_leads`, `_refuse_led_to`) is a thin call of
+  `nsmcp.localpath`; the walk with `os.lstat`/`os.readlink` is gone. Every
+  refusal sentence of 1.0.2 stays. New refusals at start, each with the fixed
+  sentence of its kind after "<veld> leidt naar een plek die deze versie
+  weigert:": a reparse point on the path that is no link (a cloud placeholder,
+  deduplication; 1.0.3 read it as a plain directory), a drive that is not a
+  fixed local disk (removable media, a `subst` drive), and a component the
+  walk cannot open (1.0.3 stopped silently there). A link chain of exactly 32
+  links is now followed; 33 is refused.
 
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is

@@ -87,6 +87,14 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 37 | kennispakket: bulletin zonder CVE (1.1) | `knowledge.knowledge_from_document`: `if not entry["cves"]:` vervangen door `if False:` | `test_a_bulletin_without_cves_is_refused` | uitgevoerd 26-10-2026, teruggedraaid |
 | 38 | kennispakket: lengtegrens van een id (1.1) | `knowledge._BULLETIN_ID`: `CTX[0-9]{1,12}` vervangen door `CTX[0-9]+` | `test_an_identifier_is_at_most_as_long_as_its_grammar_allows` | uitgevoerd 26-10-2026, teruggedraaid |
 | 39 | regressiematrix: dekking eist een tak per bulletin (1.1) | `knowledge_regression._missing_coverage` en, apart, `tools/regressie-1.0.x/harnas.py` `missing_coverage`: `if not bulletin["getroffen"]:` vervangen door `if False:` | `test_the_coverage_asks_a_branch_of_every_bulletin_in_runner_and_harness` (beide mutaties) | uitgevoerd 26-10-2026, teruggedraaid |
+| 40 | lokaal pad: geen herparseerpunt binnen de wortel (1.1) | `localpath._walk_windows`: `if inside:` vervangen door `if False:` (een junction binnen de wortel wordt dan gevolgd zoals boven de wortel) | `test_junction_inside_the_root_is_a_link_and_nothing_below_it_is_opened` | uitgevoerd 26-10-2026, teruggedraaid |
+| 41 | lokaal pad: de wandeling per onderdeel (1.1) | `localpath._walk_windows`: de mappen tot de ouder van het blad in een open op het volledige pad (`\Device\HarddiskVolumeN\...`, zonder ouderhandle) in plaats van per onderdeel | `test_ancestor_swap_never_opens_outside_the_root` (het bestand buiten de wortel werd gelezen) | uitgevoerd 26-10-2026, teruggedraaid |
+| 42 | lokaal pad: koppeling als zichzelf openen (1.1) | `localpath._walk_windows`: `FILE_OPEN_REPARSE_POINT` weggehaald bij de tussenmappen | `test_ancestor_swap_never_opens_outside_the_root` (het bestand buiten de wortel werd gelezen) | uitgevoerd 26-10-2026, teruggedraaid |
+| 43 | lokaal pad: spellingstap voor een stroom (1.1) | `localpath.check_spelling` (`if ":" in rest:`) en `localpath._components` (`if ":" in part:`) beide vervangen door `if False:` | `test_an_alternate_data_stream_is_refused_before_any_open` (de naam met stroom bereikte `NtCreateFile`) | uitgevoerd 26-10-2026, teruggedraaid |
+| 44 | lokaal pad: tag voor het type (1.1) | `localpath._leaf_open`: bij lezen weer `FILE_NON_DIRECTORY_FILE` op de open van het blad | `test_a_junction_in_the_place_of_a_file_is_a_link_not_a_wrong_type` (`geen_gewoon_bestand` in plaats van `koppeling`) | uitgevoerd 26-10-2026, teruggedraaid |
+| 45 | lokaal pad: vastgehouden map zonder verwijderdeling (1.1) | `localpath.DIR_SHARE` met `FILE_SHARE_DELETE` erbij | `test_a_held_ancestor_cannot_be_renamed_or_deleted_during_a_read` (de vastgehouden map liet zich hernoemen) | uitgevoerd 26-10-2026, teruggedraaid |
+| 46 | lokaal pad: deelmodus van het blad per bestandsklasse (1.1) | `localpath._leaf_open`: het blad altijd met `FILE_SHARE_WRITE`, ook zonder `shared_writers` | `test_a_running_append_blocks_a_reader_that_does_not_share_writing` | uitgevoerd 26-10-2026, teruggedraaid |
+| 47 | lokaal pad: netwerkstation in de volumestap (1.1) | `localpath._volume_target`: `if drive_type == DRIVE_REMOTE:` vervangen door `if False:` | `test_a_network_drive_letter_is_refused_without_any_open` (`apparaatpad` in plaats van `netwerkstation`) | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -121,6 +129,14 @@ de pariteitstest gedraaid: daar overleefden beide (de test gaf het harnas een va
 identiteit en kende alleen de synthetische matrix). Op de huidige vorm vallen beide, 34 op een
 geval met een engine die niet in `engines` staat, 35 op een pakket met de `vanaf`-drempel op de
 fix-build.
+
+De acht proeven van het lokale pad (40-47, versie 1.1) op dezelfde manier: elke mutatie is in
+`src/nsmcp/localpath.py` aangebracht, alleen de genoemde test is gedraaid en viel om op zijn eigen
+bewering, en het bestand is daarna byte voor byte teruggezet (sha256 voor en na gelijk). 41 is de
+kernproef (de wandeling vervangen door een open op het volledige pad): de
+wissel van de voorouder `C` door een junction naar een map buiten de wortel gaf toen de inhoud van
+het bestand buiten de wortel. 40 is de mutatie op de moduleproef; de proef per lezer (een junction
+binnen de exportmap wordt een leesgat) komt met het aansluiten van de lezers.
 
 ## Gemeten: het oude-lijnharnas op de tags v1.0.1, v1.0.2 en v1.0.3 (26-10-2026)
 
