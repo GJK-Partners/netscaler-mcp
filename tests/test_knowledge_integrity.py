@@ -87,8 +87,10 @@ def test_a_fix_build_below_the_affected_range_is_refused():
 def test_a_bulletin_listed_twice_is_refused():
     knowledge = load_knowledge(BULLETIN_TWICE, today=TODAY)
     assert knowledge.missing is True
-    assert "'CTX696604'" in knowledge.reason
-    assert "meer dan eens" in knowledge.reason
+    # 1.1: the place of the second copy, never the identifier itself.
+    assert knowledge.reason == (
+        "kennispakket: cve[3].bulletin noemt een bulletin dat meer dan eens voorkomt; het zou dubbel meetellen"
+    )
     assert knowledge.cve == ()
 
 
@@ -144,8 +146,11 @@ def test_one_cve_in_two_bulletins_is_refused(tmp_path):
     package["cve"][1]["cves"].append(copy.deepcopy(package["cve"][0]["cves"][0]))
     knowledge = load_knowledge(_package(tmp_path, package), today=TODAY)
     assert knowledge.missing is True
-    assert "'CVE-2026-8451'" in knowledge.reason
-    assert "meer dan eens" in knowledge.reason
+    # 1.1: the place of the second copy, never its spelling.
+    assert knowledge.reason == (
+        f"kennispakket: cve[1].cves[{len(package['cve'][1]['cves']) - 1}].id noemt een CVE die meer dan eens"
+        " voorkomt; het zou dubbel meetellen"
+    )
 
 
 def test_one_cve_twice_in_one_bulletin_is_refused(tmp_path):
@@ -165,6 +170,7 @@ def test_a_duplicate_differing_only_in_case_or_spacing_is_still_a_duplicate(tmp_
     knowledge = load_knowledge(_package(tmp_path, package), today=TODAY)
     assert knowledge.missing is True
     assert "meer dan eens" in knowledge.reason
+    assert "ctx696604" not in knowledge.reason.lower()
 
 
 @pytest.mark.parametrize(
@@ -172,7 +178,8 @@ def test_a_duplicate_differing_only_in_case_or_spacing_is_still_a_duplicate(tmp_
     [
         # A copy of an identity already seen, differing only in case and in
         # the white space around it - line breaks included - reaches the
-        # duplicate check, which names the copy by its spelling.
+        # duplicate check, which names the copy by its place (1.1; 1.0.3
+        # named it by its spelling).
         ("bulletin", "\nctx696604\n", "meer dan eens"),
         ("cve", "\ncve-2026-8451\n", "meer dan eens"),
         # Any other forged line is no identifier at all and never gets there.

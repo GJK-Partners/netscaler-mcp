@@ -330,17 +330,24 @@ def _introduction_problem(raw: dict, present: frozenset[str]) -> str:
 OFFERED_ABSENT = "aangeboden build niet vastgelegd"
 
 
-def _condition_problem(condition) -> str:
-    """The reason this `voorwaarde` is unusable, or "" when it is fine.
+def _condition_problem(condition, place: str) -> str:
+    """The reason this `voorwaarde` (at `place`, a path this loader built)
+    is unusable, or "" when it is fine.
 
     Strict on purpose, and at LOAD time: a condition that cannot be judged
     produces a verdict for a CVE, and a wrong verdict about a CVE is worse
     than no knowledge package at all. cve.py keeps its own runtime net for a
     Knowledge that never came through here.
+
+    1.1: a reason names the place and the expected form, never the
+    predicate text, a branch or a build out of the package. 1.0.3 repeated
+    those with `!r`, which kept a line break out but bounded nothing (a
+    predicate of 60.000 characters came back whole).
     """
+    allowed = ", ".join(sorted(PREDICATES))
     if isinstance(condition, str):
         if condition not in PREDICATES:
-            return f"onbekend predicaat {condition!r}; toegestaan: {', '.join(sorted(PREDICATES))}"
+            return f"{place} noemt een onbekend predicaat; toegestaan: {allowed}"
         return ""
     if not isinstance(condition, dict):
         return (
@@ -361,17 +368,14 @@ def _condition_problem(condition) -> str:
     since = condition["vanaf"]
     if not isinstance(since, dict) or not since:
         return "'vanaf' moet een niet-leeg object van tak naar buildnummer zijn"
-    for branch, build in since.items():
+    for build in since.values():
         if not isinstance(build, str) or not _BUILD_FORM.fullmatch(build.strip()):
-            # HARDENING, same class: `branch` is an attacker-supplied dict
-            # key too, and unlike the analogous message in
-            # _offered_problem() there is no prior .isprintable() check on it
-            # here - so it is wrapped in !r, same as `build!r` right next to
-            # it, rather than pasted raw.
-            return f"'vanaf' draagt voor tak {branch!r} geen buildnummer van de vorm X.Y: {build!r}"
+            # Neither the branch (an attacker-supplied dict key) nor the
+            # build: the place and the form only.
+            return f"{place}.vanaf draagt voor een tak geen buildnummer van de vorm X.Y"
     for key in ("predicaat", "anders"):
         if condition[key] not in PREDICATES:
-            return f"onbekend predicaat {condition[key]!r} in '{key}'; toegestaan: {', '.join(sorted(PREDICATES))}"
+            return f"{place}.{key} noemt een onbekend predicaat; toegestaan: {allowed}"
     return ""
 
 
@@ -432,6 +436,10 @@ def _offered_problem(block) -> str:
     `branch` already ran and refused before that message can be built. That
     ordering - printability check BEFORE the message that interpolates the
     branch - is load-bearing; do not move the build-form check above it.
+
+    1.1: no message here repeats a branch, a build or a date out of the
+    package any more (1.0.3 did, unbounded); the printability checks stay,
+    because the branch names and `bron` still leave here into an answer.
     """
     if not isinstance(block, dict):
         return f"'aangeboden' moet een object zijn; gevonden: {type(block).__name__}"
@@ -449,16 +457,12 @@ def _offered_problem(block) -> str:
             return "'aangeboden.builds' draagt een takkenaam die geen tekst is"
         if not branch.isprintable():
             return "'aangeboden.builds' draagt een takkenaam met een regeleinde of een stuurteken"
-        # LOAD-BEARING ORDER: this message pastes `branch` in raw, unescaped.
-        # That is safe only because the `.isprintable()` check above already
-        # ran and refused any branch that could forge a line break or
-        # control character. Do not reorder these two checks.
         if not isinstance(build, str) or not _BUILD_FORM.fullmatch(build):
-            return f"'aangeboden.builds' draagt voor tak {branch} geen build in de vorm X.Y; gevonden: {build!r}"
+            return "'aangeboden.builds' draagt voor een tak geen build in de vorm X.Y"
     try:
         date.fromisoformat(str(block["datum"]))
     except (TypeError, ValueError):
-        return f"'aangeboden.datum' is onbruikbaar: {block['datum']!r}"
+        return "'aangeboden.datum' is geen ISO-datum (JJJJ-MM-DD)"
     return ""
 
 
@@ -760,11 +764,13 @@ def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> K
         missing_fields = _BULLETIN_FIELDS - entry.keys()
         if missing_fields:
             return _absent(f"kennispakket: cve-record mist veld: {', '.join(sorted(missing_fields))}")
-        # The identifier is attacker-supplied text, so !r: a line break in it
-        # would otherwise forge a second line into this refusal reason.
+        # The identifier is attacker-supplied text: the refusal names the
+        # place of the copy, never its spelling (1.0.3 quoted it with !r,
+        # which kept a line break out but bounded nothing).
         if _identity(entry["bulletin"]) in seen_bulletins:
             return _absent(
-                f"kennispakket: bulletin {entry['bulletin']!r} komt meer dan eens voor; het zou dubbel meetellen"
+                f"kennispakket: cve[{index}].bulletin noemt een bulletin dat meer dan eens voorkomt;"
+                " het zou dubbel meetellen"
             )
         # After the duplicate check, which names a copy for what it is; before
         # anything else echoes the identifier into a reason.
@@ -782,30 +788,19 @@ def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> K
         for field_name in ("getroffen", "fix"):
             if not isinstance(entry[field_name], dict):
                 return _absent(f"kennispakket: '{field_name}' moet een object van tak naar tekst zijn")
-        only_affected = sorted(entry["getroffen"].keys() - entry["fix"].keys())
-        only_fixed = sorted(entry["fix"].keys() - entry["getroffen"].keys())
-        if only_affected or only_fixed:
-            # HARDENING, same class as the unknown-field messages above: both
-            # the branch names (attacker-supplied dict keys under
-            # 'getroffen'/'fix') and 'bulletin' itself (an attacker-supplied
-            # field, never type- or shape-checked) are echoed into this
-            # refusal reason, so both go through !r rather than a raw paste -
-            # otherwise a branch name or bulletin id carrying a line break
-            # could forge a second, indistinguishable line into this reason.
-            parts = []
-            if only_affected:
-                parts.append(f"alleen in 'getroffen': {', '.join(only_affected)!r}")
-            if only_fixed:
-                parts.append(f"alleen in 'fix': {', '.join(only_fixed)!r}")
+        if entry["getroffen"].keys() != entry["fix"].keys():
+            # The branch names are attacker-supplied dict keys: the refusal
+            # names the two places, never the branches (1.0.3 listed them
+            # with !r, unbounded).
             return _absent(
-                f"kennispakket: bulletin {entry['bulletin']!r} draagt in 'getroffen' en 'fix'"
-                f" niet dezelfde takken ({'; '.join(parts)})"
+                f"kennispakket: cve[{index}].getroffen en cve[{index}].fix noemen niet dezelfde takken;"
+                " elke tak hoort in beide"
             )
         for branch, affected in entry["getroffen"].items():
             problem = _rule_problem(affected, entry["fix"][branch])
             if problem:
-                # Branch name and identifier are attacker-supplied: !r, as above.
-                return _absent(f"kennispakket: bulletin {entry['bulletin']!r} draagt voor tak {branch!r} {problem}")
+                # The place, never the branch name.
+                return _absent(f"kennispakket: cve[{index}] draagt voor een tak in getroffen en fix {problem}")
         if not isinstance(entry["cves"], list):
             return _absent("kennispakket: 'cves' moet een lijst zijn")
         for position, cve in enumerate(entry["cves"]):
@@ -815,18 +810,22 @@ def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> K
                     + ", ".join(sorted(_CVE_FIELDS - (cve.keys() if isinstance(cve, dict) else set())))
                 )
             if _identity(cve["id"]) in seen_cves:
-                return _absent(f"kennispakket: CVE {cve['id']!r} komt meer dan eens voor; het zou dubbel meetellen")
+                return _absent(
+                    f"kennispakket: cve[{index}].cves[{position}].id noemt een CVE die meer dan eens voorkomt;"
+                    " het zou dubbel meetellen"
+                )
             problem = _identity_problem(cve["id"], _CVE_ID, _CVE_FORM, f"cve[{index}].cves[{position}].id")
             if problem:
                 return _absent(problem)
             seen_cves.add(_identity(cve["id"]))
-            problem = _condition_problem(cve["voorwaarde"])
+            problem = _condition_problem(cve["voorwaarde"], f"cve[{index}].cves[{position}].voorwaarde")
             if problem:
                 return _absent(f"kennispakket: {problem}")
             if POST_UPGRADE_CONFIG_FIELD in cve and type(cve[POST_UPGRADE_CONFIG_FIELD]) is not bool:
-                # The identifier was checked above; the value is never echoed.
+                # The structure check refuses this first; the second net names
+                # the place, like that check, and never the value.
                 return _absent(
-                    f"kennispakket: '{POST_UPGRADE_CONFIG_FIELD}' van CVE {cve['id']!r} moet true of false zijn"
+                    f"kennispakket: cve[{index}].cves[{position}].{POST_UPGRADE_CONFIG_FIELD} moet true of false zijn"
                 )
     # B1. Absent is allowed and stays backwards compatible; a wrong shape is
     # not - see _offered_problem() for why this one field is refused at load
@@ -981,7 +980,8 @@ def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> K
     try:
         created = date.fromisoformat(str(date_value))
     except ValueError:
-        return _absent(f"kennispakket draagt een onbruikbare datum: {date_value!r}")
+        # The form, never the text the package put there.
+        return _absent("kennispakket draagt een onbruikbare datum; verwacht een ISO-datum (JJJJ-MM-DD)")
     age_days = (today - created).days
     # Without a lower bound this would render "-1 dagen oud" for a knowledge
     # package dated in the future - the same kind of error that
@@ -989,7 +989,7 @@ def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> K
     # ("tijdstempel ligt in de toekomst"). One text must not follow two
     # different rules for the same kind of error.
     if age_days < 0:
-        return _absent(f"kennispakket is gedateerd in de toekomst: {date_value!r}")
+        return _absent("kennispakket is gedateerd in de toekomst")
     # SECURITY 17 continued. `versie` is shown on kennis_uitleg's NOT-FOUND
     # branch - the common case, at every disclosure level - so it gets the
     # same isinstance(str) pre-check and the same capped_text() the other

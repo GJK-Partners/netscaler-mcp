@@ -403,6 +403,138 @@ def test_cvss_type_is_a_finite_number(tmp_path):
         assert not _load(tmp_path, _set(_package(), "cve[0].cves[0].cvss", value)).missing, value
 
 
+# A refusal reason is a fixed sentence: it names a path, the expected form
+# and at most the engine's own vocabulary. Never longer than this, whatever
+# the package carries - the reason is printed by --controleer and carried
+# into every answer that says the package does not load.
+REASON_MAX_CHARS = 500
+LONG_NEEDLE = NEEDLE * 3000
+_PREDICATE_LIST = ", ".join(sorted(knowledge.PREDICATES))
+
+
+def _two_bulletins() -> dict:
+    document = _package()
+    twin = copy.deepcopy(_BULLETIN)
+    twin["bulletin"] = "ctx697096"
+    document["cve"].append(twin)
+    return document
+
+
+# Every route of the loader that used to repeat package content (1.0.3: the
+# predicate text, the branch names of `getroffen`/`fix`/`vanaf`/
+# `aangeboden.builds`, a build, a date, the spelling of a duplicate
+# identifier), with the fixed sentence it gives now.
+_CONTENT_ROUTES = [
+    (
+        _set(_package(), "cve[0].cves[0].voorwaarde", LONG_NEEDLE),
+        f"kennispakket: cve[0].cves[0].voorwaarde noemt een onbekend predicaat; toegestaan: {_PREDICATE_LIST}",
+    ),
+    (
+        _set(_package(), "cve[0].cves[1].voorwaarde", {**_CHOICE, "predicaat": LONG_NEEDLE}),
+        "kennispakket: cve[0].cves[1].voorwaarde.predicaat noemt een onbekend predicaat;"
+        f" toegestaan: {_PREDICATE_LIST}",
+    ),
+    (
+        _set(_package(), "cve[0].cves[1].voorwaarde", {**_CHOICE, "anders": LONG_NEEDLE}),
+        f"kennispakket: cve[0].cves[1].voorwaarde.anders noemt een onbekend predicaat; toegestaan: {_PREDICATE_LIST}",
+    ),
+    (
+        _set(_package(), "cve[0].cves[1].voorwaarde", {**_CHOICE, "vanaf": {LONG_NEEDLE: "geen build"}}),
+        "kennispakket: cve[0].cves[1].voorwaarde.vanaf draagt voor een tak geen buildnummer van de vorm X.Y",
+    ),
+    (
+        _set(_package(), "cve[0].cves[1].voorwaarde", {**_CHOICE, "vanaf": {"14.1": LONG_NEEDLE}}),
+        "kennispakket: cve[0].cves[1].voorwaarde.vanaf draagt voor een tak geen buildnummer van de vorm X.Y",
+    ),
+    (
+        _set(_package(), "cve[0].getroffen", {"14.1": "< 73.37", "13.1": "< 64.23", LONG_NEEDLE: "< 1.0"}),
+        "kennispakket: cve[0].getroffen en cve[0].fix noemen niet dezelfde takken; elke tak hoort in beide",
+    ),
+    (
+        _set(_package(), "cve[0].fix", {"14.1": "73.37", "13.1": "64.23", LONG_NEEDLE: "1.0"}),
+        "kennispakket: cve[0].getroffen en cve[0].fix noemen niet dezelfde takken; elke tak hoort in beide",
+    ),
+    (
+        _set(
+            _set(_package(), "cve[0].getroffen", {"14.1": "< 73.37", "13.1": "< 64.23", LONG_NEEDLE: "< 9.0"}),
+            "cve[0].fix",
+            {"14.1": "73.37", "13.1": "64.23", LONG_NEEDLE: "1.0"},
+        ),
+        "kennispakket: cve[0] draagt voor een tak in getroffen en fix een fix-build onder de getroffen reeks;"
+        " een build zou dan tegelijk geraakt en verholpen heten",
+    ),
+    (
+        _set(_package(), "cve[0].getroffen", {"14.1": LONG_NEEDLE, "13.1": "< 64.23"}),
+        "kennispakket: cve[0] draagt voor een tak in getroffen en fix een getroffen reeks die niet de vorm"
+        " '< X.Y' heeft",
+    ),
+    (
+        _set(_package(), "aangeboden.builds", {LONG_NEEDLE: "geen build"}),
+        "kennispakket: 'aangeboden.builds' draagt voor een tak geen build in de vorm X.Y",
+    ),
+    (
+        _set(_package(), "aangeboden.builds", {"14.1": LONG_NEEDLE}),
+        "kennispakket: 'aangeboden.builds' draagt voor een tak geen build in de vorm X.Y",
+    ),
+    (
+        _set(_package(), "aangeboden.datum", LONG_NEEDLE),
+        "kennispakket: 'aangeboden.datum' is geen ISO-datum (JJJJ-MM-DD)",
+    ),
+    (
+        _package(datum=LONG_NEEDLE),
+        "kennispakket draagt een onbruikbare datum; verwacht een ISO-datum (JJJJ-MM-DD)",
+    ),
+    (_package(datum="2999-12-31"), "kennispakket is gedateerd in de toekomst"),
+    (
+        _two_bulletins(),
+        "kennispakket: cve[1].bulletin noemt een bulletin dat meer dan eens voorkomt; het zou dubbel meetellen",
+    ),
+    (
+        _set(_package(), "cve[0].cves[1].id", "cve-2026-88771"),
+        "kennispakket: cve[0].cves[1].id noemt een CVE die meer dan eens voorkomt; het zou dubbel meetellen",
+    ),
+]
+
+
+_CONTENT_ROUTE_IDS = [
+    "predicaat-tekst",
+    "predicaat-object",
+    "anders-object",
+    "vanaf-tak",
+    "vanaf-build",
+    "tak-alleen-getroffen",
+    "tak-alleen-fix",
+    "tak-regel",
+    "getroffen-reeks",
+    "aangeboden-tak",
+    "aangeboden-build",
+    "aangeboden-datum",
+    "datum",
+    "datum-toekomst",
+    "bulletin-dubbel",
+    "cve-dubbel",
+]
+
+
+@pytest.mark.parametrize(("document", "reason"), _CONTENT_ROUTES, ids=_CONTENT_ROUTE_IDS)
+def test_an_existing_refusal_route_names_the_place_not_the_content(tmp_path, capsys, document, reason):
+    """1.1 D, sectie 2 regel 3: the loader's refusals of 1.0.3 repeated
+    package content - unbounded (a predicate of 60.000 characters came back
+    whole) - and --controleer printed it. Each of them now names the place
+    and the expected form, never what the package says there."""
+    path = _write(tmp_path, document)
+    loaded = load_knowledge(path, TODAY)
+    assert loaded.missing
+    assert loaded.reason == reason
+    for content in (NEEDLE, "2999", "697096", "88771"):
+        assert content not in loaded.reason
+    assert len(loaded.reason) <= REASON_MAX_CHARS
+    assert main(["--controleer", str(path)]) == 1
+    printed = capsys.readouterr()
+    assert NEEDLE not in printed.out + printed.err
+    assert len(printed.err) <= REASON_MAX_CHARS + 100
+
+
 def test_type_refusal_never_echoes_the_value(tmp_path, capsys):
     cases = [
         _set(_package(), "cve[0].extraStapNaUpgrade", {"x": NEEDLE}),
@@ -423,6 +555,7 @@ def test_type_refusal_never_echoes_the_value(tmp_path, capsys):
         assert loaded.missing
         assert NEEDLE not in loaded.reason
         assert "\n" not in loaded.reason
+        assert len(loaded.reason) <= REASON_MAX_CHARS
         assert main(["--controleer", str(path)]) == 1
         printed = capsys.readouterr()
         assert NEEDLE not in printed.out + printed.err

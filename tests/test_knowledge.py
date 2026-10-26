@@ -231,8 +231,10 @@ def test_a_bulletin_whose_branches_do_not_match_makes_the_package_absent(tmp_pat
     half = dict(BULLETIN, getroffen={"14.1": "< 73.32", "13.1": "< 63.21"}, fix={"14.1": "73.32"})
     k = load_knowledge(_write(tmp_path, {"versie": "x", "datum": "2026-09-01", "cve": [half]}), TODAY)
     assert k.missing is True
-    assert "13.1" in k.reason
-    assert "getroffen" in k.reason and "fix" in k.reason
+    # 1.1: the place, never the branch names (package content).
+    assert k.reason == (
+        "kennispakket: cve[0].getroffen en cve[0].fix noemen niet dezelfde takken; elke tak hoort in beide"
+    )
 
 
 def test_a_bulletin_whose_branch_ranges_are_no_object_makes_the_package_absent(tmp_path):
@@ -269,10 +271,10 @@ def test_bulletin_branch_mismatch_reason_never_echoes_a_forged_value_raw(tmp_pat
     )
     k = load_knowledge(_write(tmp_path, {"versie": "x", "datum": "2026-09-01", "cve": [half]}), TODAY)
     assert k.missing is True
-    # `!r` legitimately keeps "vastgesteld" as inert, quoted text (same as
-    # the sibling hardening tests for the !r-based fixes elsewhere in this
-    # file); what must never appear is a literal newline.
+    # 1.1: the bulletin is refused on its form first, and the branch-parity
+    # sentence names the place only - nothing of the forged text remains.
     assert "\n" not in k.reason
+    assert "vastgesteld" not in k.reason
 
 
 # ---------------------------------------------------------------------------
@@ -556,7 +558,7 @@ def test_a_fips_branch_in_vanaf_is_accepted(tmp_path):
 def test_half_a_fips_rule_is_refused_like_any_other_half_rule(tmp_path):
     half = dict(FIPS_TAKKEN, fix={k: v for k, v in FIPS_TAKKEN["fix"].items() if k != "13.1-FIPS"})
     k = load_knowledge(_write(tmp_path, {"versie": "x", "datum": "2026-09-01", "cve": [half]}), TODAY)
-    assert k.missing is True and "13.1-FIPS" in k.reason
+    assert k.missing is True and "niet dezelfde takken" in k.reason
 
 
 def test_a_knowledge_package_without_a_cve_key_is_refused(tmp_path):

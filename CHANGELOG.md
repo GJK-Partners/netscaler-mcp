@@ -138,6 +138,31 @@ the knowledge package.
   ("kennispakket: cve[3].extraStapNaUpgrade moet tekst zijn"), never the value;
   an unknown field is named by its place, no longer by its key. Text that looks
   like JSON stays plain text.
+- No refusal of the knowledge package repeats package content any more: the
+  reasons of 1.0.3 that did (with `!r`, which kept a line break out but bounded
+  nothing - a predicate of 60.000 characters came back whole, and
+  `--controleer` printed it) now name the place and the expected form.
+  **Behaviour change for a caller that matched on the old sentences:**
+  "onbekend predicaat '<x>'; toegestaan: ..." is now
+  "kennispakket: cve[0].cves[1].voorwaarde noemt een onbekend predicaat;
+  toegestaan: ..." (also `.voorwaarde.predicaat` and `.voorwaarde.anders`);
+  "'vanaf' draagt voor tak '<t>' geen buildnummer van de vorm X.Y: '<b>'" is
+  "cve[0].cves[1].voorwaarde.vanaf draagt voor een tak geen buildnummer van de
+  vorm X.Y"; "bulletin '<id>' draagt in 'getroffen' en 'fix' niet dezelfde
+  takken (alleen in ...)" is "cve[0].getroffen en cve[0].fix noemen niet
+  dezelfde takken; elke tak hoort in beide"; "bulletin '<id>' draagt voor tak
+  '<t>' <rule>" is "cve[0] draagt voor een tak in getroffen en fix <rule>";
+  "bulletin '<id>' komt meer dan eens voor" and "CVE '<id>' komt meer dan eens
+  voor" are "cve[3].bulletin noemt een bulletin dat meer dan eens voorkomt" and
+  "cve[0].cves[1].id noemt een CVE die meer dan eens voorkomt";
+  "'aangeboden.builds' draagt voor tak <t> geen build in de vorm X.Y; gevonden:
+  '<b>'" is "'aangeboden.builds' draagt voor een tak geen build in de vorm X.Y";
+  "'aangeboden.datum' is onbruikbaar: '<d>'" is "'aangeboden.datum' is geen
+  ISO-datum (JJJJ-MM-DD)"; "kennispakket draagt een onbruikbare datum: '<d>'"
+  is "kennispakket draagt een onbruikbare datum; verwacht een ISO-datum
+  (JJJJ-MM-DD)"; "kennispakket is gedateerd in de toekomst: '<d>'" is
+  "kennispakket is gedateerd in de toekomst". Only the indexes in the path
+  vary, so the length of a reason no longer depends on what the package says.
 
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is

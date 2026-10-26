@@ -390,13 +390,16 @@ def test_the_documents_say_which_maps_may_hold_the_export_map_and_when_that_is_s
 def test_the_trust_model_says_which_knowledge_refusal_quotes_the_identity():
     """The refusal for an identity outside its form names the field and the
     form, not the value; a copy of an identity already seen, differing only
-    in case or white space, is refused by the duplicate check first, and
-    that reason does quote the spelling (escaped). The trust model may not
-    promise that no reason ever repeats the value."""
+    in case or white space, is refused by the duplicate check first. Up to
+    1.0.3 that reason quoted the spelling (escaped); since 1.1 it names the
+    place too, and the trust model says so - it may no longer say the
+    duplicate reason quotes the spelling."""
     row = next(line for line in _read("docs/klant/SECURITY.md").splitlines() if line.startswith("| het kennispakket |"))
     assert "zonder de waarde te herhalen" not in row
     assert "niet de waarde" in row
     assert "dubbelcontrole" in row
+    assert "spelling wel" not in row
+    assert "ook die reden noemt de plaats" in row
 
 
 def _block_with(text: str, needle: str) -> str:
