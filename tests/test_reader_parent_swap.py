@@ -1134,3 +1134,32 @@ def test_ledger_the_needle_never_reaches_the_run_state(tmp_path, level):
     text = _answers(server, [("onderhoud_upgrade_stand", {"run": NAALD})])["onderhoud_upgrade_stand"]
 
     _assert_no_needle(text, tmp_path)
+
+
+def test_knowledge_a_junction_in_the_place_of_the_package_is_absent_and_nothing_is_read(tmp_path, seam):
+    from nsmcp.knowledge import load_knowledge
+
+    path = _knowledge_package(tmp_path)
+    outside = tmp_path / "buiten-map"
+    outside.mkdir()
+    path.unlink()
+    _junction(path, outside)
+    reads = seam.calls["ReadFile"]
+
+    knowledge = load_knowledge(path, date(2026, 8, 20))
+
+    assert knowledge.missing and knowledge.reason.startswith("kennispad wijst naar een map, geen bestand")
+    assert seam.calls["ReadFile"] == reads
+
+
+def test_export_on_a_network_drive_is_a_read_gap_of_its_kind_without_any_open(tmp_path, seam, monkeypatch):
+    export_dir = _export(tmp_path)
+    monkeypatch.setattr(seam, "GetDriveTypeW", lambda root: localpath.DRIVE_REMOTE)
+    opens = seam.calls["NtCreateFile"]
+
+    export = load_export(export_dir)
+
+    assert export.manifest_missing and export.manifest_refused == "netwerkstation"
+    _, gap = export.objects("config/sslcertkey")
+    assert gap is not None and REASONS["netwerkstation"] in gap.reason
+    assert seam.calls["NtCreateFile"] == opens, "niets geopend op het netwerkstation"

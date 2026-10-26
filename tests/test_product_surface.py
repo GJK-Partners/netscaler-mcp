@@ -3618,3 +3618,194 @@ def test_disclosure_name_collection_reads_the_other_uses_field(tmp_path):
     )
     assert "SAML_GEHEIM" not in tekst
     assert "object-" in tekst
+
+
+# ---------------------------------------------------------------------------
+# 1.1 B.4: a refused local file is named per kind with ONE fixed sentence
+# (`nsmcp.localpath.REASONS`), and every reader puts that sentence in its own
+# existing route with a fixed lead-in. Below `volledig` never a path; at
+# `volledig` only the firmware directory's own rule adds it (its existing
+# `FirmwareBundleError` rule). Both pinned here, verbatim.
+# ---------------------------------------------------------------------------
+
+_1_1_REFUSAL_REASONS = {
+    "netwerkpad": "het pad leidt naar een netwerkpad; dit product leest en schrijft alleen op een lokale schijf",
+    "apparaatpad": (
+        "het pad leidt naar een apparaat of naar een station dat geen vaste lokale schijf is; dit product leest en"
+        " schrijft alleen op een lokale schijf"
+    ),
+    "stroom": (
+        "het pad noemt een alternatieve gegevensstroom (een dubbele punt in een padonderdeel); dit product leest"
+        " alleen de gewone inhoud van een bestand"
+    ),
+    "netwerkstation": "het pad ligt op een netwerkstation; dit product leest en schrijft alleen op een lokale schijf",
+    "koppeling": (
+        "het bestand ligt niet als gewoon lokaal bestand op de goedgekeurde plek (er zit een koppeling in het pad);"
+        " dit product volgt binnen een goedgekeurde map geen koppelingen"
+    ),
+    "herparseerpunt": (
+        "het pad gaat door een herparseerpunt dat geen gewone map of gewoon bestand is (bijvoorbeeld een"
+        " cloud-plaatshouder); dit product leest of schrijft op zo'n plek niet"
+    ),
+    "buiten_wortel": "het pad ligt buiten de goedgekeurde map",
+    "geen_gewoon_bestand": "op deze plek staat geen gewoon bestand of geen gewone map van de verwachte soort",
+    "te_veel_koppelingen": "het pad loopt via meer dan 32 koppelingen; zo'n pad wordt niet gevolgd",
+    "onleesbaar": "het pad kan niet als gewoon lokaal bestand of als gewone lokale map gelezen of vastgesteld worden",
+}
+
+# Per reader: the sentence around the reason ({reden}), as the answer, the
+# typed error or the server log carries it.
+_1_1_READER_SENTENCES = {
+    "export: objectbestand": "objectbestand kon niet gelezen worden: {reden}",
+    "export: bindingsbestand": "bindingsbestand kon niet gelezen worden: {reden}",
+    "export: tekstprojectie": "parsed/runningconfig.txt kon niet gelezen worden: {reden}",
+    "export: manifest": "het manifest van deze export is geweigerd: {reden}; niets is te vertrouwen",
+    "collector: werkmanifest": "het export-manifest kon niet gelezen worden: {reden}",
+    "collector: fasebestand": "het fasebestand is onleesbaar: {reden}",
+    "collector: scanslot": "kon geen slot aanmaken voor de scan: {reden}",
+    "collector: scandoel": "kon het scandoel niet vastleggen in de werkmap: {reden}",
+    "kennispakket": "kennispakket geweigerd: {reden}",
+    "kennispakket via de CLI": "Fout: kennispakket geweigerd: {reden}; geen kennispin berekend",
+    "regressiematrix": "regressiematrix geweigerd: {reden}",
+    "configuratiebestand": "configuratiebestand onleesbaar: {reden}",
+    "doelenbestand": "doelenbestand onleesbaar: {reden}",
+    "vertaaltabel": (
+        "de vertaaltabel is geweigerd: {reden}; dit bestand is de enige sleutel naar de echte namen en wordt daarom"
+        " nooit overschreven - herstel de plek van de vertaaltabel en stel de vraag opnieuw"
+    ),
+    "vertaaltabel: slot": (
+        "het slot naast de vertaaltabel is geweigerd: {reden}; dit bestand is de enige sleutel naar de echte namen en"
+        " wordt daarom nooit overschreven - herstel de plek van de vertaaltabel en stel de vraag opnieuw"
+    ),
+    "ledger": "een regelbestand in de ledgermap kon niet gelezen worden ({reden})",
+    "actieregister": "duurzame registratie NIET vastgesteld ({reden})",
+    "herkomst": "De herkomst is niet vastgelegd ({reden}); {gevolg}.",
+    "firmwarebundel": "de firmwarebundel in onderhoud.firmwaremap is geweigerd: {reden}",
+    "scriptpin": "het script {script} kon niet gelezen worden voor de pincontrole ({reden}); er wordt geen proces gestart",
+    "codekanaal": "kon het codebestand niet schrijven: {reden}",
+    "serverlog: codekanaal": "[nsmcp-pad] codekanaal: verbruikte code niet gemarkeerd: geweigerd (soort={soort})",
+    "serverlog: herkomst": "[nsmcp-pad] herkomst niet vastgelegd: geweigerd (soort={soort})",
+    "serverlog: kennisverversing": "[nsmcp-pad] kennisverversing: geen logregel: geweigerd (soort={soort})",
+}
+
+
+def test_1_1_the_refusal_sentence_of_every_kind_is_pinned():
+    from nsmcp import localpath
+
+    assert localpath.REASONS == _1_1_REFUSAL_REASONS
+    for soort, reden in _1_1_REFUSAL_REASONS.items():
+        assert str(localpath.PathRefused(soort, path="C:\\geheim\\pad", status=0xC0000022)) == reden
+
+
+def test_1_1_the_export_and_table_sentences_are_pinned(tmp_path):
+    from nsmcp import disclosure, export
+    from nsmcp.localpath import PathRefused
+
+    reden = _1_1_REFUSAL_REASONS["koppeling"]
+    refused = PathRefused("koppeling")
+    assert export._refused_reason("objectbestand", refused) == _1_1_READER_SENTENCES["export: objectbestand"].format(
+        reden=reden
+    )
+    assert export._refused_reason("bindingsbestand", refused) == _1_1_READER_SENTENCES[
+        "export: bindingsbestand"
+    ].format(reden=reden)
+    assert export._refused_reason("parsed/runningconfig.txt", refused) == _1_1_READER_SENTENCES[
+        "export: tekstprojectie"
+    ].format(reden=reden)
+    refused_manifest = export.Export(directory=tmp_path, manifest_missing=True, manifest_refused="koppeling")
+    assert refused_manifest._no_manifest_reason() == _1_1_READER_SENTENCES["export: manifest"].format(reden=reden)
+    assert export.Export(directory=tmp_path, manifest_missing=True)._no_manifest_reason() == (
+        "export draagt geen manifest; niets is te vertrouwen"
+    )
+    assert str(disclosure._table_refused("de vertaaltabel", refused)) == _1_1_READER_SENTENCES["vertaaltabel"].format(
+        reden=reden
+    )
+    assert str(disclosure._table_refused("het slot naast de vertaaltabel", refused)) == _1_1_READER_SENTENCES[
+        "vertaaltabel: slot"
+    ].format(reden=reden)
+
+
+@pytest.mark.skipif(
+    __import__("sys").platform != "win32", reason="de wandeling over NtCreateFile bestaat alleen op Windows"
+)
+def test_1_1_every_reader_names_a_refusal_with_its_pinned_sentence(tmp_path, monkeypatch, capsys):
+    """One real refusal per reader: the directory of each file reports a
+    cloud placeholder through the seam (`herparseerpunt`, inside a root and
+    above it alike), and every reader's own route carries the pinned
+    sentence - and never the path."""
+    import hashlib
+
+    from conftest import reparse_at
+
+    from nsmcp import collect, handelen, knowledge, knowledge_regression, powershell, start, target, upgrade_gate
+    from nsmcp.code_channel import CodeChannelError, FileCodeChannel
+    from nsmcp.knowledge_refresh import _write_log_line
+
+    reden = _1_1_REFUSAL_REASONS["herparseerpunt"]
+    plek = tmp_path / "PLEKNAALD9"
+    plek.mkdir()
+    for name in ("kennis.json", "config.json", "doelen.json", "matrix.json", "export-manifest.json", "scan-fasen.json"):
+        (plek / name).write_text("{}", encoding="utf-8")
+    (plek / "run-1.jsonl").write_text("{}\n", encoding="utf-8")
+    (plek / "runner.ps1").write_text("# x", encoding="ascii")
+    (plek / "build-14.1-72.57_nc_64.tgz").write_bytes(b"\0")
+    reparse_at(monkeypatch, plek, tag=0x9000601A)
+    texts = {}
+
+    texts["kennispakket"] = knowledge.load_knowledge(plek / "kennis.json", datetime.now(UTC).date()).reason
+    assert knowledge.main(["--digest", str(plek / "kennis.json")]) == 1
+    texts["kennispakket via de CLI"] = capsys.readouterr().err.strip()
+    texts["regressiematrix"] = knowledge_regression._read_matrix(plek / "matrix.json")[1]
+    # The configuration file: its start check (part 1) refuses the place
+    # before the read walk; the read's own sentence is reached only in a
+    # race (tests/test_reader_parent_swap.py) - pinned above as a template.
+    with pytest.raises(start.ConfigError):
+        start.load_config(plek / "config.json")
+    with pytest.raises(target.TargetError) as error:
+        target.load_targets(plek / "doelen.json")
+    texts["doelenbestand"] = str(error.value)
+    with pytest.raises(collect.CollectError) as error:
+        collect._verify(plek)
+    texts["collector: werkmanifest"] = str(error.value)
+    texts["collector: fasebestand"] = collect._phases_from_file(plek)[0][0].detail
+    with pytest.raises(collect.CollectError) as error:
+        collect._acquire_lock(plek / "export")
+    texts["collector: scanslot"] = str(error.value)
+    with pytest.raises(upgrade_gate.LedgerUnreadable) as error:
+        upgrade_gate._rows_from_file(plek / "run-1.jsonl", strict=True)
+    texts["ledger"] = str(error.value)
+    with pytest.raises(handelen.FirmwareBundleError) as error:
+        handelen.firmware_target_build(plek)
+    texts["firmwarebundel"] = error.value.zonder_pad
+    powershell.set_script_policy(powershell.ScriptPolicy(pins={"runner.ps1": hashlib.sha256(b"# x").hexdigest()}))
+    try:
+        with pytest.raises(powershell.ScriptPinMismatch) as error:
+            powershell.check_script_pins(plek / "runner.ps1")
+    finally:
+        powershell.set_script_policy(powershell.ScriptPolicy())
+    texts["scriptpin"] = str(error.value)
+    with pytest.raises(CodeChannelError) as error:
+        FileCodeChannel(plek / "code.txt").notice("bericht")
+    texts["codekanaal"] = str(error.value)
+    assert _write_log_line(plek, "AFGEKEURD", plek / "kennis.json", "reden") is False
+    texts["serverlog: kennisverversing"] = capsys.readouterr().err.strip()
+
+    expected = {
+        "kennispakket": _1_1_READER_SENTENCES["kennispakket"].format(reden=reden),
+        "kennispakket via de CLI": _1_1_READER_SENTENCES["kennispakket via de CLI"].format(reden=reden),
+        "regressiematrix": _1_1_READER_SENTENCES["regressiematrix"].format(reden=reden),
+        "doelenbestand": _1_1_READER_SENTENCES["doelenbestand"].format(reden=reden),
+        "collector: werkmanifest": _1_1_READER_SENTENCES["collector: werkmanifest"].format(reden=reden),
+        "collector: fasebestand": _1_1_READER_SENTENCES["collector: fasebestand"].format(reden=reden),
+        "collector: scanslot": _1_1_READER_SENTENCES["collector: scanslot"].format(reden=reden),
+        "ledger": _1_1_READER_SENTENCES["ledger"].format(reden=reden),
+        "firmwarebundel": _1_1_READER_SENTENCES["firmwarebundel"].format(reden=reden),
+        "scriptpin": _1_1_READER_SENTENCES["scriptpin"].format(script="runner.ps1", reden=reden),
+        "codekanaal": _1_1_READER_SENTENCES["codekanaal"].format(reden=reden),
+        "serverlog: kennisverversing": _1_1_READER_SENTENCES["serverlog: kennisverversing"].format(
+            soort="herparseerpunt"
+        ),
+    }
+    assert texts == expected
+    for text in texts.values():
+        assert str(tmp_path) not in text and "PLEKNAALD9" not in text, text
