@@ -21,6 +21,7 @@ import hashlib
 import inspect
 import json
 import os
+import sys
 from pathlib import Path
 
 import mcp.types as types
@@ -3287,11 +3288,18 @@ def test_sr8_a_maintenance_path_through_a_link_to_a_share_is_refused(tmp_path, v
 
 
 def test_sr8_a_network_drive_letter_is_refused(tmp_path, monkeypatch):
-    from nsmcp import start as start_module
+    # 1.1: the drive type is read through the seam of `nsmcp.localpath`, the
+    # one owner of the path rule; `start._drive_is_remote` is a thin call of it.
+    from nsmcp import localpath
 
     path = _relative_config(tmp_path)
     drive = Path(str(tmp_path)).drive
-    monkeypatch.setattr(start_module, "_drive_is_remote", lambda letter: letter.upper() == drive.upper())
+    real = localpath._native.GetDriveTypeW
+    monkeypatch.setattr(
+        localpath._native,
+        "GetDriveTypeW",
+        lambda root: localpath.DRIVE_REMOTE if root[:2].upper() == drive.upper() else real(root),
+    )
     with pytest.raises(ConfigError) as refused:
         build_server_from_config(path)
     message = str(refused.value)
@@ -3312,6 +3320,40 @@ def test_sr8_the_drive_type_check_says_a_local_disk_is_local(tmp_path):
     from nsmcp.start import _drive_is_remote
 
     assert _drive_is_remote(Path(str(tmp_path)).drive) is False
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="de wandeling over NtCreateFile bestaat alleen op Windows")
+def test_the_start_check_is_the_localpath_walk(tmp_path, monkeypatch):
+    """1.1: one implementation of the path rule. The start check opens every
+    component through the seam of `nsmcp.localpath`, relative to its held
+    parent, and a reparse point that is no link (a cloud placeholder,
+    deduplication) is refused there instead of being read as a directory."""
+    from nsmcp import localpath
+    from nsmcp.start import _refuse_where_it_leads
+
+    native = localpath._Native(record=True)
+    monkeypatch.setattr(localpath, "_native", native)
+    (tmp_path / "beheer").mkdir()
+    config = tmp_path / "beheer" / "config.json"
+    config.write_text("{}", encoding="ascii")
+    _refuse_where_it_leads(config, "configuratiebestand")
+    assert [record["name"] for record in native.opens][-2:] == ["beheer", "config.json"]
+    assert all(record["parent"] is not None for record in native.opens[1:])
+
+    real = native.query_attribute_tag
+
+    def placeholder(handle):
+        status, attributes, tag = real(handle)
+        if native.opens[-1]["name"] == "beheer":
+            return status, attributes | localpath.FILE_ATTRIBUTE_REPARSE_POINT, 0x9000601A
+        return status, attributes, tag
+
+    monkeypatch.setattr(native, "query_attribute_tag", placeholder)
+    with pytest.raises(ConfigError) as refused:
+        _refuse_where_it_leads(config, "configuratiebestand")
+    assert str(refused.value) == (
+        "configuratiebestand leidt naar een plek die deze versie weigert: " + localpath.REASONS["herparseerpunt"]
+    )
 
 
 def test_b3_a_collector_that_cannot_start_claims_no_live_read_through_a_real_session(

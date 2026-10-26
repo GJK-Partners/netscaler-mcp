@@ -29,7 +29,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import stat
 import sys
 import warnings
 from datetime import UTC, datetime
@@ -37,6 +36,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from nsmcp import localpath
 from nsmcp.backup import target_name_rules, valid_target_name
 from nsmcp.code_channel import KINDS, MissingField, UnknownKind, presenter_for
 from nsmcp.disclosure import Disclosure, load_disclosure
@@ -849,125 +849,104 @@ def _without_extended_prefix(text: str) -> str:
 # drive or root (`C:x`, `\x`) is refused, and so is every network or device
 # spelling, a colon after the drive letter and a component that ends in a dot
 # or a space (Windows drops those, so the name read is not the name written).
-_LOCAL_DEVICE_DRIVE = re.compile(r"^\\\\[?.]\\[A-Za-z]:(\\|$)")
-_LOCAL_VOLUME_GUID = re.compile(r"^\\\\\?\\Volume\{[0-9A-Fa-f-]{36}\}(\\|$)")
+#
+# 1.1: the rules themselves live in `nsmcp.localpath`, the one owner of the
+# path rule for the configuration and for every read at run time. The three
+# functions below only turn its refusal into a `ConfigError` with the
+# sentence 1.0.2 gave for it.
 
 
-def _refuse_remote_or_stream(text: str, field: str) -> None:
-    """Refuses the spellings described above in `text` (operator text, `!r`-quoted)."""
-    if os.name != "nt":
-        return
-    spelled = text.replace("/", "\\")
-    rest = spelled
-    if spelled.startswith("\\\\"):
-        if _LOCAL_DEVICE_DRIVE.match(spelled):
-            rest = spelled[4:]
-        elif _LOCAL_VOLUME_GUID.match(spelled):
-            rest = spelled[_LOCAL_VOLUME_GUID.match(spelled).end() :]
-        else:
-            raise ConfigError(
-                f"{field} is een netwerk- of apparaatpad; deze versie leest alleen van een lokale schijf"
-                f" (geen \\\\server\\share, geen \\\\?\\UNC\\): {text!r}"
-            )
-    if len(rest) >= 2 and rest[1] == ":" and rest[0].isascii() and rest[0].isalpha():
-        rest = rest[2:]
-    if ":" in rest:
-        raise ConfigError(
+def _spelling_sentence(field: str, refusal: localpath.PathRefused, text: str) -> str:
+    """The 1.0.2 sentence for a spelling refusal of `text` (operator text, `!r`-quoted)."""
+    if refusal.detail == localpath.SPELLING_NETWORK_OR_DEVICE:
+        return (
+            f"{field} is een netwerk- of apparaatpad; deze versie leest alleen van een lokale schijf"
+            f" (geen \\\\server\\share, geen \\\\?\\UNC\\): {text!r}"
+        )
+    if refusal.detail == localpath.SPELLING_STREAM:
+        return (
             f"{field} draagt een dubbele punt na de schijfletter (een alternatieve gegevensstroom of geen geldig"
             f" pad): {text!r}"
         )
-    for part in rest.split("\\"):
-        if part not in ("", ".", "..") and part[-1] in (".", " "):
-            raise ConfigError(
-                f"{field} heeft een padonderdeel dat op een punt of spatie eindigt; Windows laat die weg, dus"
-                f" de naam die gelezen wordt is niet de naam die er staat: {text!r}"
-            )
+    if refusal.detail == localpath.SPELLING_DOT_OR_SPACE:
+        return (
+            f"{field} heeft een padonderdeel dat op een punt of spatie eindigt; Windows laat die weg, dus"
+            f" de naam die gelezen wordt is niet de naam die er staat: {text!r}"
+        )
+    return f"{field} leidt naar een plek die deze versie weigert: {refusal}"
+
+
+def _refuse_remote_or_stream(text: str, field: str) -> None:
+    """Refuses the spellings described above in `text` (`localpath.check_spelling`)."""
+    if os.name != "nt":
+        return
+    try:
+        localpath.check_spelling(text)
+    except localpath.PathRefused as refusal:
+        raise ConfigError(_spelling_sentence(field, refusal, text)) from None
 
 
 # 1.0.2, second round. The refusals above read the SPELLING; measured in the
 # review, a configuration file on a share made every relative path a network
 # path, and a link (junction, symbolic link) in a local path was followed
 # wherever it led. `_refuse_where_it_leads` applies the same refusals to the
-# place a path LEADS to: it follows links component by component with
-# `os.lstat`/`os.readlink`, which read the link itself and never open its
-# target - `Path.resolve()` would open it, and so contact the very share it
-# is meant to refuse. A drive letter that Windows maps to a network share is
-# refused too (`_drive_is_remote`).
-_LINK_LIMIT = 32
-_DRIVE_REMOTE = 4  # GetDriveTypeW: DRIVE_REMOTE
+# place a path LEADS to. Since 1.1 that is the `localpath` walk: every
+# component opened relative to its held parent, a link opened as itself and
+# its target read from its data - the target goes through the spelling and the
+# volume check before anything of it is opened, so a refused share is never
+# contacted. A drive letter that Windows maps to a network share is refused
+# by the volume check (`localpath.drive_is_remote`, without opening anything).
 
 
 def _drive_is_remote(drive: str) -> bool:
-    """Whether `drive` (`Z:`) is a network drive. `GetDriveTypeW` reads the
-    local drive mapping and opens nothing on the share."""
-    if os.name != "nt" or len(drive) != 2 or drive[1] != ":":
-        return False
-    import ctypes
-
-    return ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == _DRIVE_REMOTE
+    """Whether `drive` (`Z:`) is a network drive (`localpath.drive_is_remote`)."""
+    return localpath.drive_is_remote(drive)
 
 
-def _refuse_led_to(plain: str, field: str, followed: bool) -> None:
-    """The refusals of `_refuse_remote_or_stream` over a location the server
+def _refuse_led_to(refusal: localpath.PathRefused, field: str) -> ConfigError:
+    """The `ConfigError` for a refusal of the walk over a location the server
     computed (resolved against the configuration's directory, or reached
-    through a link), and a network drive letter."""
-    try:
-        _refuse_remote_or_stream(plain, field)
-    except ConfigError as exc:
-        reason = str(exc)[len(field) + 1 :] if str(exc).startswith(field + " ") else str(exc)
-        via = "via een junction of symbolische link" if followed else "na het oplossen"
-        raise ConfigError(f"{field} leidt naar een plek die deze versie weigert ({via}): {reason}") from None
-    drive = Path(plain).drive
-    if _drive_is_remote(drive):
-        raise ConfigError(
-            f"{field} ligt op een netwerkstation ({drive}); deze versie leest alleen van een lokale schijf"
+    through a link): the 1.0.2 sentence where 1.0.2 had one, else the fixed
+    reason of the kind."""
+    plain = refusal.path or ""
+    if refusal.detail in (
+        localpath.SPELLING_NETWORK_OR_DEVICE,
+        localpath.SPELLING_STREAM,
+        localpath.SPELLING_DOT_OR_SPACE,
+    ):
+        sentence = _spelling_sentence(field, refusal, plain)
+        reason = sentence[len(field) + 1 :] if sentence.startswith(field + " ") else sentence
+        via = "via een junction of symbolische link" if refusal.followed else "na het oplossen"
+        return ConfigError(f"{field} leidt naar een plek die deze versie weigert ({via}): {reason}")
+    if refusal.detail == localpath.VOLUME_REMOTE:
+        return ConfigError(
+            f"{field} ligt op een netwerkstation ({Path(plain).drive}); deze versie leest alleen van een lokale schijf"
         )
+    if refusal.soort == "te_veel_koppelingen":
+        return ConfigError(
+            f"{field} loopt via meer dan {localpath.LINK_LIMIT} koppelingen; zo'n pad wordt niet gevolgd"
+        )
+    return ConfigError(f"{field} leidt naar een plek die deze versie weigert: {refusal}")
 
 
 def _refuse_where_it_leads(path: Path, field: str) -> None:
-    """Follows `path` link by link without opening a target, and refuses
-    when any step lands on a network or device path, an alternate data
-    stream or a network drive. A component that does not exist (yet) ends
-    the walk: there is nothing beyond it to follow. A reparse point that is
-    no link (a cloud placeholder, deduplication) is an ordinary directory
-    here. More than `_LINK_LIMIT` links is refused as well."""
+    """Walks `path` with `localpath.check_where_it_leads` (no root: a link is
+    followed, its target checked before it is opened) and refuses when any
+    step lands on a network or device path, an alternate data stream, a
+    network drive, a reparse point that is no link, or more than
+    `localpath.LINK_LIMIT` links. A component that does not exist (yet) ends
+    the walk: there is nothing beyond it to follow. Whether the place is a
+    file or a directory is asserted by the caller, with its own sentence."""
     if os.name != "nt":
         return
     try:
-        current = os.path.abspath(str(path))
+        current = _without_extended_prefix(os.path.abspath(str(path)))
     except (OSError, ValueError):
         return  # an unreadable spelling (a NUL character) is refused by the checks that read it
-    followed = False
-    for _ in range(_LINK_LIMIT):
-        plain = _without_extended_prefix(current)
-        _refuse_led_to(plain, field, followed)
-        parts = Path(plain).parts
-        walked = Path(parts[0]) if parts else Path(plain)
-        redirected = None
-        for index in range(1, len(parts)):
-            walked = walked / parts[index]
-            try:
-                attributes = os.lstat(walked).st_file_attributes
-            except (OSError, ValueError):
-                return
-            if not attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
-                continue
-            try:
-                target = os.readlink(walked)
-            except (OSError, ValueError):
-                continue
-            if not _is_absolute_path(Path(target)):
-                target = os.path.join(os.path.dirname(str(walked)), target)
-            redirected = os.path.join(target, *parts[index + 1 :])
-            break
-        if redirected is None:
-            return
-        try:
-            current = os.path.abspath(redirected)
-        except (OSError, ValueError):
-            current = redirected
-        followed = True
-    raise ConfigError(f"{field} loopt via meer dan {_LINK_LIMIT} koppelingen; zo'n pad wordt niet gevolgd")
+    try:
+        localpath.check_where_it_leads(current, expect="any", allow_missing=True)
+    except localpath.PathRefused as refusal:
+        raise _refuse_led_to(refusal, field) from None
 
 
 def _config_path(value, field: str, base: Path) -> Path:
