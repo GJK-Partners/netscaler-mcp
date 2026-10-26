@@ -79,6 +79,10 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 29 | regressiematrix: verplichte dekking (1.1) | `knowledge_regression.run_regression`: `if missing:` vervangen door `if False:` | `test_regression_matrix_requires_full_coverage` | uitgevoerd 26-10-2026, teruggedraaid |
 | 30 | regressiematrix: predicaatseam fail-closed (1.1) | `cve._evaluate_condition`: de seam alleen voor opgelegde namen; een niet opgelegde voorwaarde valt door naar de echte evaluatie | `test_the_seam_refuses_a_condition_the_case_does_not_state` | uitgevoerd 26-10-2026, teruggedraaid |
 | 31 | regressiematrix: engine-identiteit uit een gewijzigde checkout (1.1) | `knowledge_regression.engine_identity`: `if status.strip():` vervangen door `if False:` | `test_an_editable_checkout_counts_only_when_its_code_is_its_commit` | uitgevoerd 26-10-2026, teruggedraaid |
+| 32 | kennispakket: weigerzin zonder predicaattekst (1.1) | `knowledge._condition_problem`: de predicaattekst weer in de zin (`{condition!r}`) | `test_an_existing_refusal_route_names_the_place_not_the_content[predicaat-tekst]` | uitgevoerd 26-10-2026, teruggedraaid |
+| 33 | kennispakket: weigerzin zonder takkennamen (1.1) | `knowledge.knowledge_from_document`: de takken die maar in een van `getroffen`/`fix` staan weer in de zin (`!r`) | `test_an_existing_refusal_route_names_the_place_not_the_content[tak-alleen-fix]` | uitgevoerd 26-10-2026, teruggedraaid |
+| 34 | oude-lijnharnas: enginebinding gelijk aan de runner (1.1) | `tools/regressie-1.0.x/harnas.py`, `run_matrix`: `if tuple(identity) not in pinned:` vervangen door `if False:` | `test_the_harness_applies_the_same_matrix_rules_as_the_runner` (de vorige vorm van deze test bleef groen) | uitgevoerd 26-10-2026, teruggedraaid |
+| 35 | oude-lijnharnas: drempelregel van de dekking (1.1) | `tools/regressie-1.0.x/harnas.py`, `_applies_below`: `threshold < fix` vervangen door `threshold <= fix` | `test_the_harness_applies_the_same_matrix_rules_as_the_runner` (de vorige vorm van deze test bleef groen) | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -107,6 +111,12 @@ teruggezet - `git status` was weer schoon.
 De tien proeven van het kennispakket en de regressiematrix (22-31, versie 1.1): elke mutatie is in
 de werkkopie aangebracht, alleen de genoemde test is gedraaid en viel om, en het bestand is daarna
 byte voor byte teruggezet (sha256 voor en na gelijk) - `git status` was weer schoon.
+
+De vier proeven 32-35 (versie 1.1) op dezelfde manier. 34 en 35 zijn eerst op de vorige vorm van
+de pariteitstest gedraaid: daar overleefden beide (de test gaf het harnas een vaste, gepinde
+identiteit en kende alleen de synthetische matrix). Op de huidige vorm vallen beide, 34 op een
+geval met een engine die niet in `engines` staat, 35 op een pakket met de `vanaf`-drempel op de
+fix-build.
 
 ## Gemeten: het oude-lijnharnas op de tags v1.0.1, v1.0.2 en v1.0.3 (26-10-2026)
 

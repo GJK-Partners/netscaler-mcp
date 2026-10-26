@@ -338,6 +338,14 @@ fix-build zelf en een build erboven; per predicaat in de voorwaarde `true`, `fal
 `naconfiguratieVerplicht: true`, op of boven de fix, de voorwaarde afwezig, aanwezig en
 onleesbaar. De weigering noemt elk ontbrekend geval.
 
+Een geval noemt zijn tak als `X.Y` of `X.Y-FIPS`: precies de takken die de engine op een
+appliance toepast. De FIPS/NDcPP-trein heet in het pakket altijd `X.Y-FIPS`, ook waar de vendor
+`NDcPP` schrijft; de engine leidt die sleutel zelf af uit de versie van de appliance. Een pakket
+met een andere takspelling (bijvoorbeeld `13.1-NDcPP`) laadt wel, maar die tak past de engine op
+geen enkele appliance toe, en de matrix kan hem niet noemen: de runner weigert zo'n pakket altijd
+met "een tak die een matrixgeval niet kan noemen (vorm X.Y of X.Y-FIPS)". Schrijf de tak dan als
+`13.1-FIPS`.
+
 Grens: de runner legt de uitkomst van de voorwaarden op; hij bewijst de keuze van de regel en de
 samenvoeging, niet dat een predicaat de echte vorm van een appliance herkent. Dat blijft het werk
 van de predicaattests op echte exports.

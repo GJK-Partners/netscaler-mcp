@@ -153,10 +153,10 @@ jobs:
           Write-Host '[OK] needle-lijst in een tijdelijk bestand gezet (inhoud niet gelogd)'
 
       - name: Lint
-        run: python -m ruff check --no-cache src tests scripts
+        run: python -m ruff check --no-cache src tests scripts tools
 
       - name: Format check
-        run: python -m ruff format --check --no-cache src tests scripts
+        run: python -m ruff format --check --no-cache src tests scripts tools
 
       - name: The three invariants, by name
         # These three files ARE the public promise of this product: no socket

@@ -48,7 +48,9 @@ the knowledge package.
   that tag's hash-locked requirements, plus the fixed expectation that v1.0.1,
   v1.0.2 and v1.0.3 refuse a package with `minimaleEngine`. Not part of the
   suite; the suite imports the harness's names against the source of each tag,
-  which is why CI now checks out the full history (`fetch-depth: 0`).
+  which is why CI now checks out the full history (`fetch-depth: 0`). The
+  harness reads the matrix and the package with the size and depth ceilings
+  of the tag (`nsmcp.limits`), and CI lints and format-checks `tools/` too.
 
 ### Changed
 - `uv.lock` is the one source of the dependencies. `requirements-build.txt` is no

@@ -50,7 +50,7 @@ promised to look.
 | `kennispakket vraagt engine <x> of nieuwer; deze engine is <y>; werk eerst de engine bij` | the package needs a newer engine | update the engine first; nothing in the package is used |
 | `kennispakket: <pad> moet <type> zijn` | wrong type at a path | the package is refused as a whole; the value is never repeated |
 | `kennispakket: <pad> bevat onbekend veld; ...` | unknown field at a path | this engine refuses a field it does not know instead of ignoring it |
-| `regressiematrix geweigerd: <reden>` | regression matrix refused | the matrix did not run: wrong package digest, an engine not in `engines`, or incomplete coverage |
+| `regressiematrix geweigerd: <reden>` | regression matrix refused | the matrix did not run: wrong package digest, an engine not in `engines`, incomplete coverage, or any other reason the line names (the package version, a package this engine does not load, an engine whose commit cannot be established, the shape of the matrix, a case that does not fit the package) |
 
 `kennis_uitleg` reads no export, so its answer carries the `Kennisbasis`
 line only, never the `Gegevens` line - the export/data age does not apply
