@@ -54,6 +54,11 @@ from nsmcp.handelen import (
 )
 from nsmcp.mcp_server import build_server, forget_identities
 
+# 1.1 B.3 point 3: every test of this module runs under the runtime seam
+# check (`open_audit` in tests/conftest.py): a product open by path
+# outside `nsmcp.localpath` fails it.
+pytestmark = pytest.mark.usefixtures("open_audit")
+
 WRITING = {
     "certificaat_klaarzetten": {"certnaam": "gjk-zaakportaal-2027"},
     "certificaat_vervangen": {"dienst": "lb_vs_gjk_zaakportaal_443", "nieuwcert": "gjk-zaakportaal-2027"},

@@ -31,6 +31,11 @@ from mcp.shared.memory import create_connected_server_and_client_session
 
 from nsmcp.mcp_server import build_server
 
+# 1.1 B.3 point 3: every test of this module runs under the runtime seam
+# check (`open_audit` in tests/conftest.py): a product open by path
+# outside `nsmcp.localpath` fails it.
+pytestmark = pytest.mark.usefixtures("open_audit")
+
 FIXTURES = Path(__file__).parent / "fixtures"
 PREFLIGHT_EXPORT = FIXTURES / "preflight-export"
 REFUSED = "doel niet vastgesteld: de export is niet door deze server voor dit doel verzameld"

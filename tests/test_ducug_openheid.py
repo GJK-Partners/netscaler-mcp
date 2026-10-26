@@ -36,6 +36,11 @@ from mcp.shared.memory import create_connected_server_and_client_session
 from nsmcp import disclosure as disclosure_module
 from nsmcp.disclosure import Disclosure
 
+# 1.1 B.3 point 3: every test of this module runs under the runtime seam
+# check (`open_audit` in tests/conftest.py): a product open by path
+# outside `nsmcp.localpath` fails it.
+pytestmark = pytest.mark.usefixtures("open_audit")
+
 FIXTURES = Path(__file__).parent / "fixtures"
 SAML = FIXTURES / "certgebruik-saml"
 KETEN = FIXTURES / "keten-cs"

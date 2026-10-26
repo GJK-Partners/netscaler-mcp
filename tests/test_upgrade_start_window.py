@@ -60,6 +60,11 @@ from nsmcp import mcp_server, upgrade
 from nsmcp.handelen import Allowlist, MaintenanceConfig, RunnerProcessNotStarted
 from nsmcp.upgrade import append_line, read_ledger
 
+# 1.1 B.3 point 3: every test of this module runs under the runtime seam
+# check (`open_audit` in tests/conftest.py): a product open by path
+# outside `nsmcp.localpath` fails it.
+pytestmark = pytest.mark.usefixtures("open_audit")
+
 RUN = "run-venster"
 WAIT_S = 1
 # The longest a released runner may take to write its row, and the longest a

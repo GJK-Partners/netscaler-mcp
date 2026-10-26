@@ -38,9 +38,12 @@ from nsmcp.disclosure import Disclosure
 from nsmcp.export import load_export
 from nsmcp.localpath import REASONS
 
-pytestmark = pytest.mark.skipif(
-    sys.platform != "win32", reason="een junction en de NtCreateFile-wandeling bestaan alleen op Windows"
-)
+pytestmark = [
+    pytest.mark.skipif(
+        sys.platform != "win32", reason="een junction en de NtCreateFile-wandeling bestaan alleen op Windows"
+    ),
+    pytest.mark.usefixtures("open_audit"),
+]
 
 # The needle: the name of the directory outside the approved place AND a value
 # in the file there. Neither may ever reach an answer below `volledig`.

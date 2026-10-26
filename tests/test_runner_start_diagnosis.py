@@ -58,6 +58,11 @@ from nsmcp.handelen import (
 )
 from nsmcp.powershell import ChildWorkingDirectoryUnusable, PowerShellMissing, ScriptPinMismatch
 
+# 1.1 B.3 point 3: every test of this module runs under the runtime seam
+# check (`open_audit` in tests/conftest.py): a product open by path
+# outside `nsmcp.localpath` fails it.
+pytestmark = pytest.mark.usefixtures("open_audit")
+
 SENTINEL = "SENTINEL-E3-9f1c"
 SENTINEL_PATH = "C:\\" + SENTINEL + "\\geheim\\runner.log"
 

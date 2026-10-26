@@ -52,6 +52,11 @@ from nsmcp.handelen import (
 from nsmcp.target import CertAgreement, Target
 from nsmcp.upgrade import NO_CEILING_FALLBACK_S, START_WAIT_S, append_line, read_ledger
 
+# 1.1 B.3 point 3: every test of this module runs under the runtime seam
+# check (`open_audit` in tests/conftest.py): a product open by path
+# outside `nsmcp.localpath` fails it.
+pytestmark = pytest.mark.usefixtures("open_audit")
+
 # ---------------------------------------------------------------------------
 # fixtures the tests below take by name (pytest resolves them)
 # ---------------------------------------------------------------------------

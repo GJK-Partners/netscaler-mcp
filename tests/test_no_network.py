@@ -71,6 +71,11 @@ from nsmcp.mcp_server import DEFAULT_CHAPTERS, build_server, forget_identities
 from nsmcp.retention import KEPT_SUFFIX
 from nsmcp.upgrade import append_line
 
+# 1.1 B.3 point 3: every test of this module runs under the runtime seam
+# check (`open_audit` in tests/conftest.py): a product open by path
+# outside `nsmcp.localpath` fails it.
+pytestmark = pytest.mark.usefixtures("open_audit")
+
 # The reading tools with a DOCUMENTED exception: they start a separate process
 # that does go on the network, with the `doelen` credential. The server process
 # itself still opens no socket. A third name here is a change of the design,
