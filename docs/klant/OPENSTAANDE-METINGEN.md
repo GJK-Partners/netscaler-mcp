@@ -95,6 +95,11 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 45 | lokaal pad: vastgehouden map zonder verwijderdeling (1.1) | `localpath.DIR_SHARE` met `FILE_SHARE_DELETE` erbij | `test_a_held_ancestor_cannot_be_renamed_or_deleted_during_a_read` (de vastgehouden map liet zich hernoemen) | uitgevoerd 26-10-2026, teruggedraaid |
 | 46 | lokaal pad: deelmodus van het blad per bestandsklasse (1.1) | `localpath._leaf_open`: het blad altijd met `FILE_SHARE_WRITE`, ook zonder `shared_writers` | `test_a_running_append_blocks_a_reader_that_does_not_share_writing` | uitgevoerd 26-10-2026, teruggedraaid |
 | 47 | lokaal pad: netwerkstation in de volumestap (1.1) | `localpath._volume_target`: `if drive_type == DRIVE_REMOTE:` vervangen door `if False:` | `test_a_network_drive_letter_is_refused_without_any_open` (`apparaatpad` in plaats van `netwerkstation`) | uitgevoerd 26-10-2026, teruggedraaid |
+| 48 | lokaal pad: de wortel op haar eigen tekst (1.1) | `localpath._within` terug naar de vorm van de eerste bouw: de padtekst met `upper()` tegen de worteltekst vergeleken EN de wandeling over de onderdelen van de padtekst | `test_a_case_folding_sibling_of_the_root_is_outside_it` (alle drie: ligatuur, ringel-s, lange s; het zusje van de wortel werd gelezen) | uitgevoerd 26-10-2026, teruggedraaid |
+| 49 | lokaal pad: tussenmappen alleen met traverseerrecht (1.1) | `localpath.DIR_ACCESS` weer met `FILE_LIST_DIRECTORY` | `test_an_ancestor_with_only_the_traverse_right_is_walked_and_still_held` (`onleesbaar` op de map zonder lijstrecht) | uitgevoerd 26-10-2026, teruggedraaid |
+| 50 | lokaal pad: 0xC0000281 is een koppeling (1.1) | `localpath._LINKISH` zonder `STATUS_DIRECTORY_IS_A_REPARSE_POINT` | `test_every_status_has_one_kind_and_an_unknown_one_is_unreadable[3221226113-koppeling]` | uitgevoerd 26-10-2026, teruggedraaid |
+| 51 | lokaal pad: geen schrijfroute buiten Windows (1.1) | `localpath._require_windows_for_writing`: `if not isinstance(_native, _Native):` vervangen door `if False:` | `test_the_write_routes_refuse_off_windows_before_anything_opens` | uitgevoerd 26-10-2026, teruggedraaid |
+| 52 | lokaal pad: ordinale wortelvergelijking alleen (1.1) | `localpath._within`: alleen de vergelijking weer met `upper()` (de wandeling blijft op de worteltekst) | `test_a_case_folding_sibling_of_the_root_is_outside_it` (alle drie: `onleesbaar` in plaats van `buiten_wortel`; de wandeling opende de wortel op haar eigen tekst en vond daar het bestand niet, het zusje bleef ongeopend) | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -137,6 +142,11 @@ kernproef (de wandeling vervangen door een open op het volledige pad): de
 wissel van de voorouder `C` door een junction naar een map buiten de wortel gaf toen de inhoud van
 het bestand buiten de wortel. 40 is de mutatie op de moduleproef; de proef per lezer (een junction
 binnen de exportmap wordt een leesgat) komt met het aansluiten van de lezers.
+
+De vijf proeven 48-52 (versie 1.1) op dezelfde manier. 48 en 52 samen tonen de twee lagen van de
+wortelcontainment: met beide uit (48) werd een zusje van de wortel met een ligatuur, een ringel-s of
+een lange s als "binnen" gelezen; met alleen de vergelijking uit (52) opende de wandeling nog steeds
+de wortel op haar eigen tekst en bleef het zusje ongeopend.
 
 ## Gemeten: het oude-lijnharnas op de tags v1.0.1, v1.0.2 en v1.0.3 (26-10-2026)
 

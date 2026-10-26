@@ -59,10 +59,14 @@ the knowledge package.
   (`FILE_OPEN_REPARSE_POINT`), the reparse tag read before the type. Inside an
   approved directory every reparse point is refused, the directory itself
   included: a root that is itself a junction or symbolic link is refused
-  ("koppeling"). Above it only a symbolic link or mount point is followed,
-  its target checked before anything of it is opened. Held directories are
-  shared for reading and writing but never for deletion, so they cannot be
-  renamed, deleted or replaced during the operation; the file itself is
+  ("koppeling"). The approved directory is walked on its own text and
+  everything below it relative to its held handle: a path that does not begin
+  with the root text exactly (no case folding) is outside it. Above it only a
+  symbolic link or mount point is followed, its target checked before
+  anything of it is opened. A directory on the way needs the traverse right
+  only. Held directories are shared for reading and writing but never for
+  deletion, so they cannot be renamed, deleted or replaced during the
+  operation; the file itself is
   shared for reading only, or for reading and writing for a file that is
   appended to while it is read (`shared_writers`, for the ledger and the
   runner log). Each refusal has one kind and a fixed sentence without the path
