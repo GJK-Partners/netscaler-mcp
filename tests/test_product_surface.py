@@ -2433,7 +2433,7 @@ def test_knowledge_refresh_new_surface_is_pinned(tmp_path, capsys, monkeypatch):
     def kapotte_copy(*_args, **_kwargs):
         raise OSError("kunstmatige kopieerfout voor de test")
 
-    monkeypatch.setattr("nsmcp.knowledge_refresh.shutil.copyfile", kapotte_copy)
+    monkeypatch.setattr("nsmcp.localpath.create_local", kapotte_copy)  # 1.1 B: de kopie via localpath
     exitcode = main([str(kandidaat_kapot), str(huidig2), "--beheer", str(tmp_path / "_beheer6")])
     monkeypatch.undo()
     uitvoer = capsys.readouterr()

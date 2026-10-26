@@ -1019,8 +1019,10 @@ def test_a_knowledge_package_whose_size_cannot_be_read_is_a_read_gap(tmp_path, m
 
     path = _write(tmp_path, {"versie": "2026.09", "datum": "2026-09-01", "cve": []})
     monkeypatch.setattr(pathlib.Path, "is_dir", lambda self: False)
-    monkeypatch.setattr(pathlib.Path, "is_file", lambda self: True)
-    monkeypatch.setattr(pathlib.Path, "stat", refuse)
+    # 1.1 B: the size is read on the held handle (`localpath`), not by stat().
+    from nsmcp import localpath
+
+    monkeypatch.setattr(localpath.LocalHandle, "size", refuse)
 
     knowledge = load_knowledge(path, today=date(2026, 9, 5))
 

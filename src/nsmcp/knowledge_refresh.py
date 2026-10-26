@@ -48,15 +48,14 @@ supplied `current` path and a name this module picks itself
 from __future__ import annotations
 
 import argparse
-import os
-import shutil
 import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from uuid import uuid4
 
+from nsmcp import localpath
 from nsmcp.knowledge import load_knowledge
+from nsmcp.limits import MAX_FILE_BYTES
 from nsmcp.upgrade import _bounded_run_echo
 
 LOG_FILE_NAME = "kennisverversing.log"
@@ -112,6 +111,21 @@ def _sibling_path(current: Path, kind: str, moment: datetime) -> Path:
     return candidate_path
 
 
+def _text(path: Path) -> str:
+    return localpath.absolute_text(path)
+
+
+def _read_package_bytes(path: Path) -> bytes:
+    """The bytes of a package file through `localpath` (1.1 B; a configured
+    or command-line path, no root): a link is followed only after its target
+    passed the spelling and volume steps, so what is kept or installed is
+    always real bytes of a local file. Raises OSError, a refusal included."""
+    got = localpath.read_configured(path, max_bytes=MAX_FILE_BYTES)
+    if got.over_cap:
+        raise OSError("het pakket is groter dan het plafond")
+    return got.data
+
+
 def _write_log_line(beheer_dir: Path, label: str, current: Path, reason: str) -> bool:
     """Appends one line to `<beheer_dir>/kennisverversing.log`, creating
     the directory if needed. Returns whether the write itself succeeded -
@@ -127,9 +141,19 @@ def _write_log_line(beheer_dir: Path, label: str, current: Path, reason: str) ->
     line = f"{timestamp} {label} {current.name}: {reason}\n"
     try:
         beheer_dir.mkdir(parents=True, exist_ok=True)
-        with (beheer_dir / LOG_FILE_NAME).open("a", encoding="utf-8") as stream:
-            stream.write(line)
+        # 1.1 B: appended through `localpath` with the beheer map as the
+        # root: a link or reparse point in the place of the log (or of the
+        # map) is refused before a byte is written, and its kind goes to
+        # stderr - the caller's `[WAARSCHUWING]` line stays the signal.
+        root = localpath.absolute_text(beheer_dir)
+        with localpath.open_local_for_append(
+            localpath.under(root, LOG_FILE_NAME), root=root, shared_writers=True
+        ) as handle:
+            handle.write(line.encode("utf-8"))
         return True
+    except localpath.PathRefused as exc:
+        localpath.log_kind("kennisverversing: geen logregel", exc)
+        return False
     except OSError:
         return False
 
@@ -137,9 +161,10 @@ def _write_log_line(beheer_dir: Path, label: str, current: Path, reason: str) ->
 def _keep_rejected(candidate: Path, current: Path) -> bool:
     """Preserves the rejected candidate, unmodified, as
     `<current>.afgekeurd-<UTC>.json` - the first of the three ways a
-    rejection stays visible. `shutil.copyfile()` follows a symlink
-    candidate to its real content, so what is kept is always real bytes,
-    never a dangling link.
+    rejection stays visible. The candidate is read through `localpath`
+    (1.1 B), which follows a link only after its target passed the spelling
+    and volume steps, so what is kept is always real bytes, never a dangling
+    link; the copy is created exclusively, never over an existing file.
 
     Returns whether the copy itself succeeded - the same pattern
     `_write_log_line()` one function up already uses for the SAME reason:
@@ -157,7 +182,7 @@ def _keep_rejected(candidate: Path, current: Path) -> bool:
     kind of failure."""
     destination = _sibling_path(current, "afgekeurd", datetime.now(UTC))
     try:
-        shutil.copyfile(candidate, destination)
+        localpath.create_local(_text(destination), _read_package_bytes(candidate), root=None)
         return True
     except OSError:
         return False
@@ -165,39 +190,42 @@ def _keep_rejected(candidate: Path, current: Path) -> bool:
 
 def _install(candidate: Path, current: Path) -> None:
     """The atomic half: current's own existing content (if any) is kept
-    beside it first as `<current>.vervangen-<UTC>.json`, then the
-    candidate is copied into a temporary file IN THE SAME DIRECTORY as
-    `current` (so the swap below is atomic regardless of which volume
-    `candidate` itself lives on) and swapped in with `os.replace()` -
-    atomic on the same volume, the same idiom this product already uses
-    elsewhere (`collect._swap()`) for a directory-level version of the
-    same problem.
+    beside it first as `<current>.vervangen-<UTC>.json` (created
+    exclusively), then the candidate's bytes replace `current` through
+    `localpath.replace_local` (1.1 B): a temporary file created relative to
+    the held directory of `current`, written and flushed, then renamed by
+    its handle onto `current` - atomic on the same volume, and an existing
+    `current` that is a link or reparse point is refused before anything
+    destructive happens.
 
-    Edge case, decided: an interrupted replace. `os.replace()` itself
-    either fully renames or raises - it never leaves `current` half
-    written, by the OS's own contract, so nothing extra is needed to
-    protect `current` itself. What DOES need protecting is the orphaned
-    temporary file a raised `os.replace()` leaves behind: left in place,
-    it would be a half-installed artifact sitting next to the target
-    forever. It is removed here before the exception is re-raised to
-    `install_package()`, which turns it into a `FAILED_LABEL` log line
-    and a `RefreshResult(installed=False, ...)` rather than an uncaught
-    exception - "always log a line" covers this path too, not only a
-    judged rejection."""
-    if current.exists():
-        backup_path = _sibling_path(current, "vervangen", datetime.now(UTC))
-        shutil.copyfile(current, backup_path)
-    current.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = current.with_name(f"{current.name}.tmp-{uuid4().hex}")
-    shutil.copyfile(candidate, temp_path)
+    Edge case, decided: an interrupted replace. The rename either happens
+    or raises - it never leaves `current` half written. The orphaned
+    temporary file a failed rename would leave behind is removed by
+    `replace_local` itself, through its own handle, before the exception
+    reaches `install_package()`, which turns it into a `FAILED_LABEL` log
+    line and a `RefreshResult(installed=False, ...)` rather than an
+    uncaught exception - "always log a line" covers this path too, not
+    only a judged rejection."""
+    # Whether a current package exists is the `localpath` walk too (no stat
+    # by name that could follow a link to a share first). Something in its
+    # place that is no plain file keeps the legacy route: the backup name is
+    # formed first (a path without a name raises there), then it is refused.
     try:
-        os.replace(temp_path, current)
-    except OSError:
-        try:
-            temp_path.unlink()
-        except OSError:
-            pass
-        raise
+        existing = localpath.read_configured(current, max_bytes=MAX_FILE_BYTES, allow_missing=True)
+        refused = None
+    except localpath.PathRefused as exc:
+        existing, refused = None, exc
+        if exc.soort != "geen_gewoon_bestand":
+            raise
+    if existing is None or existing.exists:
+        backup_path = _sibling_path(current, "vervangen", datetime.now(UTC))
+        if refused is not None:
+            raise refused
+        if existing.over_cap:
+            raise OSError("het huidige pakket is groter dan het plafond en wordt niet bewaard")
+        localpath.create_local(_text(backup_path), existing.data, root=None)
+    current.parent.mkdir(parents=True, exist_ok=True)
+    localpath.replace_local(_text(current), _read_package_bytes(candidate), root=None)
 
 
 def install_package(candidate: Path, current: Path, today: date, beheer_dir: Path) -> RefreshResult:

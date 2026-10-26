@@ -51,7 +51,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import nsmcp
-from nsmcp import cve
+from nsmcp import cve, localpath
 from nsmcp.knowledge import (
     POST_UPGRADE_CONFIG_FIELD,
     PREDICATES,
@@ -230,17 +230,27 @@ def engine_identity() -> tuple[EngineIdentity | None, str]:
 
 
 def _read_matrix(path: Path) -> tuple[dict | None, str]:
-    if not path.is_file():
-        return None, f"regressiematrix niet gevonden op {path}"
+    # 1.1 B: read through `localpath` (a command-line path, no root); the
+    # size on the held handle before a byte is read. A directory in its
+    # place is "not found", as before (no stat by name first).
     try:
-        size = path.stat().st_size
+        got = localpath.read_configured(path, max_bytes=MAX_FILE_BYTES, allow_missing=True)
+    except localpath.PathRefused as exc:
+        if exc.soort == "geen_gewoon_bestand":
+            return None, f"regressiematrix niet gevonden op {path}"
+        return None, f"regressiematrix geweigerd: {exc.reason}"
     except OSError as exc:
         return None, f"regressiematrix onleesbaar: {exc.__class__.__name__}"
-    if size > MAX_FILE_BYTES:
-        return None, f"regressiematrix is groter dan het plafond ({size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
+    if not got.exists:
+        return None, f"regressiematrix niet gevonden op {path}"
+    if got.over_cap:
+        return (
+            None,
+            f"regressiematrix is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen",
+        )
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, RecursionError, MemoryError, ValueError) as exc:
+        raw = json.loads(localpath.as_text(got.data))
+    except (RecursionError, MemoryError, ValueError) as exc:
         return None, f"regressiematrix onleesbaar: {exc.__class__.__name__}"
     if not isinstance(raw, dict):
         return None, "regressiematrix moet een object zijn"

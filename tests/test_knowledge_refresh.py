@@ -85,10 +85,11 @@ def test_the_replacement_is_atomic(tmp_path, monkeypatch):
     huidig = _schrijf(tmp_path / "kennis.json", OUD)
     kandidaat = _schrijf(tmp_path / "nieuw.json", GELDIG)
 
-    def kapotte_replace(*_args, **_kwargs):
-        raise OSError("kunstmatige onderbreking voor de test")
+    from nsmcp import localpath
 
-    monkeypatch.setattr("nsmcp.knowledge_refresh.os.replace", kapotte_replace)
+    # 1.1 B: de vervanging is `localpath.replace_local`; de hernoeming op de
+    # handle van het tijdelijke bestand (de naad) faalt hier.
+    monkeypatch.setattr(localpath._native, "set_rename", lambda *_args, **_kwargs: 0xC0000022)
 
     uitkomst = install_package(kandidaat, huidig, date(2026, 9, 6), tmp_path / "_beheer")
 
@@ -99,6 +100,7 @@ def test_the_replacement_is_atomic(tmp_path, monkeypatch):
     assert uitkomst.reason.startswith("installatie mislukt")
     assert json.loads(huidig.read_text(encoding="utf-8"))["versie"] == "2026.08"
     assert list(tmp_path.glob("kennis.json.tmp-*")) == []
+    assert list(tmp_path.glob("*.nsmcp-tmp")) == []
     log = (tmp_path / "_beheer" / "kennisverversing.log").read_text(encoding="utf-8")
     assert FAILED_LABEL in log
 
@@ -246,7 +248,7 @@ def test_a_rejected_candidate_that_cannot_be_preserved_is_visible_as_kept_false(
     def kapotte_copy(*_args, **_kwargs):
         raise OSError("kunstmatige kopieerfout voor de test")
 
-    monkeypatch.setattr("nsmcp.knowledge_refresh.shutil.copyfile", kapotte_copy)
+    monkeypatch.setattr("nsmcp.localpath.create_local", kapotte_copy)  # 1.1 B: de kopie via localpath
 
     uitkomst = install_package(kandidaat, huidig, date(2026, 9, 6), tmp_path / "_beheer")
     assert uitkomst.installed is False
@@ -333,7 +335,7 @@ def test_cli_prints_waarschuwing_when_the_rejected_candidate_cannot_be_preserved
     def kapotte_copy(*_args, **_kwargs):
         raise OSError("kunstmatige kopieerfout voor de test")
 
-    monkeypatch.setattr("nsmcp.knowledge_refresh.shutil.copyfile", kapotte_copy)
+    monkeypatch.setattr("nsmcp.localpath.create_local", kapotte_copy)  # 1.1 B: de kopie via localpath
 
     exitcode = main([str(kandidaat), str(huidig), "--beheer", str(beheer)])
     uitvoer = capsys.readouterr()

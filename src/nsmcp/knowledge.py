@@ -19,6 +19,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import nsmcp
+from nsmcp import localpath
 from nsmcp.limits import (
     MAX_FILE_BYTES,
     MAX_JSON_DEPTH,
@@ -676,6 +677,15 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
     return knowledge_from_document(raw, today, pin=pin)
 
 
+def _walks_to_a_directory(path: Path) -> bool:
+    """Whether `path` leads to a directory, by the `localpath` walk (no stat by name)."""
+    try:
+        localpath.check_where_it_leads(localpath.absolute_text(path), expect="dir")
+    except OSError:
+        return False
+    return True
+
+
 def read_package_document(path: Path) -> tuple[dict | None, str]:
     """The READ half of `load_knowledge`: the parsed package as one object,
     or None with the named reason it could not be read. Every ceiling of the
@@ -683,10 +693,15 @@ def read_package_document(path: Path) -> tuple[dict | None, str]:
     PUBLIC for the regression matrix (`knowledge_regression`), which binds
     a matrix to the canonical digest of the very document it then judges -
     one read, never a second one that could see other bytes."""
-    if path.is_dir():
-        return None, f"kennispad wijst naar een map, geen bestand: {path}"
-    if not path.is_file():
-        return None, f"kennispakket niet gevonden op {path}"
+    # 1.1 B: the package is read through `localpath` (no root: the path is
+    # configured or given on the command line): every component opened
+    # relative to the held one before it, a link followed only after its
+    # target text passed the spelling and volume steps, the leaf read on its
+    # held handle. A refusal is `_absent` with the sentence of its kind,
+    # never the path. No `is_dir()` before it: that would stat the path by
+    # name and follow a link to a share before the walk refused it; a
+    # directory in the place of the package is told by a second walk.
+    #
     # SECURITY 9. The ceiling comes BEFORE the read, the same place every
     # reader in export.py puts it: the decode, the parse and the depth walk all
     # scale with the size of a file nobody authenticated. The PACKAGE ceiling
@@ -694,20 +709,27 @@ def read_package_document(path: Path) -> tuple[dict | None, str]:
     # is ALREADY capped per field, so seven `uitleg` fields of 20 MB each are
     # read (140 MB), parsed, and only then cut to about 57.800 characters,
     # which is UNDER MAX_KNOWLEDGE_TEXT_CHARS - such a package is accepted, not
-    # refused, and MemoryError never fires. stat() is used rather than a read,
-    # so an oversized package costs no bytes at all.
+    # refused, and MemoryError never fires. The size is read on the held
+    # handle, so an oversized package costs no bytes at all.
     try:
-        size = path.stat().st_size
+        got = localpath.read_configured(path, max_bytes=MAX_FILE_BYTES, allow_missing=True)
+    except localpath.PathRefused as exc:
+        if exc.soort == "geen_gewoon_bestand" and _walks_to_a_directory(path):
+            return None, f"kennispad wijst naar een map, geen bestand: {path}"
+        return None, f"kennispakket geweigerd: {exc.reason}"
     except OSError as exc:
-        # TOCTOU, the same shape export.py handles around its own reads:
-        # is_file() still saw a file, the size check no longer can. Fail closed
-        # with a named reason, exactly like the read below - never a silently
-        # accepted package.
+        # Fail closed with a named reason, exactly like the parse below -
+        # never a silently accepted package.
         return None, f"kennispakket onleesbaar: {exc.__class__.__name__}"
-    if size > MAX_FILE_BYTES:
-        return None, f"kennispakket is groter dan het plafond ({size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
+    if not got.exists:
+        return None, f"kennispakket niet gevonden op {path}"
+    if got.over_cap:
+        return (
+            None,
+            f"kennispakket is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen",
+        )
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(localpath.as_text(got.data))
     except (RecursionError, MemoryError, ValueError) as exc:
         # SECURITY 8. ONE clause on purpose. json.JSONDecodeError and
         # UnicodeDecodeError are both ValueError subclasses, so listing them in
@@ -1074,10 +1096,11 @@ def main(argv: list[str] | None = None) -> int:
     if knowledge.missing:
         print(f"Fout: {knowledge.reason}; geen kennispin berekend", file=sys.stderr)
         return 1
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, RecursionError, MemoryError, ValueError) as exc:
-        print(f"Fout: kennispakket onleesbaar: {exc.__class__.__name__}; geen kennispin berekend", file=sys.stderr)
+    # 1.1 B: the same read the loader does (`read_package_document`, through
+    # `localpath`), so the digest is computed over a document read the same way.
+    raw, problem = read_package_document(path)
+    if raw is None:
+        print(f"Fout: {problem}; geen kennispin berekend", file=sys.stderr)
         return 1
     version = raw.get("versie") if isinstance(raw, dict) else None
     if not isinstance(version, str) or not version.strip():
