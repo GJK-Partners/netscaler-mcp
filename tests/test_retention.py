@@ -216,34 +216,29 @@ def test_manifest_depth_is_bounded(tmp_path):
 
 
 def test_reparse_directory_and_manifest_are_refused(tmp_path, monkeypatch):
-    import stat
+    from conftest import reparse_at
 
     candidate = export(tmp_path, "export.bewaard-20260901T080000Z")
-    original = Path.lstat
-
-    class LinkedStat:
-        st_file_attributes = stat.FILE_ATTRIBUTE_REPARSE_POINT
-        st_mode = stat.S_IFDIR
-
+    assert kept_exports(tmp_path / "export") == (candidate,), "premisse: zonder herparseerpunt telt hij mee"
     for linked in (candidate, candidate / "export-manifest.json", tmp_path):
-        monkeypatch.setattr(
-            Path,
-            "lstat",
-            lambda self, *a, _linked=linked, **kw: LinkedStat() if self == _linked else original(self, *a, **kw),
-        )
-        assert kept_exports(tmp_path / "export") == ()
+        with monkeypatch.context() as patched:
+            reparse_at(patched, linked)
+            assert kept_exports(tmp_path / "export") == ()
 
 
 def test_rename_failure_is_safe_and_does_not_reveal_input(tmp_path, monkeypatch, capsys):
+    from nsmcp import localpath
+
     previous = export(tmp_path)
-    original = Path.rename
+    original = localpath.rename_local
 
-    def fail(self, target):
-        if self == previous:
+    # 1.1 B: the keep rename is `localpath.rename_local`, by handle.
+    def fail(path, new_name, **kwargs):
+        if Path(path) == previous:
             raise OSError("PRIVATE_VALUE")
-        return original(self, target)
+        return original(path, new_name, **kwargs)
 
-    monkeypatch.setattr(Path, "rename", fail)
+    monkeypatch.setattr(localpath, "rename_local", fail)
     assert keep(previous, tmp_path / "export", Retention(enabled=True)) is None
     assert not previous.exists()
     # Integration point 4: the event is one prefixed JSON line on stderr, the
@@ -410,17 +405,12 @@ def test_prune_refuses_an_outside_path_even_with_the_owned_name(tmp_path, monkey
 
 @pytest.mark.parametrize("change", ["invalid_manifest", "unknown_time", "other_target", "reparse"])
 def test_prune_revalidates_candidate_immediately_before_delete(tmp_path, monkeypatch, change):
-    import stat
+    from conftest import reparse_at
 
     from nsmcp import retention
 
     paths = saved_scans(tmp_path, 3)
     original_remove = retention.shutil.rmtree
-    original_stat = Path.lstat
-
-    class LinkedStat:
-        st_file_attributes = stat.FILE_ATTRIBUTE_REPARSE_POINT
-        st_mode = stat.S_IFDIR
 
     def remove(path):
         original_remove(path)
@@ -436,11 +426,7 @@ def test_prune_revalidates_candidate_immediately_before_delete(tmp_path, monkeyp
         elif change == "other_target":
             record_target(paths[1], "other")
         else:
-            monkeypatch.setattr(
-                Path,
-                "lstat",
-                lambda self, *a, **kw: LinkedStat() if self == paths[1] else original_stat(self, *a, **kw),
-            )
+            reparse_at(monkeypatch, paths[1])
 
     monkeypatch.setattr(retention.shutil, "rmtree", remove)
     monkeypatch.setattr(retention, "free_mb", lambda _: 5000)
@@ -521,21 +507,12 @@ def test_target_identity_refuses_malformed_unbounded_or_unbound_input(tmp_path, 
 
 
 def test_target_identity_refuses_reparse_target_file(tmp_path, monkeypatch):
-    import stat
+    from conftest import reparse_at
 
     from nsmcp.retention import target_identity
 
     directory = export(tmp_path)
     record_target(directory)
-    original = Path.lstat
-
-    class LinkedStat:
-        st_file_attributes = stat.FILE_ATTRIBUTE_REPARSE_POINT
-        st_mode = stat.S_IFREG
-
-    monkeypatch.setattr(
-        Path,
-        "lstat",
-        lambda self, *a, **kw: LinkedStat() if self == directory / "scan-doel.txt" else original(self, *a, **kw),
-    )
+    assert target_identity(directory) == "lab", "premisse: zonder herparseerpunt is het doel bekend"
+    reparse_at(monkeypatch, directory / "scan-doel.txt", tag=0xA000000C)
     assert target_identity(directory) is None

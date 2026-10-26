@@ -19,7 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from nsmcp.export import TARGET_FILE, gate_target_name, plain_path as _plain_path
+from nsmcp import localpath
+from nsmcp.export import TARGET_FILE, _volume_root, gate_target_name, plain_path as _plain_path
 from nsmcp.limits import MAX_FILE_BYTES, MAX_JSON_DEPTH
 
 KEPT_SUFFIX = ".bewaard-"
@@ -85,6 +86,18 @@ def _refuse_constant(value):
     raise ValueError("ongeldig JSON-getal")
 
 
+def _read_kept(path: Path, cap: int) -> bytes | None:
+    """One file of a kept export or of the recovery slot, read through
+    `localpath` (1.1 B). The root is the volume root of the path's own text,
+    so every component - every ancestor of the export map included - lies
+    inside it and any link or reparse point on the way is refused, the same
+    discipline `plain_path` applies; nothing is opened by name. None over
+    the cap; a refusal is an OSError for the caller's own unreadable route."""
+    text = localpath.absolute_text(path)
+    got = localpath.read_local(text, root=_volume_root(text), max_bytes=cap)
+    return None if got.over_cap else got.data
+
+
 def _manifest_snapshot(directory: Path) -> tuple[dict, str] | None:
     """Bounded structural ownership gate, without following manifest paths."""
     manifest = directory / "export-manifest.json"
@@ -93,9 +106,8 @@ def _manifest_snapshot(directory: Path) -> tuple[dict, str] | None:
     try:
         if manifest.resolve().parent != directory.resolve():
             return None
-        with manifest.open("rb") as stream:
-            data = stream.read(MAX_MANIFEST_BYTES + 1)
-        if len(data) > MAX_MANIFEST_BYTES:
+        data = _read_kept(manifest, MAX_MANIFEST_BYTES)
+        if data is None:
             return None
         raw = json.loads(data.decode("utf-8-sig"), object_pairs_hook=_object, parse_constant=_refuse_constant)
         stack = [(raw, 1)]
@@ -143,9 +155,8 @@ def target_identity(directory: Path) -> str | None:
     try:
         if path.resolve().parent != directory.resolve():
             return None
-        with path.open("rb") as stream:
-            data = stream.read(MAX_TARGET_BYTES + 1)
-        if len(data) > MAX_TARGET_BYTES:
+        data = _read_kept(path, MAX_TARGET_BYTES)
+        if data is None:
             return None
         lines = data.decode("utf-8").splitlines()
         if len(lines) != 2 or lines[1].strip().lower() != snapshot[1]:
@@ -222,12 +233,20 @@ def keep(previous: Path, export_dir: Path, policy: Retention) -> Path | None:
             target = target.with_name(target.name + "-" + uuid4().hex)
         if target.exists() or target.is_symlink():
             raise FileExistsError()
-        previous.rename(target)
+        _rename_beside(previous, target.name)
         return target
     except OSError:
         _emit("vorige export kon niet worden bewaard; de nieuwe export blijft geldig")
         _discard_previous(previous, export_dir)
         return None
+
+
+def _rename_beside(path: Path, new_name: str) -> None:
+    """Renames a sibling of the export map in its held parent, by handle,
+    never onto an existing name (`localpath.rename_local`, 1.1 B); the same
+    volume-root walk as `_read_kept`."""
+    text = localpath.absolute_text(path)
+    localpath.rename_local(text, new_name, root=_volume_root(text))
 
 
 def kept_exports(export_dir: Path) -> tuple[Path, ...]:

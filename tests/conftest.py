@@ -366,6 +366,36 @@ def spelled(path: Path, spelling: str) -> Path:
     raise ValueError(spelling)
 
 
+def reparse_at(monkeypatch, *paths: Path, tag: int = 0xA0000003) -> None:
+    """1.1 B: every `localpath` open of one of `paths` reports a reparse
+    point with `tag` (a mount point by default), through the seam: the place
+    stays an ordinary file or directory on disk, the walk sees what a junction
+    in that place would show it. The stand-in for the `Path.lstat` patches
+    of 1.0.3, now that no reader asks `lstat` any more."""
+    from nsmcp import localpath
+
+    native = localpath._native
+    wanted = {os.path.normcase(str(Path(p).absolute()))[2:] for p in paths}
+    where: dict[int, str] = {}
+    real_open = native.NtCreateFile
+    real_tag = native.query_attribute_tag
+
+    def tracked_open(parent, name, *args, **kwargs):
+        status, handle = real_open(parent, name, *args, **kwargs)
+        if handle is not None:
+            where[handle] = "" if parent is None else where.get(parent, "?") + _BACKSLASH + name
+        return status, handle
+
+    def reported_tag(handle):
+        status, attributes, real = real_tag(handle)
+        if os.path.normcase(where.get(handle, "?")) in wanted:
+            return status, attributes | localpath.FILE_ATTRIBUTE_REPARSE_POINT, tag
+        return status, attributes, real
+
+    monkeypatch.setattr(native, "NtCreateFile", tracked_open)
+    monkeypatch.setattr(native, "query_attribute_tag", reported_tag)
+
+
 def directory_link(link: Path, target: Path) -> None:
     """Makes `link` a link to the directory `target`: a symbolic link where
     this machine allows one, else on Windows a junction (`mklink /J`, which
