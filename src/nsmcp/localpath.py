@@ -1360,6 +1360,23 @@ def read_local(
         return LocalRead(True, data, len(data), False)
 
 
+def read_configured(path, *, max_bytes: int, allow_missing: bool = False) -> LocalRead:
+    """A file named by the configuration or on a command line, which has no
+    approved directory around it (the configuration file, the targets file,
+    the knowledge package, a regression matrix): `read_local` without a
+    root on the absolute text of `path`. A link on the way is followed only
+    after its target text passed the spelling and volume steps; the leaf
+    itself is read on its held handle."""
+    return read_local(absolute_text(path), root=None, max_bytes=max_bytes, allow_missing=allow_missing)
+
+
+def as_text(data: bytes, encoding: str = "utf-8") -> str:
+    """Bytes read on a handle as the text `Path.read_text` gave a reader
+    before 1.1: decoded, and every `\\r\\n` and lone `\\r` turned into `\\n`
+    (universal newlines), so a parse error names the same position as before."""
+    return data.decode(encoding).replace("\r\n", "\n").replace("\r", "\n")
+
+
 def create_local(path, data: bytes, *, root) -> None:
     """Creates the file exclusively (`FILE_CREATE`) relative to the held
     parent and writes `data` on its handle. An existing name raises

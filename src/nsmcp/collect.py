@@ -411,7 +411,7 @@ def _verify(out_dir: Path) -> None:
             f"het export-manifest is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
         )
     try:
-        manifest_text = got.data.decode("utf-8")
+        manifest_text = localpath.as_text(got.data)
     except UnicodeDecodeError as exc:
         raise CollectError(f"het export-manifest is onleesbaar: {exc}") from None
     try:
@@ -748,7 +748,7 @@ def _read_lock_pid(lock: Path) -> str:
     root = localpath.absolute_text(lock.parent)
     try:
         got = localpath.read_local(localpath.under(root, lock.name), root=root, max_bytes=_LOCK_PID_MAX_BYTES)
-        content = got.data.decode("utf-8").strip() if not got.over_cap else ""
+        content = localpath.as_text(got.data).strip() if not got.over_cap else ""
     except (OSError, UnicodeDecodeError):
         # 1.1 B: a refusal (a link in the place of the lock file) is an
         # OSError too: unreadable, never followed.
@@ -1477,7 +1477,7 @@ def _phases_from_file(work_dir: Path) -> tuple[list[PhaseReport], str]:
         # turned every real, BOM-prefixed phase file into a "read gap" on
         # every scan; `utf-8-sig` reads both a BOM-prefixed and a bare
         # UTF-8 file identically.
-        text = got.data.decode("utf-8-sig")
+        text = localpath.as_text(got.data, "utf-8-sig")
     except FileNotFoundError:
         return [], "absent"
     except PathRefused as exc:
@@ -1708,7 +1708,7 @@ def _phases_from_artefacts(work_dir: Path) -> list[PhaseReport]:
     """
     try:
         got = _work_read(work_dir, "export-manifest.json", allow_missing=False)
-        raw = json.loads(got.data.decode("utf-8")) if not got.over_cap else None
+        raw = json.loads(localpath.as_text(got.data)) if not got.over_cap else None
         resources = raw.get("resources") if isinstance(raw, dict) else None
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         # 1.1 B: a refusal of the walk is an OSError too: not established.
