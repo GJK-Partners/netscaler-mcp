@@ -43,6 +43,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from nsmcp import localpath
+from nsmcp.limits import MAX_FILE_BYTES
+
 
 class PowerShellMissing(Exception):
     """Windows PowerShell is not where Windows says it is. Never silent."""
@@ -109,7 +112,16 @@ def script_policy() -> ScriptPolicy:
 
 
 def file_sha256(path: Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    """The sha256 of the script's bytes, read through `localpath` (1.1 B)
+    with the script's own directory as the root: a link or reparse point in
+    its place or on the way raises `PathRefused` (an OSError), the caller's
+    `ScriptPinMismatch`. The pin proves the bytes hashed now, not the bytes
+    PowerShell will execute (SECURITY.md, the execution-identity boundary)."""
+    text = localpath.absolute_text(path)
+    got = localpath.read_local(text, root=localpath.parent_text(text), max_bytes=MAX_FILE_BYTES)
+    if got.over_cap:
+        raise OSError("het script is groter dan het plafond")
+    return hashlib.sha256(got.data).hexdigest()
 
 
 # What counts as a script beside the started one: what PowerShell can
@@ -167,7 +179,7 @@ def check_script_pins(script: Path) -> None:
             measured = file_sha256(path)
         except OSError as exc:
             raise ScriptPinMismatch(
-                f"het script {shown} kon niet gelezen worden voor de pincontrole ({exc.__class__.__name__});"
+                f"het script {shown} kon niet gelezen worden voor de pincontrole ({localpath.describe(exc)});"
                 " er wordt geen proces gestart"
             ) from None
         if measured != pinned:
@@ -292,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             pins[path.name] = file_sha256(path)
         except OSError as exc:
-            print(f"Fout: {path.name} kon niet gelezen worden ({exc.__class__.__name__})", file=sys.stderr)
+            print(f"Fout: {path.name} kon niet gelezen worden ({localpath.describe(exc)})", file=sys.stderr)
             return 1
     print(json.dumps({"scriptpin": pins}, indent=2))
     return 0

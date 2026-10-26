@@ -917,3 +917,217 @@ def test_register_the_writer_on_a_link_reports_it_and_writes_nothing(tmp_path, s
         "duurzame registratie NIET vastgesteld (" + REASONS["koppeling"] + ")"
     )
     assert list(outside.iterdir()) == [] and seam.calls["WriteFile"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Family: runner log (append), root = the ledger map
+# ---------------------------------------------------------------------------
+
+
+def test_runner_log_a_link_in_the_place_of_the_log_starts_nothing(tmp_path, seam, monkeypatch):
+    from nsmcp import handelen
+    from nsmcp.handelen import RunnerLogUnopenable
+
+    started = []
+    monkeypatch.setattr(handelen.subprocess, "Popen", lambda *a, **k: started.append(a))
+    ledgermap = tmp_path / "ledger"
+    ledgermap.mkdir()
+    outside = _outside_dir(tmp_path)
+    _junction(ledgermap / "run-1.log", outside)
+
+    with pytest.raises(RunnerLogUnopenable) as refused:
+        handelen.start_detached(["x"], log_path=ledgermap / "run-1.log")
+
+    assert refused.value.oorzaak == "PathRefused" and started == []
+    assert list(outside.iterdir()) == [] and seam.calls["WriteFile"] == 0
+    _assert_no_needle(str(refused.value), tmp_path)
+
+
+def test_runner_log_a_ledger_map_swapped_mid_walk_starts_nothing(tmp_path, seam, monkeypatch):
+    from nsmcp import handelen
+    from nsmcp.handelen import RunnerLogUnopenable
+
+    started = []
+    monkeypatch.setattr(handelen.subprocess, "Popen", lambda *a, **k: started.append(a))
+    ledgermap = tmp_path / "ledger"
+    ledgermap.mkdir()
+    outside = _outside_dir(tmp_path)
+    _swap_before(seam, "ledger", lambda: _replace_by_junction(ledgermap, outside))
+
+    with pytest.raises(RunnerLogUnopenable):
+        handelen.start_detached(["x"], log_path=ledgermap / "run-1.log")
+
+    assert started == [] and list(outside.iterdir()) == []
+    assert _opened_names(seam)[-1] == "ledger"
+
+
+def test_runner_log_a_plain_log_takes_the_child_output(tmp_path):
+    from nsmcp import handelen
+
+    ledgermap = tmp_path / "ledger"
+    ledgermap.mkdir()
+    handelen.start_detached([sys.executable, "-c", "print('kind')"], log_path=ledgermap / "run-1.log")
+    import time
+
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline and b"kind" not in (ledgermap / "run-1.log").read_bytes():
+        time.sleep(0.1)
+    assert b"kind" in (ledgermap / "run-1.log").read_bytes()
+
+
+# ---------------------------------------------------------------------------
+# Family: firmware bundle (Python side), root = onderhoud.firmwaremap
+# ---------------------------------------------------------------------------
+
+_BUNDLE = "build-14.1-72.57_nc_64.tgz"
+
+
+def _firmwaremap(tmp_path: Path) -> Path:
+    firmwaremap = tmp_path / "firmware"
+    firmwaremap.mkdir()
+    (firmwaremap / _BUNDLE).write_bytes(b"\0" * 2048)
+    return firmwaremap
+
+
+def test_firmware_a_bundle_that_is_a_link_is_no_target_build(tmp_path, seam):
+    from nsmcp.handelen import FirmwareBundleError, firmware_target_build
+
+    firmwaremap = _firmwaremap(tmp_path)
+    assert firmware_target_build(firmwaremap).build == "14.1-72.57", "premisse"
+    outside = _outside_dir(tmp_path)
+    (firmwaremap / _BUNDLE).unlink()
+    _junction(firmwaremap / _BUNDLE, outside)
+
+    with pytest.raises(FirmwareBundleError) as refused:
+        firmware_target_build(firmwaremap)
+
+    assert (
+        refused.value.zonder_pad == "de firmwarebundel in onderhoud.firmwaremap is geweigerd: " + REASONS["koppeling"]
+    )
+    assert str(firmwaremap) in str(refused.value), "bij volledig mag het pad erbij"
+    _assert_no_needle(refused.value.zonder_pad, tmp_path)
+
+
+def test_firmware_a_firmware_map_swapped_mid_walk_never_opens_the_bundle_outside(tmp_path, seam):
+    from nsmcp.handelen import FirmwareBundleError, firmware_target_build
+
+    firmwaremap = _firmwaremap(tmp_path)
+    firmware_target_build(firmwaremap)
+    outside = _outside_dir(tmp_path)
+    (outside / _BUNDLE).write_bytes(b"\0" * 4096)
+    seam.opens.clear()
+    seam.events.clear()
+    _swap_before(seam, "firmware", lambda: _replace_by_junction(firmwaremap, outside))
+
+    with pytest.raises(FirmwareBundleError):
+        firmware_target_build(firmwaremap)
+
+    names = _opened_names(seam)
+    assert names[-1] == "firmware" and _BUNDLE not in names, names
+
+
+@pytest.mark.parametrize("level", [Disclosure.FULL, Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_firmware_the_path_reaches_an_answer_only_at_volledig(tmp_path, level):
+    import dataclasses
+
+    from conftest import maintenance_config
+
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    firmwaremap = _firmwaremap(tmp_path)
+    outside = _outside_dir(tmp_path)
+    (firmwaremap / _BUNDLE).unlink()
+    _junction(firmwaremap / _BUNDLE, outside)
+    onderhoud = dataclasses.replace(maintenance_config(tmp_path), firmwaremap=firmwaremap)
+    server = build_server(_export(tmp_path), _knowledge_file(tmp_path), disclosure=level, onderhoud=onderhoud)
+
+    text = _answers(server, [("onderhoud_upgrade_plan", {})])["onderhoud_upgrade_plan"]
+
+    if level is not Disclosure.MINIMAL:  # minimaal counts the gaps and names none
+        assert "de firmwarebundel in onderhoud.firmwaremap is geweigerd: " + REASONS["koppeling"] in text
+    if level is Disclosure.FULL:
+        assert str(firmwaremap) in text
+    else:
+        _assert_no_needle(text, tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Family: script pin, root = the script's directory
+# ---------------------------------------------------------------------------
+
+
+def test_scriptpin_a_script_directory_swapped_mid_walk_starts_no_process(tmp_path, seam):
+    import hashlib
+
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, check_script_pins, set_script_policy
+
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "runner.ps1").write_text("# echt", encoding="ascii")
+    outside = _outside_dir(tmp_path)
+    (outside / "runner.ps1").write_text("# echt", encoding="ascii")
+    pin = hashlib.sha256(b"# echt").hexdigest()
+    set_script_policy(ScriptPolicy(pins={"runner.ps1": pin}))
+    try:
+        check_script_pins(scripts / "runner.ps1")
+        seam.opens.clear()
+        seam.events.clear()
+        _swap_before(seam, "scripts", lambda: _replace_by_junction(scripts, outside))
+        with pytest.raises(ScriptPinMismatch) as refused:
+            check_script_pins(scripts / "runner.ps1")
+    finally:
+        set_script_policy(ScriptPolicy())
+
+    assert REASONS["koppeling"] in str(refused.value)
+    names = _opened_names(seam)
+    assert "runner.ps1" not in names, names
+    _assert_no_needle(str(refused.value), tmp_path)
+
+
+def test_scriptpin_a_script_that_is_a_link_is_refused_even_with_matching_bytes(tmp_path, seam):
+    import hashlib
+    import os
+
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, check_script_pins, set_script_policy
+
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    outside = _outside_dir(tmp_path)
+    (outside / "runner.ps1").write_text("# buiten", encoding="ascii")
+    try:
+        os.symlink(outside / "runner.ps1", scripts / "runner.ps1")
+    except OSError as exc:  # pragma: no cover - depends on the symlink right of the account
+        pytest.skip(f"symbolische link niet toegestaan op deze machine: {exc.__class__.__name__}")
+    set_script_policy(ScriptPolicy(pins={"runner.ps1": hashlib.sha256(b"# buiten").hexdigest()}))
+    try:
+        with pytest.raises(ScriptPinMismatch) as refused:
+            check_script_pins(scripts / "runner.ps1")
+    finally:
+        set_script_policy(ScriptPolicy())
+    assert REASONS["koppeling"] in str(refused.value)
+    assert seam.calls["ReadFile"] == 0
+
+
+# ---------------------------------------------------------------------------
+# The ledger needle: the run state at beperkt and minimaal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("level", [Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_ledger_the_needle_never_reaches_the_run_state(tmp_path, level):
+    from conftest import maintenance_config
+
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    onderhoud = maintenance_config(tmp_path)
+    outside = _outside_dir(tmp_path)
+    (outside / f"{NAALD}.jsonl").write_text(json.dumps(_ledger_row(NAALD)) + "\n", encoding="utf-8")
+    shutil.rmtree(onderhoud.ledgermap)
+    _junction(onderhoud.ledgermap, outside)
+    server = build_server(_export(tmp_path), _knowledge_file(tmp_path), disclosure=level, onderhoud=onderhoud)
+
+    text = _answers(server, [("onderhoud_upgrade_stand", {"run": NAALD})])["onderhoud_upgrade_stand"]
+
+    _assert_no_needle(text, tmp_path)
