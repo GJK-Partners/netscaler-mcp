@@ -43,6 +43,96 @@ def posh_ssh_pin() -> str:
     return treffers[0]
 
 
+# ---------------------------------------------------------------------------
+# 1.1 B.3 point 3: the runtime seam check. ONE audit hook for the whole
+# session (an audit hook cannot be removed again), active only inside the
+# `open_audit` fixture. It fails a test on every `open` audit event with a
+# text, bytes or path argument that comes from product code (`src/nsmcp`)
+# other than `localpath`: the innermost frame of this repository in the stack
+# decides. Test code opening its own fixtures is not product code. A handle
+# open in `localpath` (`NtCreateFile` through ctypes) raises no `open` event
+# at all. Exempt by their installation path (B.3 exception 1): the standard
+# library, the installed environment and the package's own source, which
+# the import system reads; and the pinned exception list of
+# tests/test_read_inventory.py, by file and function.
+# ---------------------------------------------------------------------------
+
+_REPO = Path(__file__).resolve().parent.parent
+_PRODUCT = _REPO / "src" / "nsmcp"
+_TESTS = _REPO / "tests"
+_OPEN_AUDIT: dict = {"active": False, "violations": []}
+
+
+def _installation_paths() -> tuple[str, ...]:
+    import sys
+    import sysconfig
+
+    places = {sys.prefix, sys.base_prefix, sys.exec_prefix, str(_PRODUCT)}
+    for key in ("stdlib", "platstdlib", "purelib", "platlib"):
+        with __import__("contextlib").suppress(KeyError):
+            places.add(sysconfig.get_paths()[key])
+    return tuple(os.path.normcase(os.path.abspath(place)) + os.sep for place in places if place)
+
+
+_INSTALLED = _installation_paths()
+
+
+def _audit_open(event: str, args: tuple) -> None:
+    if event != "open" or not _OPEN_AUDIT["active"]:
+        return
+    target = args[0] if args else None
+    if not isinstance(target, (str, bytes, os.PathLike)):
+        return  # a file descriptor or a handle: no path argument
+    import sys
+
+    frame = sys._getframe(1)
+    while frame is not None:
+        name = frame.f_code.co_filename
+        try:
+            place = Path(name).resolve()
+        except (OSError, ValueError):
+            frame = frame.f_back
+            continue
+        if place.is_relative_to(_TESTS):
+            return  # test code opening its own fixtures
+        if place.is_relative_to(_PRODUCT):
+            break
+        frame = frame.f_back
+    else:
+        return  # no product frame on the stack: pytest, the event loop
+    module = Path(frame.f_code.co_filename).name
+    function = frame.f_code.co_qualname
+    if module == "localpath.py":
+        return
+    text = os.fsdecode(target) if isinstance(target, (bytes, os.PathLike)) else target
+    normalized = os.path.normcase(os.path.abspath(text))
+    if normalized.startswith(_INSTALLED):
+        return
+    from test_read_inventory import runtime_exception
+
+    if runtime_exception(module, function, text):
+        return
+    _OPEN_AUDIT["violations"].append(f"{module}:{function} opende {text!r} (modus {args[1] if len(args) > 1 else '?'})")
+
+
+__import__("sys").addaudithook(_audit_open)
+
+
+@pytest.fixture
+def open_audit():
+    """Activates the runtime seam check for one test; fails the test when a
+    product open by path happened outside `localpath` and the exceptions."""
+    _OPEN_AUDIT["violations"] = []
+    _OPEN_AUDIT["active"] = True
+    try:
+        yield _OPEN_AUDIT["violations"]
+    finally:
+        _OPEN_AUDIT["active"] = False
+    violations = list(_OPEN_AUDIT["violations"])
+    _OPEN_AUDIT["violations"] = []
+    assert violations == [], "product opende een pad buiten localpath:\n" + "\n".join(violations)
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Give pytest its own temporary base directory inside the project."""
     if config.getoption("basetemp", default=None):
