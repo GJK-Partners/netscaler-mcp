@@ -31,8 +31,9 @@ python -m venv .venv
 ```
 
 The three install lines are the install lines of CI, in the same order. Both
-requirements files are hash-locked (`requirements-dev.txt` is an export of
-`uv.lock`, `requirements-build.txt` pins pip, setuptools and wheel), so the
+requirements files are hash-locked exports of `uv.lock` (`requirements-dev.txt`
+the dependencies and the extra `dev`, `requirements-build.txt` the dependency
+group `build`: pip, setuptools and wheel), so the
 install fails closed on a mismatch instead of resolving something else, and
 `--no-build-isolation` keeps the build toolchain inside that hash check.
 

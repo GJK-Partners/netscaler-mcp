@@ -1185,47 +1185,406 @@ def test_the_finding_review_citation_guard_leaves_ordinary_text_alone(plain_text
 
 
 # ---------------------------------------------------------------------------
-# The two lock files describe ONE resolution. requirements-dev.txt says it was
-# generated from uv.lock (`uv export --frozen`); measured, a dependency fix
-# raised pyjwt in requirements-dev.txt only, so `uv sync --frozen` would have
-# installed the version with the known vulnerability while CI audited the
-# other file. Every pinned name and version must agree, both ways.
+# uv.lock is the one source; both requirements files are exports of it.
+# Measured before: a dependency fix raised pyjwt in requirements-dev.txt only,
+# so `uv sync --frozen` would have installed the version with the known
+# vulnerability while CI audited the other file; and requirements-build.txt
+# was kept by hand, outside the lock.
+#
+# Since 1.1 each export carries an EXPLICIT selection. In uv, extras and
+# dependency groups are different selections (`--all-extras` takes no group
+# along), so the dev export names the group it leaves out and the build
+# export names the one group it takes. Each export is compared with the
+# closure of exactly its own selection, computed here from uv.lock - per
+# normalised name on version, markers and the FULL hash set - never with
+# "every package in the lock". `--frozen` only says the lock was not
+# rewritten during the export; it does not prove the lock still describes
+# pyproject.toml, so that agreement is a test of its own.
+#
+# A Dependabot pull request changes uv.lock but not the exports: it fails
+# here, visibly, until the two commands below have been run again.
 # ---------------------------------------------------------------------------
 
+UV_VERSION = "0.12.13"
+EXPORT_DEV = "uv export --frozen --all-extras --no-group build --no-emit-project -o requirements-dev.txt"
+EXPORT_BUILD = "uv export --frozen --only-group build --no-emit-project -o requirements-build.txt"
+_EXPORTS = {"requirements-dev.txt": EXPORT_DEV, "requirements-build.txt": EXPORT_BUILD}
 
-def _requirement_versions() -> dict[str, str]:
+
+def _normalised(name: str) -> str:
     import re
 
-    pins = {}
-    for line in (ROOT / "requirements-dev.txt").read_text(encoding="utf-8").splitlines():
-        match = re.match(r"^([A-Za-z0-9_.\-]+)==([^ ;\\]+)", line)
-        if match:
-            pins[match.group(1).lower().replace("_", "-")] = match.group(2)
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _conjunction(marker: str | None) -> frozenset[str]:
+    """A marker as a set of atoms joined by `and`. A shape this test does
+    not compute (an `or`, parentheses) fails it: fail-closed, never a
+    comparison that silently matches."""
+    if not marker:
+        return frozenset()
+    assert " or " not in marker and "(" not in marker, f"marker niet in een vorm die deze toets uitrekent: {marker}"
+    return frozenset(atom.strip() for atom in marker.split(" and "))
+
+
+def _minimal(conjunctions: set[frozenset[str]]) -> frozenset[frozenset[str]]:
+    """OR over paths, AND along a path; a path implied by a weaker one drops
+    out, and an unconditional path makes the package unconditional."""
+    if frozenset() in conjunctions:
+        return frozenset({frozenset()})
+    return frozenset(c for c in conjunctions if not any(other < c for other in conjunctions))
+
+
+def _lock_packages(lock: dict) -> dict[str, dict]:
+    packages: dict[str, dict] = {}
+    for package in lock["package"]:
+        name = _normalised(package["name"])
+        # Two versions of one name (a fork in the resolution) would need a
+        # choice this test does not make for itself.
+        assert name not in packages, f"uv.lock draagt {name} meer dan eens"
+        packages[name] = package
+    return packages
+
+
+def _lock_root(lock: dict, pyproject: dict) -> dict:
+    return _lock_packages(lock)[_normalised(pyproject["project"]["name"])]
+
+
+def _selection_roots(root: dict, export: str) -> list[dict]:
+    """The direct entries of one export's selection, read from the project's
+    own entry in uv.lock. The dev export: the project's dependencies plus
+    every extra, never a group. The build export: only the group `build`."""
+    groups = root.get("dev-dependencies", {})
+    # uv takes the group `dev` along by default; with `build` as the only
+    # group, `--no-group build` leaves no group at all. Another group means
+    # this selection has to be thought through again.
+    assert set(groups) == {"build"}, sorted(groups)
+    if export == "requirements-dev.txt":
+        entries = list(root.get("dependencies", []))
+        for extra in sorted(root.get("optional-dependencies", {})):
+            entries += root["optional-dependencies"][extra]
+        return entries
+    assert export == "requirements-build.txt", export
+    return list(groups["build"])
+
+
+def _selected_closure(lock: dict, pyproject: dict, export: str) -> dict[str, dict]:
+    """name -> {version, markers, hashes} for the transitive closure of one
+    export's selection: markers as the minimal OR of AND-paths, hashes as
+    the full set the lock records (sdist and every wheel)."""
+    packages = _lock_packages(lock)
+    root_name = _normalised(pyproject["project"]["name"])
+    paths: dict[str, set[frozenset[str]]] = {}
+    seen: set[tuple] = set()
+    stack = [
+        (_normalised(e["name"]), _conjunction(e.get("marker")), tuple(sorted(e.get("extra", []))))
+        for e in _selection_roots(packages[root_name], export)
+    ]
+    while stack:
+        name, conjunction, extras = stack.pop()
+        if (name, conjunction, extras) in seen:
+            continue
+        seen.add((name, conjunction, extras))
+        assert name != root_name, "de selectie bereikt het project zelf"
+        paths.setdefault(name, set()).add(conjunction)
+        package = packages[name]
+        children = list(package.get("dependencies", []))
+        for extra in extras:
+            children += package["optional-dependencies"][extra]
+        for child in children:
+            stack.append(
+                (
+                    _normalised(child["name"]),
+                    conjunction | _conjunction(child.get("marker")),
+                    tuple(sorted(child.get("extra", []))),
+                )
+            )
+    closure = {}
+    for name, conjunctions in paths.items():
+        package = packages[name]
+        hashes = [w["hash"] for w in package.get("wheels", [])]
+        if "sdist" in package:
+            hashes.append(package["sdist"]["hash"])
+        assert all(h.startswith("sha256:") for h in hashes), name
+        closure[name] = {
+            "version": package["version"],
+            "markers": _minimal(conjunctions),
+            "hashes": frozenset(h.removeprefix("sha256:") for h in hashes),
+        }
+    return closure
+
+
+def _parse_export(text: str) -> dict[str, dict]:
+    """name -> {version, markers, hashes} from an exported file. Anything
+    that is not a comment, a `name==version` line or a hash line fails: an
+    index URL, an editable line or a loose requirement has no place here."""
+    import re
+
+    pins: dict[str, dict] = {}
+    name = None
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        start = re.match(r"^([A-Za-z0-9_.\-]+)==([^ ;\\]+)(?: ; (.+?))? \\$", line)
+        if start:
+            name = _normalised(start.group(1))
+            assert name not in pins, f"{name} staat twee keer in de export"
+            marker = start.group(3)
+            if marker:
+                assert "(" not in marker, f"marker niet in een vorm die deze toets uitrekent: {marker}"
+                markers = frozenset(_conjunction(part) for part in marker.split(" or "))
+            else:
+                markers = frozenset({frozenset()})
+            pins[name] = {"version": start.group(2), "markers": markers, "hashes": []}
+            continue
+        found = re.match(r"^    --hash=sha256:([0-9a-f]{64})(?: \\)?$", line)
+        assert found and name is not None, f"regel die geen vereiste en geen hash is: {line!r}"
+        pins[name]["hashes"].append(found.group(1))
+    for name, pin in pins.items():
+        assert len(pin["hashes"]) == len(set(pin["hashes"])), f"dubbele hash bij {name}"
+        pin["hashes"] = frozenset(pin["hashes"])
     return pins
 
 
-def _lock_versions() -> dict[str, str]:
+def _export_differences(text: str, lock: dict, pyproject: dict, export: str) -> dict[str, dict]:
+    exported = _parse_export(text)
+    closure = _selected_closure(lock, pyproject, export)
+    differences = {}
+    for name in sorted(exported.keys() | closure.keys()):
+        got, want = exported.get(name), closure.get(name)
+        if got is None or want is None:
+            differences[name] = {"export": got is not None, "uv.lock-selectie": want is not None}
+            continue
+        for field in ("version", "markers", "hashes"):
+            if got[field] != want[field]:
+                differences.setdefault(name, {})[field] = {"export": got[field], "uv.lock-selectie": want[field]}
+    return differences
+
+
+def _toml(name: str) -> dict:
     import tomllib
 
-    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["name"]
-    return {
-        package["name"].lower().replace("_", "-"): package["version"]
-        for package in lock["package"]
-        if package["name"] != project
-    }
+    return tomllib.loads((ROOT / name).read_text(encoding="utf-8"))
 
 
-def test_requirements_dev_and_uv_lock_pin_the_same_versions():
-    requirements = _requirement_versions()
-    lock = _lock_versions()
-    assert requirements, "requirements-dev.txt draagt geen enkele naam==versie"
-    verschil = {
-        naam: {"requirements-dev.txt": requirements.get(naam), "uv.lock": lock.get(naam)}
-        for naam in sorted(requirements.keys() | lock.keys())
-        if requirements.get(naam) != lock.get(naam)
+def _requirement_key(name, specifier, marker, extras) -> tuple:
+    from packaging.markers import Marker
+    from packaging.specifiers import SpecifierSet
+
+    return (
+        _normalised(name),
+        str(SpecifierSet(specifier or "")),
+        str(Marker(marker)) if marker else "",
+        tuple(sorted(_normalised(e) for e in extras or ())),
+    )
+
+
+def _pyproject_lock_differences(pyproject: dict, lock: dict) -> list[str]:
+    """The lock records the project's own input (requires-dist, the extras
+    it provides, the groups, requires-python); each must be what
+    pyproject.toml says now."""
+    from packaging.requirements import Requirement
+
+    project = pyproject["project"]
+    root = _lock_root(lock, pyproject)
+    metadata = root.get("metadata", {})
+    differences = []
+
+    def from_pyproject(text: str, extra: str | None) -> tuple:
+        requirement = Requirement(text)
+        if extra is None:
+            marker = str(requirement.marker) if requirement.marker else None
+        else:
+            # An extra's own marker would be AND-ed by uv; not computed here.
+            assert requirement.marker is None, f"marker in extra niet uitgerekend: {text}"
+            marker = f"extra == '{extra}'"
+        return _requirement_key(requirement.name, str(requirement.specifier), marker, requirement.extras)
+
+    want_dist = sorted(
+        [from_pyproject(text, None) for text in project.get("dependencies", [])]
+        + [
+            from_pyproject(text, extra)
+            for extra, texts in project.get("optional-dependencies", {}).items()
+            for text in texts
+        ]
+    )
+    got_dist = sorted(
+        _requirement_key(e["name"], e.get("specifier"), e.get("marker"), e.get("extras"))
+        for e in metadata.get("requires-dist", [])
+    )
+    if want_dist != got_dist:
+        differences.append(f"requires-dist: pyproject {want_dist} != uv.lock {got_dist}")
+    want_extras = sorted(_normalised(e) for e in project.get("optional-dependencies", {}))
+    got_extras = sorted(_normalised(e) for e in metadata.get("provides-extras", []))
+    if want_extras != got_extras:
+        differences.append(f"extras: pyproject {want_extras} != uv.lock {got_extras}")
+    want_groups = {}
+    for group, texts in pyproject.get("dependency-groups", {}).items():
+        assert all(isinstance(t, str) for t in texts), f"include-group niet uitgerekend: {group}"
+        want_groups[_normalised(group)] = sorted(from_pyproject(t, None) for t in texts)
+    got_groups = {
+        _normalised(group): sorted(
+            _requirement_key(e["name"], e.get("specifier"), e.get("marker"), e.get("extras")) for e in entries
+        )
+        for group, entries in metadata.get("requires-dev", {}).items()
     }
-    assert verschil == {}, verschil
+    if want_groups != got_groups:
+        differences.append(f"dependency-groups: pyproject {want_groups} != uv.lock {got_groups}")
+    if project.get("requires-python") != lock.get("requires-python"):
+        differences.append(
+            f"requires-python: pyproject {project.get('requires-python')} != uv.lock {lock.get('requires-python')}"
+        )
+    return differences
+
+
+@pytest.mark.parametrize("export", sorted(_EXPORTS))
+def test_each_export_is_exactly_the_closure_of_its_selection_in_uv_lock(export):
+    text = (ROOT / export).read_text(encoding="utf-8")
+    assert _parse_export(text), f"{export} draagt geen enkele naam==versie"
+    differences = _export_differences(text, _toml("uv.lock"), _toml("pyproject.toml"), export)
+    assert differences == {}, differences
+
+
+@pytest.mark.parametrize("export", sorted(_EXPORTS))
+def test_each_export_names_the_command_that_made_it(export):
+    header = (ROOT / export).read_text(encoding="utf-8").splitlines()[:3]
+    assert f"#    {_EXPORTS[export]}" in header, header
+
+
+def test_the_two_exports_select_differently_and_share_no_version_or_hash_drift():
+    dev = _parse_export((ROOT / "requirements-dev.txt").read_text(encoding="utf-8"))
+    build = _parse_export((ROOT / "requirements-build.txt").read_text(encoding="utf-8"))
+    # The build export is the group `build`: pip, setuptools, wheel and what
+    # they ask for (packaging, for wheel). setuptools and wheel are in no
+    # other selection, so the dev export never carries them.
+    assert set(build) == {"pip", "setuptools", "wheel", "packaging"}, sorted(build)
+    assert "setuptools" not in dev and "wheel" not in dev, sorted(dev)
+    # pip-audit asks for pip: the dev export carries it too.
+    assert "pip" in dev
+    for name in build.keys() & dev.keys():
+        assert build[name]["version"] == dev[name]["version"], name
+        assert build[name]["hashes"] == dev[name]["hashes"], name
+
+
+def test_uv_lock_records_what_pyproject_says():
+    differences = _pyproject_lock_differences(_toml("pyproject.toml"), _toml("uv.lock"))
+    assert differences == [], differences
+
+
+def test_the_build_group_pins_the_toolchain_exactly():
+    groups = _toml("pyproject.toml")["dependency-groups"]
+    assert set(groups) == {"build"}, sorted(groups)
+    names = {}
+    for text in groups["build"]:
+        name, _, version = text.partition("==")
+        names[_normalised(name)] = version
+    assert set(names) == {"pip", "setuptools", "wheel"}, names
+    assert all(names.values()), names
+    # PEP 639 in pyproject.toml: setuptools 77 or newer.
+    assert int(names["setuptools"].split(".")[0]) >= 77, names
+
+
+def test_the_export_commands_and_the_uv_version_are_in_contributing_and_the_pr_template():
+    contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+    for command in (EXPORT_DEV, EXPORT_BUILD):
+        assert command in contributing, command
+        assert command in template, command
+    assert f"uv {UV_VERSION}" in contributing
+
+
+def _dependabot_offences(text: str) -> list[str]:
+    """The Python block uses the uv ecosystem (the lock is the source), weekly,
+    with the limit of five and the deliberate `mcp` exclusion; the
+    github-actions block stays; no pip block remains."""
+    import re
+
+    blocks = re.split(r"\n(?=  - package-ecosystem: )", text)
+    by_ecosystem = {}
+    for block in blocks[1:]:
+        name = re.match(r'  - package-ecosystem: "([^"]+)"', block).group(1)
+        by_ecosystem[name] = block
+    offences = []
+    if set(by_ecosystem) != {"uv", "github-actions"}:
+        offences.append(f"ecosystemen: {sorted(by_ecosystem)}")
+    uv = by_ecosystem.get("uv", "")
+    for needed in ('directory: "/"', 'interval: "weekly"', "open-pull-requests-limit: 5", '- dependency-name: "mcp"'):
+        if needed not in uv:
+            offences.append(f"uv-blok mist {needed}")
+    if "mcp 2.0.0 moves/removes" not in uv:
+        offences.append("uv-blok mist het commentaar bij de mcp-uitzondering")
+    if 'interval: "weekly"' not in by_ecosystem.get("github-actions", ""):
+        offences.append("github-actions-blok niet wekelijks")
+    return offences
+
+
+def test_dependabot_updates_the_uv_lock_and_the_actions():
+    text = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+    assert _dependabot_offences(text) == []
+    # Negative proof: the 1.0.x pip block is refused.
+    old = text.replace('package-ecosystem: "uv"', 'package-ecosystem: "pip"')
+    assert _dependabot_offences(old)
+
+
+def _first_line_with(text: str, needle: str) -> int:
+    return next(i for i, line in enumerate(text.splitlines()) if needle in line)
+
+
+def _replace_hash(text: str, old_index: int, new: str) -> str:
+    import re
+
+    hashes = re.findall(r"--hash=sha256:([0-9a-f]{64})", text)
+    return text.replace(hashes[old_index], new, 1)
+
+
+def test_the_export_comparison_fails_on_a_removed_a_replaced_or_an_extra_entry():
+    """Negative proof: the comparison above is not a comparison that can only
+    pass."""
+    lock, pyproject = _toml("uv.lock"), _toml("pyproject.toml")
+    for export in sorted(_EXPORTS):
+        text = (ROOT / export).read_text(encoding="utf-8")
+        assert _export_differences(text, lock, pyproject, export) == {}, export
+        lines = text.splitlines(keepends=True)
+        # A removed hash line (the first hash of the first package that
+        # carries more than one, so the file stays well-formed).
+        first = _first_line_with(text, "--hash=sha256:")
+        second = lines[first + 1]
+        assert "--hash=sha256:" in second, export
+        removed = "".join(lines[:first] + lines[first + 1 :])
+        assert _export_differences(removed, lock, pyproject, export), f"{export}: verwijderde hash niet gezien"
+        # A replaced hash.
+        replaced = _replace_hash(text, 0, "0" * 64)
+        assert _export_differences(replaced, lock, pyproject, export), f"{export}: vervangen hash niet gezien"
+        # An extra package.
+        extra = text + "notinlock==1.0 \\\n    --hash=sha256:" + "1" * 64 + "\n"
+        assert _export_differences(extra, lock, pyproject, export), f"{export}: extra pakket niet gezien"
+        # A changed version.
+        changed = text.replace("==", "==9", 1)
+        assert _export_differences(changed, lock, pyproject, export), f"{export}: andere versie niet gezien"
+
+
+def test_the_marker_comparison_fails_on_a_dropped_marker():
+    lock, pyproject = _toml("uv.lock"), _toml("pyproject.toml")
+    text = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+    assert " ; sys_platform == 'win32'" in text
+    dropped = text.replace(" ; sys_platform == 'win32'", "", 1)
+    assert _export_differences(dropped, lock, pyproject, "requirements-dev.txt")
+
+
+def test_the_pyproject_lock_comparison_fails_when_pyproject_moves():
+    import copy
+
+    lock, pyproject = _toml("uv.lock"), _toml("pyproject.toml")
+    assert _pyproject_lock_differences(pyproject, lock) == []
+    moved = copy.deepcopy(pyproject)
+    moved["project"]["dependencies"].append("requests>=2")
+    assert _pyproject_lock_differences(moved, lock)
+    moved = copy.deepcopy(pyproject)
+    moved["project"]["optional-dependencies"]["dev"][0] += ",<99"
+    assert _pyproject_lock_differences(moved, lock)
+    moved = copy.deepcopy(pyproject)
+    moved["dependency-groups"]["build"].append("tomli==2.0.0")
+    assert _pyproject_lock_differences(moved, lock)
 
 
 # ---------------------------------------------------------------------------
@@ -1322,24 +1681,26 @@ def test_ci_audits_every_hash_locked_file():
 
 
 def test_the_build_requirements_are_exact_and_carry_the_wheel_and_the_sdist_hash():
-    """requirements-build.txt is kept by hand (uv does not lock build
-    requirements): exact versions, two hashes each (wheel and sdist, from
-    the index metadata), setuptools at 77 or newer (PEP 639 in
-    pyproject.toml), and every package it shares with requirements-dev.txt
-    - pip, and packaging, which wheel needs - pinned to the same version
-    with the same hashes, so the second install changes nothing the first
-    one laid down."""
+    """requirements-build.txt is the export of the group `build` (1.0.x kept
+    it by hand, with exactly two hashes per package). Re-judged for the
+    export: the count is no longer the rule - the export carries every hash
+    the lock records, which the closure test above holds. What stays is
+    that a build package can be installed from either form: each carries
+    the sdist hash and at least one wheel hash of its locked release, and
+    setuptools is 77 or newer (PEP 639 in pyproject.toml). The second
+    install changes nothing the first one laid down: a package in both
+    files has the same version and hashes (held above)."""
     build = _hash_locked(ROOT / "requirements-build.txt")
-    dev = _hash_locked(ROOT / "requirements-dev.txt")
+    packages = _lock_packages(_toml("uv.lock"))
     assert set(build) == {"pip", "setuptools", "wheel", "packaging"}, sorted(build)
     for name, (version, hashes) in build.items():
-        assert len(hashes) == 2 and len(set(hashes)) == 2, (name, version, hashes)
+        package = packages[name]
+        assert version == package["version"], (name, version)
+        assert package["sdist"]["hash"].removeprefix("sha256:") in hashes, (name, "sdist")
+        wheels = {w["hash"].removeprefix("sha256:") for w in package["wheels"]}
+        assert wheels and wheels <= set(hashes), (name, "wheel")
     major = int(build["setuptools"][0].split(".")[0])
     assert major >= 77, build["setuptools"]
-    for name in build.keys() & dev.keys():
-        assert build[name][0] == dev[name][0], (name, build[name][0], dev[name][0])
-        assert set(build[name][1]) == set(dev[name][1]), name
-    assert "pip" in dev, "requirements-dev.txt hoort pip te pinnen (via pip-audit)"
 
 
 def test_ci_checks_the_content_of_posh_ssh_after_installing_it():

@@ -18,3 +18,8 @@
       established without evidence, the confirmation code never in a tool
       result)
 - [ ] Everything added is ASCII
+- [ ] Did `pyproject.toml` or `uv.lock` change (a Dependabot pull request
+      included)? Then both exports are made again and committed with it:
+      `uv export --frozen --all-extras --no-group build --no-emit-project -o requirements-dev.txt`
+      and
+      `uv export --frozen --only-group build --no-emit-project -o requirements-build.txt`

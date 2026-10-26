@@ -57,12 +57,39 @@ python -m venv .venv
 The three install lines are the install lines of CI (`.github/workflows/ci.yml`),
 in the same order; `tests/test_repo_hygiene.py` holds that both ways. Both
 requirements files are hash-locked, so the install fails closed on a
-supply-chain mismatch instead of silently resolving something else:
-`requirements-dev.txt` is an export of `uv.lock`, and `requirements-build.txt`
-pins the build toolchain (pip, setuptools, wheel) by hand, with the wheel and
-the sdist hash of each. `--no-build-isolation` makes the editable install use
-exactly that toolchain; without it, pip would fetch setuptools from the index
-into a throwaway build environment, outside the hash check.
+supply-chain mismatch instead of silently resolving something else.
+`--no-build-isolation` makes the editable install use exactly the toolchain
+of `requirements-build.txt`; without it, pip would fetch setuptools from the
+index into a throwaway build environment, outside the hash check.
+
+## Dependencies: uv.lock and its two exports
+
+`uv.lock` is the one source. Both requirements files are exports of it, each
+with an explicit selection, made with uv 0.12.13 (the version whose
+`uv export --help` was checked for both option sets):
+
+```powershell
+uv export --frozen --all-extras --no-group build --no-emit-project -o requirements-dev.txt
+uv export --frozen --only-group build --no-emit-project -o requirements-build.txt
+```
+
+`requirements-dev.txt` is the project's dependencies plus the extra `dev`,
+never the dependency group `build`; `requirements-build.txt` is only the group
+`build` from `[dependency-groups]` in `pyproject.toml` (pip, setuptools, wheel)
+and what those ask for. In uv, extras and dependency groups are different
+selections - `--all-extras` takes no group along - so each command names its
+selection. Run both after every change to `pyproject.toml` or `uv lock`, and
+commit `uv.lock` and the two files together.
+
+`tests/test_repo_hygiene.py` computes the closure of each selection from
+`uv.lock` and compares it with the export per package on version, markers and
+the full hash set, and compares what `uv.lock` records of the project's own
+input with `pyproject.toml`.
+
+Dependabot updates `uv.lock` (ecosystem `uv`), not the exports. A Dependabot
+pull request therefore fails that comparison, visibly, until a maintainer runs
+the two commands above on its branch and commits the result. `mcp` stays
+excluded from Dependabot on purpose (see `.github/dependabot.yml`).
 
 Some hygiene guards search the tree for names of the maintainers' own
 environment, read from a list outside the tree: the file named in the

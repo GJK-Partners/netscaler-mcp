@@ -37,6 +37,21 @@ dev = [
     "cyclonedx-bom>=7.3.1",
 ]
 
+[dependency-groups]
+# The build toolchain for the hash-locked editable install, locked in uv.lock
+# like everything else (1.0.x pinned it by hand) and exported on its own:
+# `uv export --frozen --only-group build ...` writes requirements-build.txt.
+# `--all-extras` takes no group along, so the dev export names this group in
+# `--no-group build`. CI installs requirements-build.txt first, with the pip
+# setup-python provides, then requirements-dev.txt, then
+# `pip install -e . --no-deps --no-build-isolation`. setuptools 77 or newer:
+# PEP 639 (the SPDX "license" string and license-files above).
+build = [
+    "pip==26.2.1",
+    "setuptools==84.0.0",
+    "wheel==0.48.0",
+]
+
 [project.urls]
 Repository = "https://github.com/GJK-Partners/netscaler-mcp"
 Issues = "https://github.com/GJK-Partners/netscaler-mcp/issues"

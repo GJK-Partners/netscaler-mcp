@@ -1,6 +1,10 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  # uv.lock is the source (since 1.1). Dependabot updates the lock, not the
+  # two exports: its pull request fails the export comparison in
+  # tests/test_repo_hygiene.py until both `uv export` commands from
+  # CONTRIBUTING.md have been run again on its branch.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
