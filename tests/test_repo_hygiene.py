@@ -447,7 +447,7 @@ def test_no_working_name_survives_in_any_file_of_the_shipped_tree():
     names = [name.lower() for name in needles_or_skip("werknaam")]
     files = [
         path
-        for folder in ("src", "tests", "scripts", "docs")
+        for folder in ("src", "tests", "scripts", "docs", "tools")
         for path in sorted((ROOT / folder).rglob("*"))
         if path.is_file() and "__pycache__" not in path.parts
     ] + sorted(ROOT.glob("*.md"))
@@ -1011,14 +1011,15 @@ def test_no_finding_review_citation_survives_in_the_public_tree():
     self_path = "tests/test_repo_hygiene.py"
     known_exceptions = KNOWN_ASSERT_MESSAGE_EXCEPTIONS | KNOWN_DATA_LITERAL_EXCEPTIONS
 
-    # Scope: src, tests, scripts - and docs/, which already sat in this scan
+    # Scope: src, tests, scripts, tools (the old-line harness) - and docs/,
+    # which already sat in this scan
     # and carries none of the three forms (measured, case-insensitive: 0).
     # CHANGELOG.md and README.md at the root stay OUTSIDE this guard: they,
     # like parts of the tree, still carry older round and finding labels in
     # other shapes (about 300 lines); sweeping those is a separate cleanup,
     # not something this guard pretends to have done.
     listing = subprocess.run(
-        ["git", "ls-files", "--", "src", "tests", "scripts", "docs"],
+        ["git", "ls-files", "--", "src", "tests", "scripts", "docs", "tools"],
         cwd=ROOT,
         capture_output=True,
         text=True,

@@ -58,6 +58,9 @@ the verdict line says which condition it applied and why.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 
 from nsmcp.answer import Answer, Certainty, Finding, ReadGap, repeatable_token
@@ -2359,6 +2362,46 @@ def _evaluate(export, name: str) -> tuple[str, str, ReadGap | None]:
     return _UNKNOWN, evidence, ReadGap(source=RUNNING_CONFIG_FILE, reason=reason)
 
 
+# 1.1 D.3: THE PREDICATE SEAM OF THE REGRESSION MATRIX. A matrix case states
+# the outcome of every condition it depends on ("aanwezig", "niet gevonden"
+# or "niet vastgesteld") instead of shipping a synthetic export per case;
+# this module's own rule path - the build layer, the choice on `vanaf`, the
+# conjunction, the post-upgrade step - then runs on those outcomes. What it
+# proves is the CHOICE OF RULE and the MERGE; it never proves that an export
+# predicate recognises a real appliance shape - that stays the work of the
+# predicate tests on real export fixtures.
+#
+# Inactive unless `imposed_predicates()` sets it, and the only caller of
+# that is `knowledge_regression` (the `--regressie` CLI): no configuration,
+# ledger or server path reaches it (tests/test_knowledge_regression.py holds
+# that). Fail-closed while active: a condition the case does not state is
+# an error, never a fall-through to a real evaluation of the stand-in export.
+_IMPOSED_PREDICATES: ContextVar[dict[str, str] | None] = ContextVar("nsmcp_imposed_predicates", default=None)
+IMPOSED_EVIDENCE = "opgelegd door de regressiematrix"
+IMPOSED_SOURCE = "regressiematrix"
+
+
+class PredicateNotImposed(LookupError):
+    """The seam is active and the matrix case states no outcome for `name`."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self.name = name
+
+
+@contextmanager
+def imposed_predicates(outcomes: Mapping[str, str]) -> Iterator[None]:
+    """Impose condition outcomes for the duration of the block (see above)."""
+    values = dict(outcomes)
+    if any(value not in (_PRESENT, _ABSENT, _UNKNOWN) for value in values.values()):
+        raise ValueError("een opgelegde voorwaarde is aanwezig, niet gevonden of niet vastgesteld")
+    token = _IMPOSED_PREDICATES.set(values)
+    try:
+        yield
+    finally:
+        _IMPOSED_PREDICATES.reset(token)
+
+
 def _evaluate_condition(export, name: str) -> tuple[str, str, ReadGap | None, int]:
     """The same three values, plus the number of running-config lines that
     could not be tokenised - which `_evaluate` above turns into a sentence
@@ -2366,6 +2409,15 @@ def _evaluate_condition(export, name: str) -> tuple[str, str, ReadGap | None, in
     HERE, so a composite condition gets that sentence once and not once per
     operand.
     """
+    imposed = _IMPOSED_PREDICATES.get()
+    if imposed is not None and name != "altijd":
+        if name not in imposed:
+            raise PredicateNotImposed(name)
+        outcome = imposed[name]
+        gap = None
+        if outcome == _UNKNOWN:
+            gap = ReadGap(source=IMPOSED_SOURCE, reason=f"voorwaarde {name} opgelegd als niet vast te stellen")
+        return outcome, IMPOSED_EVIDENCE, gap, 0
     if name == "altijd":
         return "aanwezig", "voorwaarde geldt onvoorwaardelijk", None, 0
 

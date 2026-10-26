@@ -222,7 +222,7 @@ def _with_trial_field(monkeypatch, introduced: str, engine: str):
 
 
 def test_field_newer_than_declared_minimum_is_refused(tmp_path, monkeypatch):
-    # The spec's own example: `overstappen` (a 1.1.0 field from batch A) with
+    # The example of the design: `overstappen` (a 1.1.0 field of the 13.1 transition) with
     # minimaleEngine 1.0.3. In this engine `overstappen` is not yet known,
     # and 1.0.3 is below the floor of the field itself: refused either way.
     assert _load(tmp_path, _package(minimaleEngine="1.0.3", overstappen=[])).missing
@@ -493,11 +493,12 @@ def test_the_check_command_says_whether_this_engine_loads_the_package(tmp_path, 
 
 
 def test_the_cli_names_all_its_modes_on_a_wrong_call(capsys):
-    for arguments in ([], ["--controleer"], ["--onbekend", "x"], ["--digest", "a", "b"]):
+    for arguments in ([], ["--controleer"], ["--onbekend", "x"], ["--digest", "a", "b"], ["--regressie", "a"]):
         assert main(arguments) == 2
         assert capsys.readouterr().err == (
             "Gebruik: python -m nsmcp.knowledge --digest <pad-naar-kennispakket>\n"
             "         python -m nsmcp.knowledge --controleer <pad-naar-kennispakket>\n"
+            "         python -m nsmcp.knowledge --regressie <pad-naar-kennispakket> <pad-naar-matrix>\n"
         )
 
 

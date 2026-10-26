@@ -1,0 +1,69 @@
+{
+  "versie": "regressie-proef-2026.10",
+  "datum": "2026-10-20",
+  "toelichting": "Synthetisch pakket voor de regressiematrix; geen echte bulletins.",
+  "bron": "synthetisch",
+  "cve": [
+    {
+      "bulletin": "CTX900001",
+      "datum": "2026-09-01",
+      "getroffen": {
+        "14.1": "< 73.20",
+        "13.1-FIPS": "< 37.250"
+      },
+      "fix": {
+        "14.1": "73.20",
+        "13.1-FIPS": "37.250"
+      },
+      "cves": [
+        {
+          "id": "CVE-2026-90001",
+          "cvss": 9.1,
+          "kern": "Gateway",
+          "voorwaarde": "heeft_gateway_vserver"
+        },
+        {
+          "id": "CVE-2026-90002",
+          "cvss": 7.5,
+          "kern": "Keuze op de build",
+          "voorwaarde": {
+            "vanaf": {
+              "14.1": "70.10"
+            },
+            "predicaat": "heeft_saml_action",
+            "anders": "heeft_aaa_vserver"
+          }
+        }
+      ],
+      "advies": "Upgrade naar 14.1-73.20 of 13.1-37.250-FIPS.",
+      "extraStapNaUpgrade": ""
+    },
+    {
+      "bulletin": "CTX900002",
+      "datum": "2026-10-01",
+      "getroffen": {
+        "14.1": "< 73.40"
+      },
+      "fix": {
+        "14.1": "73.40"
+      },
+      "cves": [
+        {
+          "id": "CVE-2026-90003",
+          "cvss": 8.8,
+          "kern": "Altijd",
+          "voorwaarde": "altijd"
+        },
+        {
+          "id": "CVE-2026-90004",
+          "cvss": 6.5,
+          "kern": "HTTP/2 met naconfiguratie",
+          "voorwaarde": "heeft_http2_profiel",
+          "naconfiguratieVerplicht": true
+        }
+      ],
+      "advies": "Upgrade naar 14.1-73.40.",
+      "extraStapNaUpgrade": "Na de upgrade de HTTP/2-instelling aanpassen."
+    }
+  ]
+}

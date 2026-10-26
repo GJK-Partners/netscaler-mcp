@@ -660,10 +660,23 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
     # package - the same, pre-existing _absent() route, no new branch.
     # The semantics for a TRULY missing (optional) knowledge package stay
     # deliberately unchanged: a read gap, not an error.
+    raw, problem = read_package_document(path)
+    if raw is None:
+        return _absent(problem)
+    return knowledge_from_document(raw, today, pin=pin)
+
+
+def read_package_document(path: Path) -> tuple[dict | None, str]:
+    """The READ half of `load_knowledge`: the parsed package as one object,
+    or None with the named reason it could not be read. Every ceiling of the
+    loader applies here (size before the read, depth after the parse).
+    PUBLIC for the regression matrix (`knowledge_regression`), which binds
+    a matrix to the canonical digest of the very document it then judges -
+    one read, never a second one that could see other bytes."""
     if path.is_dir():
-        return _absent(f"kennispad wijst naar een map, geen bestand: {path}")
+        return None, f"kennispad wijst naar een map, geen bestand: {path}"
     if not path.is_file():
-        return _absent(f"kennispakket niet gevonden op {path}")
+        return None, f"kennispakket niet gevonden op {path}"
     # SECURITY 9. The ceiling comes BEFORE the read, the same place every
     # reader in export.py puts it: the decode, the parse and the depth walk all
     # scale with the size of a file nobody authenticated. The PACKAGE ceiling
@@ -680,9 +693,9 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
         # is_file() still saw a file, the size check no longer can. Fail closed
         # with a named reason, exactly like the read below - never a silently
         # accepted package.
-        return _absent(f"kennispakket onleesbaar: {exc.__class__.__name__}")
+        return None, f"kennispakket onleesbaar: {exc.__class__.__name__}"
     if size > MAX_FILE_BYTES:
-        return _absent(f"kennispakket is groter dan het plafond ({size} bytes tegen {MAX_FILE_BYTES}); niet gelezen")
+        return None, f"kennispakket is groter dan het plafond ({size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (RecursionError, MemoryError, ValueError) as exc:
@@ -696,11 +709,17 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
         # MemoryError are NOT ValueError subclasses; those two are what a
         # hostile package really used to raise past the fail-closed wall into
         # the generic masked server error.
-        return _absent(f"kennispakket onleesbaar: {exc.__class__.__name__}")
+        return None, f"kennispakket onleesbaar: {exc.__class__.__name__}"
     if not isinstance(raw, dict):
-        return _absent("kennispakket moet een object zijn")
+        return None, "kennispakket moet een object zijn"
     if exceeds_depth(raw):
-        return _absent(f"kennispakket is te diep genest (meer dan {MAX_JSON_DEPTH} niveaus)")
+        return None, f"kennispakket is te diep genest (meer dan {MAX_JSON_DEPTH} niveaus)"
+    return raw, ""
+
+
+def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge:
+    """The JUDGING half of `load_knowledge`, on a document
+    `read_package_document` returned."""
     # 1.1 D, in this order: the engine the package asks for; then every key
     # and every type, before anything below reads a value; then the
     # introduction of each field against that minimum.
@@ -998,7 +1017,8 @@ def load_knowledge(path: Path, today: date, *, pin=PIN_NOT_APPLIED) -> Knowledge
 
 _DIGEST_USAGE = (
     "Gebruik: python -m nsmcp.knowledge --digest <pad-naar-kennispakket>\n"
-    "         python -m nsmcp.knowledge --controleer <pad-naar-kennispakket>"
+    "         python -m nsmcp.knowledge --controleer <pad-naar-kennispakket>\n"
+    "         python -m nsmcp.knowledge --regressie <pad-naar-kennispakket> <pad-naar-matrix>"
 )
 
 
@@ -1026,6 +1046,12 @@ def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     if len(arguments) == 2 and arguments[0] == "--controleer":
         return _check(Path(arguments[1]))
+    if len(arguments) == 3 and arguments[0] == "--regressie":
+        # 1.1 D.3. Imported here, not at the top: the regression runner
+        # imports cve.py and update_advice.py, which import this module.
+        from nsmcp import knowledge_regression
+
+        return knowledge_regression.main(arguments[1], arguments[2])
     if len(arguments) != 2 or arguments[0] != "--digest":
         print(_DIGEST_USAGE, file=sys.stderr)
         return 2

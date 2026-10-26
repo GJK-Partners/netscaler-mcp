@@ -1,0 +1,271 @@
+{
+  "pakketversie": "regressie-proef-2026.10",
+  "pakketdigest": "28ff9b655037b1aeae22467cdc03384443887f7c2df276035f36b9c220c48650",
+  "engines": [
+    {
+      "versie": "1.0.3",
+      "commit": "41c85229edb6b9f78983fef09d03ebd15ef85641"
+    },
+    {
+      "versie": "1.1.0",
+      "commit": "ce477dc1f22f6d4b96e32dff1ed4e96efb91cbc3"
+    }
+  ],
+  "gevallen": [
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "73.19",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true,
+        "heeft_saml_action": true
+      },
+      "verwacht": {
+        "CVE-2026-90001": "GERAAKT",
+        "CVE-2026-90002": "GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "73.19",
+      "voorwaarden": {
+        "heeft_gateway_vserver": false,
+        "heeft_saml_action": "onleesbaar"
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET GERAAKT",
+        "CVE-2026-90002": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "70.10",
+      "voorwaarden": {
+        "heeft_gateway_vserver": "onleesbaar",
+        "heeft_saml_action": false
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET VASTGESTELD",
+        "CVE-2026-90002": "NIET GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "70.9",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true,
+        "heeft_aaa_vserver": true
+      },
+      "verwacht": {
+        "CVE-2026-90001": "GERAAKT",
+        "CVE-2026-90002": "GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "70.9",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true,
+        "heeft_aaa_vserver": false
+      },
+      "verwacht": {
+        "CVE-2026-90001": "GERAAKT",
+        "CVE-2026-90002": "NIET GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "70.9",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true,
+        "heeft_aaa_vserver": "onleesbaar"
+      },
+      "verwacht": {
+        "CVE-2026-90001": "GERAAKT",
+        "CVE-2026-90002": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "73.20",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true,
+        "heeft_saml_action": true
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET GERAAKT",
+        "CVE-2026-90002": "NIET GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "14.1",
+      "build": "73.21",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true,
+        "heeft_saml_action": true
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET GERAAKT",
+        "CVE-2026-90002": "NIET GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "13.1-FIPS",
+      "build": "37.249",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true
+      },
+      "verwacht": {
+        "CVE-2026-90001": "GERAAKT",
+        "CVE-2026-90002": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "13.1-FIPS-37.250"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "13.1-FIPS",
+      "build": "37.249",
+      "voorwaarden": {
+        "heeft_gateway_vserver": false
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET GERAAKT",
+        "CVE-2026-90002": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "13.1-FIPS-37.250"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "13.1-FIPS",
+      "build": "37.249",
+      "voorwaarden": {
+        "heeft_gateway_vserver": "onleesbaar"
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET VASTGESTELD",
+        "CVE-2026-90002": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "13.1-FIPS-37.250"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "13.1-FIPS",
+      "build": "37.250",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET GERAAKT",
+        "CVE-2026-90002": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "13.1-FIPS-37.250"
+    },
+    {
+      "bulletin": "CTX900001",
+      "tak": "13.1-FIPS",
+      "build": "37.251",
+      "voorwaarden": {
+        "heeft_gateway_vserver": true
+      },
+      "verwacht": {
+        "CVE-2026-90001": "NIET GERAAKT",
+        "CVE-2026-90002": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "13.1-FIPS-37.250"
+    },
+    {
+      "bulletin": "CTX900002",
+      "tak": "14.1",
+      "build": "73.39",
+      "voorwaarden": {
+        "heeft_http2_profiel": true
+      },
+      "verwacht": {
+        "CVE-2026-90003": "GERAAKT",
+        "CVE-2026-90004": "GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900002",
+      "tak": "14.1",
+      "build": "73.39",
+      "voorwaarden": {
+        "heeft_http2_profiel": false
+      },
+      "verwacht": {
+        "CVE-2026-90003": "GERAAKT",
+        "CVE-2026-90004": "NIET GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900002",
+      "tak": "14.1",
+      "build": "73.39",
+      "voorwaarden": {
+        "heeft_http2_profiel": "onleesbaar"
+      },
+      "verwacht": {
+        "CVE-2026-90003": "GERAAKT",
+        "CVE-2026-90004": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900002",
+      "tak": "14.1",
+      "build": "73.40",
+      "voorwaarden": {
+        "heeft_http2_profiel": false
+      },
+      "verwacht": {
+        "CVE-2026-90003": "NIET GERAAKT",
+        "CVE-2026-90004": "NIET GERAAKT"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900002",
+      "tak": "14.1",
+      "build": "73.40",
+      "voorwaarden": {
+        "heeft_http2_profiel": true
+      },
+      "verwacht": {
+        "CVE-2026-90003": "NIET GERAAKT",
+        "CVE-2026-90004": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "14.1-73.40"
+    },
+    {
+      "bulletin": "CTX900002",
+      "tak": "14.1",
+      "build": "73.41",
+      "voorwaarden": {
+        "heeft_http2_profiel": "onleesbaar"
+      },
+      "verwacht": {
+        "CVE-2026-90003": "NIET GERAAKT",
+        "CVE-2026-90004": "NIET VASTGESTELD"
+      },
+      "verwachteVloer": "14.1-73.40"
+    }
+  ]
+}

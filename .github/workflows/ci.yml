@@ -45,9 +45,15 @@ jobs:
       # persist-credentials: false - this job pushes nothing, so the token
       # does not stay behind in the checkout (no pull_request_target and no
       # workflow_run trigger either).
+      #
+      # fetch-depth: 0 - the full history with its tags: the knowledge
+      # regression test imports the names of the old-line harness
+      # (tools/regressie-1.0.x/) against the source of the tags v1.0.1,
+      # v1.0.2 and v1.0.3, and a shallow checkout does not carry them.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
