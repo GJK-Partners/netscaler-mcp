@@ -213,6 +213,77 @@ the knowledge package.
   fixed local disk (removable media, a `subst` drive), and a component the
   walk cannot open (1.0.3 stopped silently there). A link chain of exactly 32
   links is now followed; 33 is refused.
+- Every file the product reads or writes is opened on its final local path
+  through `nsmcp.localpath` (second part of the runtime path rule), each from
+  the approved directory the file lies in, composed from the same configured
+  text: the export map (manifest, object, binding and text files, the target
+  file, the scan log), the work export map of a scan (its manifest, the phase
+  file, the target file it writes), the map around the export (the scan lock
+  and its pid, the renames of the swap, the recovery slot and the failure
+  slot), the provenance map (read and append), the map of the pseudonym table
+  (the table, its write, its lock), the ledger map (every run file, read and
+  append, the runner log handed to the runner as its output), the map of the
+  action register, the map of the code file (the code, the notice and the
+  "verbruikt" rewrite), `onderhoud.firmwaremap` (the bundle, held while its
+  size is read), the script directory (the bytes the script pin hashes) and
+  the beheer map (the refresh log). A kept export is read and renamed with the
+  volume root of its own text as the root, so a link anywhere on its path is
+  refused as in 1.0.3. The configuration file, the targets file, the
+  knowledge package (server, `--digest`, `--controleer`, the regression
+  matrix, the refresh) have no root: a link above them is followed only after
+  its target passed the spelling and volume steps. Nothing is checked by name
+  and then opened by name again; a size is read on the held handle before a
+  byte is read.
+- Newly refused, each named with the fixed sentence of its kind and never the
+  path below openness `volledig`: a link or reparse point inside an approved
+  directory or in the place of a file (a junction for an object directory, a
+  manifest, a ledger file, the pseudonym table or its lock, the action
+  register, the code file, a firmware bundle, a script), an approved directory
+  that is itself a link (an export map that is a junction: start accepts it
+  as before, every read refuses it, a scan refuses its swap), a network or
+  device place on the way, an alternate data stream. The routes are the
+  existing ones: a read gap per source ("objectbestand kon niet gelezen worden:
+  <zin>", "het manifest van deze export is geweigerd: <zin>; niets is te
+  vertrouwen"), "kennispakket geweigerd: <zin>", `ConfigError`/`TargetError`
+  ("... onleesbaar: <zin>"), `PseudonymTablePathRefused` (a new subclass of
+  `PseudonymTableBroken`), the "ledger niet leesbaar" route with the sentence,
+  "backupobject aanwezig" `niet beoordeeld`, no target build ("de
+  firmwarebundel in onderhoud.firmwaremap is geweigerd: <zin>", with the path
+  only at `volledig`), `ScriptPinMismatch`, `RunnerLogUnopenable` (no child
+  started), a collector error ("kon geen slot aanmaken voor de scan: <zin>").
+  A refused append writes no line; a refused provenance append, code-channel
+  rewrite or refresh log line leaves its kind in the server log
+  (`[nsmcp-pad] ...: geweigerd (soort=...)`). `FileCodeChannel.spent()` keeps
+  its semantics: on a refusal it reads and rewrites nothing, and the
+  redeemed handling and the spent code stay as they were.
+- `localpath.PathRefused` is an `OSError`: every reader's existing
+  fail-closed route catches a refusal; no refusal can pass a reader as an
+  unhandled exception.
+- The cross-process lock of the pseudonym table is the share mode of the held
+  lock file (opened for append without write sharing), not `msvcrt.locking`
+  on a descriptor opened by name; a second process gets the same
+  time-bounded `PseudonymTableLocked`.
+- An unreadable file whose cause is a refusal now names the fixed sentence of
+  its kind where 1.0.3 named the class of the exception (`PermissionError`) or
+  its kind word ("geen toegang", "geen bestand"); an access-denied or
+  directory-in-place on a real disk is such a refusal now (`onleesbaar`,
+  `geen_gewoon_bestand`). Every read through `localpath` has a ceiling (the
+  existing 32 MiB of `limits.MAX_FILE_BYTES`; 64 bytes for the pid in the
+  scan lock): the configuration, the targets file, the work manifest, the
+  phase file, a ledger file, the pseudonym table and the code file had none
+  in 1.0.3 and are now refused above it through their unreadable route. The
+  flush of the
+  directory entry of a new ledger file is on the held directory handle;
+  Windows refuses `FlushFileBuffers` on a handle with the traverse right only
+  (measured), so on Windows only the file's own flush stays, as in 1.0.3.
+- Tests: `tests/test_read_inventory.py` (the static inventory over
+  `src/nsmcp/*.py` and `scripts/*.ps1`, one pinned exception for Python - the
+  installed distribution's own metadata - and the PowerShell findings pinned
+  for part 3), the runtime seam check (one `sys.addaudithook` in
+  tests/conftest.py, active in the route and session tests), a negative
+  parent-swap proof per reader family (tests/test_reader_parent_swap.py,
+  real junctions through the seam, with the needle test at `beperkt` and
+  `minimaal`), and the sentences pinned in tests/test_product_surface.py.
 
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is
