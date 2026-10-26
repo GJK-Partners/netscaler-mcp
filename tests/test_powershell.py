@@ -458,14 +458,20 @@ def _product_scripts_but_the_transport_pinned(tmp_path: Path) -> Path:
 def test_sr5_the_ssh_scripts_refuse_to_start_beside_an_unpinned_transport(
     tmp_path, monkeypatch, restore_policy, script
 ):
-    from nsmcp.handelen import ActionError, script_command
+    from nsmcp.handelen import ScriptPinRefused, script_command
+    from nsmcp.powershell import ScriptPinMismatch, check_script_pins
 
     directory = _product_scripts_but_the_transport_pinned(tmp_path)
     started = _spy_popen(monkeypatch)
-    with pytest.raises(ActionError, match="GjkUpgrade-Ssh.ps1") as refused:
+    # 1.1: the runner's refusal is typed and carries no text (no path).
+    with pytest.raises(ScriptPinRefused) as refused:
         handelen_module.default_runner(script_command(directory / script, ["-WatIs"]), 5)
     assert started == []
+    assert refused.value.oorzaak == "ScriptPinMismatch"
     assert str(tmp_path) not in str(refused.value)
+    # The pin check itself names the unpinned transport.
+    with pytest.raises(ScriptPinMismatch, match="GjkUpgrade-Ssh.ps1"):
+        check_script_pins(directory / script)
 
 
 def test_sr5_the_faserunner_refuses_to_start_beside_an_unpinned_transport(tmp_path, monkeypatch, restore_policy):
@@ -478,8 +484,8 @@ def test_sr5_the_faserunner_refuses_to_start_beside_an_unpinned_transport(tmp_pa
 
 
 def test_sr5_the_write_script_refuses_to_start_beside_an_unpinned_script(tmp_path, monkeypatch, restore_policy):
-    from nsmcp.handelen import ActionError, script_command
-    from nsmcp.powershell import ScriptPolicy, set_script_policy
+    from nsmcp.handelen import ScriptPinRefused, script_command
+    from nsmcp.powershell import ScriptPinMismatch, ScriptPolicy, check_script_pins, set_script_policy
 
     film = tmp_path / "film"
     film.mkdir()
@@ -488,9 +494,11 @@ def test_sr5_the_write_script_refuses_to_start_beside_an_unpinned_script(tmp_pat
     (film / "Hulp.ps1").write_bytes(b"function Hulp { }\r\n")
     set_script_policy(ScriptPolicy(pins={write.name.casefold(): _sha(write)}))
     started = _spy_popen(monkeypatch)
-    with pytest.raises(ActionError, match="Hulp.ps1"):
+    with pytest.raises(ScriptPinRefused):
         handelen_module.default_runner(script_command(write, ["-Actie", "x"]), 5)
     assert started == []
+    with pytest.raises(ScriptPinMismatch, match="Hulp.ps1"):
+        check_script_pins(write)
 
 
 def test_sr5_the_collector_refuses_to_start_beside_an_unpinned_script(tmp_path, monkeypatch, restore_policy):

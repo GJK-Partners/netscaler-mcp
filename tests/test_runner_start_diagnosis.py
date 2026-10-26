@@ -256,13 +256,18 @@ def test_a_failure_after_popen_is_never_a_not_started_error(monkeypatch, tmp_pat
         (FileNotFoundError(2, SENTINEL, SENTINEL_PATH), RunnerProcessNotStarted, "FileNotFoundError"),
     ],
 )
-def test_the_typed_script_runner_names_why_nothing_started(monkeypatch, raised, typed, cause):
+@pytest.mark.parametrize("runner", ["typed_runner", "default_runner"])
+def test_the_typed_script_runner_names_why_nothing_started(monkeypatch, raised, typed, cause, runner):
+    """Both names: the write tools (`default_runner`, `onderhoud_backup_maken`
+    among them) start their script the same typed way as the routes next to
+    the faserunner."""
+
     def start(_arguments):
         raise raised
 
     monkeypatch.setattr(handelen, "start_powershell", start)
     with pytest.raises(typed) as caught:
-        handelen.typed_runner(["-File", "x.ps1"], 5)
+        getattr(handelen, runner)(["-File", "x.ps1"], 5)
     assert type(caught.value) is typed
     assert caught.value.oorzaak == cause
     assert SENTINEL not in str(caught.value)
@@ -273,6 +278,53 @@ def test_perform_save_and_the_live_measurement_use_the_typed_runner():
 
     assert "typed_runner" in inspect.getsource(handelen.perform_save)
     assert "typed_runner" in inspect.getsource(mcp_server.build_server)
+
+
+def test_a_write_tool_whose_script_cannot_start_shows_no_powershell_path(tmp_path, monkeypatch):
+    """`onderhoud_backup_maken` (a precondition of R0) through the real
+    script runner, with Windows PowerShell absent: the proposal says why the
+    script did not start with the fixed sentence - never the install path
+    PowerShell was looked for at. MEASURED before: the answer carried
+    "kon PowerShell niet starten: Windows PowerShell niet gevonden op <pad>"."""
+    from nsmcp import powershell
+
+    script = tmp_path / "schrijf.ps1"
+    script.write_text("# niet gestart: PowerShell ontbreekt", encoding="ascii")
+    absent = Path("C:\\" + SENTINEL + "\\WindowsPowerShell\\v1.0\\powershell.exe")
+    monkeypatch.setattr(powershell, "powershell_path", lambda: absent)
+    monkeypatch.setattr(handelen, "check_script_pins", lambda _script: None)
+    monkeypatch.setattr(powershell, "check_script_pins", lambda _script: None)
+    presenter = _BackupCodeSpy()
+    server = mcp_server.build_server(
+        _export_dir(tmp_path),
+        _knowledge_file(tmp_path),
+        action_script=script,
+        fixture_dir=tmp_path,
+        code_presenter=presenter,
+        onderhoud=maintenance_config(tmp_path),
+        allowlist=Allowlist(per_target={"lab": {"onderhoud_backup_maken": True}}),
+    )
+
+    import asyncio
+
+    async def go():
+        async with create_connected_server_and_client_session(
+            server, client_info=types.Implementation(name="claude-desktop", version="1.0")
+        ) as client:
+            return await client.call_tool("onderhoud_backup_maken", {})
+
+    r = asyncio.run(go())
+    text = _text(r)
+    assert r.isError, text
+    assert (
+        "Het voorstel kon niet worden opgesteld: het script van deze handeling kon niet gestart worden "
+        f"({POWERSHELL}). Er is geen bevestigingscode uitgegeven en er is niets gewijzigd."
+    ) in text, text
+    assert SENTINEL not in text, text
+    assert "powershell.exe" not in text.lower(), text
+    assert "WindowsPowerShell" not in text, text
+    _assert_no_class_name(text)
+    assert presenter.codes == []
 
 
 # ---------------------------------------------------------------------------

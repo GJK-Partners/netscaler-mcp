@@ -256,7 +256,7 @@ class RunnerProcessNotStarted(ProcessNotStarted):
 
 class ScriptPinRefused(ProcessNotStarted):
     """A script did not match its pin (`powershell.ScriptPinMismatch`), so
-    nothing was started: the script-runner route (`typed_runner`) and the
+    nothing was started: the script runner (`default_runner`) and the
     `-WatIs` preview of the faserunner."""
 
     soort = "scriptpin"
@@ -265,7 +265,7 @@ class ScriptPinRefused(ProcessNotStarted):
 class PowerShellNotFound(ProcessNotStarted):
     """Windows PowerShell is not where Windows says it is
     (`powershell.PowerShellMissing`): the script-runner route
-    (`typed_runner`) and the `-WatIs` preview of the faserunner."""
+    (`default_runner`) and the `-WatIs` preview of the faserunner."""
 
     soort = "powershell"
 
@@ -744,22 +744,15 @@ def default_runner(arguments: list[str], timeout_s: int) -> tuple[int, str, str]
     Raises `subprocess.TimeoutExpired` on the limit, exactly as the old shape
     did - `perform()` below turns that into the honest "NIET vastgesteld"
     answer, and it now carries whatever the child had already printed.
+
+    A start failure is TYPED (1.1, `_not_started()`): every write tool, the
+    demo tools and `onderhoud_backup_maken` among them, says WHY nothing
+    started by type and without the text of the underlying error - that
+    text carries the PowerShell install path. MEASURED before: the
+    proposal of such a tool showed "kon PowerShell niet starten: Windows
+    PowerShell niet gevonden op <pad>". Every branch here comes before a
+    child exists: `start_powershell` raised, so no process was started.
     """
-    try:
-        process = start_powershell(arguments)
-    except (OSError, PowerShellMissing) as exc:
-        raise ActionError(f"kon PowerShell niet starten: {exc}") from None
-    return _wait_politely(process, timeout_s)
-
-
-def typed_runner(arguments: list[str], timeout_s: int) -> tuple[int, str, str]:
-    """`default_runner()` with a TYPED start failure (1.1): the routes next
-    to the faserunner - `config_opslaan` (`perform_save`) and the live
-    measurement of the pre-flight - say WHY nothing started, by type and
-    without the text of the underlying error. Every branch here comes
-    before a child exists: `start_powershell` raised, so no process was
-    started. The wait, the time limit and the polite stop are the same as
-    `default_runner()`'s; the demo write tools keep `default_runner()`."""
     try:
         process = start_powershell(arguments)
     except (OSError, PowerShellMissing) as exc:
@@ -767,12 +760,18 @@ def typed_runner(arguments: list[str], timeout_s: int) -> tuple[int, str, str]:
     return _wait_politely(process, timeout_s)
 
 
+# The name the routes next to the faserunner - `config_opslaan`
+# (`perform_save`) and the live measurement of the pre-flight - use for the
+# same runner. Since 1.1 there is one script runner, typed for every route.
+typed_runner = default_runner
+
+
 def _not_started(exc: OSError | PowerShellMissing) -> ProcessNotStarted:
     """The typed error for a start failure that came before any child
     existed, chosen on the TYPE of `exc` (specific before general:
     `ScriptPinMismatch` and `ChildWorkingDirectoryUnusable` are subclasses
-    of `PowerShellMissing`). Shared by `typed_runner()` and the `-WatIs`
-    preview of the faserunner."""
+    of `PowerShellMissing`). Shared by the script runner
+    (`default_runner()`) and the `-WatIs` preview of the faserunner."""
     if isinstance(exc, ChildWorkingDirectoryUnusable):
         return RunnerWorkdirUnusable(exc)
     if isinstance(exc, ScriptPinMismatch):
@@ -783,7 +782,7 @@ def _not_started(exc: OSError | PowerShellMissing) -> ProcessNotStarted:
 
 
 def _wait_politely(process: subprocess.Popen[str], timeout_s: int) -> tuple[int, str, str]:
-    """The wait of `default_runner()`/`typed_runner()`: the child's output,
+    """The wait of `default_runner()`: the child's output,
     or `subprocess.TimeoutExpired` after the polite stop."""
     try:
         stdout, stderr = process.communicate(timeout=timeout_s)

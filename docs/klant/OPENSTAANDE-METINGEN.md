@@ -66,6 +66,7 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 16 | startdiagnose: doel bezet na `Popen` (1.1) | `handelen.start_detached`: een fout van de Job Object-meting na een geslaagde `Popen` afgebeeld als `RunnerProcessNotStarted` | `test_failure_after_popen_keeps_the_target_reserved` | uitgevoerd 26-10-2026, teruggedraaid |
 | 17 | startdiagnose: controle vooraf (1.1) | `mcp_server`: in de `-WatIs`-tak van `onderhoud_upgrade_fase` de afbeelding op type weggehaald (`detail` alleen nog de klassenaam) | `test_a_preview_that_cannot_start_on_the_proposal_names_why`, `test_a_preview_that_cannot_start_on_the_confirmed_call_names_why` | uitgevoerd 26-10-2026, teruggedraaid |
 | 18 | startdiagnose: onbesliste start (1.1) | `mcp_server`: bij een `ActionError` van onbekende soort weer het kader "De handeling is niet gestart: de faserunner kon niet gestart worden", als vastgesteld | `test_an_unknown_action_error_says_the_start_is_undecided_and_keeps_the_target_held` | uitgevoerd 26-10-2026, teruggedraaid |
+| 19 | startdiagnose: schrijftools (1.1) | `handelen.default_runner`: de startfout weer als `ActionError` met de tekst van de fout (het PowerShell-pad erin) | `test_a_write_tool_whose_script_cannot_start_shows_no_powershell_path` | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en

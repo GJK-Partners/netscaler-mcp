@@ -72,7 +72,12 @@ when a child process does not start).
   niet gestart worden (...)") and after the redeem ("De handeling is niet
   gestart: ..."), where 1.0.3 said "De handeling is gestart maar de uitkomst is
   NIET vastgesteld"; the read gap of the measurement names the sentence instead
-  of the scrubbed text of the error. The demo write tools are unchanged.
+  of the scrubbed text of the error.
+- The other write tools (the demo tools and `onderhoud_backup_maken`) start
+  their script the same typed way: a script that did not start names the fixed
+  sentence. Measured before: the proposal showed "kon PowerShell niet starten:
+  Windows PowerShell niet gevonden op <path>", the PowerShell install path
+  included.
 - The action log line of an attempt whose child process did not start, or whose
   start is undecided, carries an eleventh field, `oorzaak`: the class name of the
   error, never its text.

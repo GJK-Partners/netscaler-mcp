@@ -5488,10 +5488,12 @@ def build_server(
                 # still where a caller learns their target bypasses the
                 # startup gate.
                 #
-                # 1.1: a TYPED start failure (`config_opslaan` runs its save
-                # script through `handelen.typed_runner`) is not a
+                # 1.1: a TYPED start failure (every write tool starts its
+                # script through the typed `handelen.default_runner`, the
+                # demo tools and `onderhoud_backup_maken` included) is not a
                 # configuration problem: it says why the script did not
-                # start, on both paths, with a fixed sentence.
+                # start, on both paths, with a fixed sentence - never the
+                # PowerShell install path the untyped text carried.
                 not_started = _not_started_sentence(exc)
                 if execution_attempt:
                     raise _preview_failed(not_started or type(exc).__name__) from None

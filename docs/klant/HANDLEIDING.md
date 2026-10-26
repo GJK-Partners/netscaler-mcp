@@ -1646,8 +1646,9 @@ Zie `OPENSTAANDE-METINGEN.md` voor de precieze status.
     PowerShell valt meestal hier al op. De bevestigingscode is dan niet ingewisseld.
   - Bij het starten na het inwisselen van de code: "De handeling is niet gestart: de faserunner
     kon niet gestart worden (...)". De bevestigingscode is dan verbruikt.
-  - Bij `config_opslaan` staat er "het script van deze handeling kon niet gestart worden (...)",
-    en bij de live meting van `status_update_preflight` staat dezelfde reden in het leesgat.
+  - Bij `config_opslaan` en de andere schrijftools, zoals `onderhoud_backup_maken`, staat er
+    "het script van deze handeling kon niet gestart worden (...)", en bij de live meting van
+    `status_update_preflight` staat dezelfde reden in het leesgat.
 
   De vaste zinnen:
   - "de vaste werkmap voor kindprocessen is niet bruikbaar": de map `System32` onder

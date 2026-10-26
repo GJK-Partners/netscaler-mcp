@@ -1192,8 +1192,9 @@ def test_a_failed_preview_at_beperkt_does_not_name_the_object_the_script_printed
 
 
 # A local path a caller must never see, however the write script fails to
-# even start (`handelen.default_runner`'s OSError-wrapped-as-ActionError,
-# e.g. "kon PowerShell niet starten: [WinError 2] ..."). Deliberately not an
+# even start (an untyped `ActionError` with the error text in it, the shape
+# `handelen.default_runner` raised before 1.1: "kon PowerShell niet starten:
+# [WinError 2] ..."). Deliberately not an
 # appliance/customer name - naamneutraliteit - this is the machine path a
 # real `subprocess.Popen` failure would carry.
 _LOCAL_PATH = r"C:\Users\test-agent\AppData\Local\Temp\nsmcp-test\schrijf.ps1"
@@ -1202,9 +1203,9 @@ _LOCAL_PATH = r"C:\Users\test-agent\AppData\Local\Temp\nsmcp-test\schrijf.ps1"
 class PreviewRaisesActionErrorOnSecondCall(Spy):
     """The proposal's own preview succeeds. The SECOND preview call - the
     one `_act()` re-runs before honouring a confirmation code - raises
-    `ActionError` instead of returning, exactly the shape
-    `handelen.default_runner` produces when `subprocess.Popen` cannot even
-    start the write script. A third call (same code, retried) succeeds
+    `ActionError` instead of returning, the shape `handelen.default_runner`
+    produced before 1.1 when `subprocess.Popen` could not even start the
+    write script (since 1.1 it raises a typed error without text). A third call (same code, retried) succeeds
     again, to prove the code still works."""
 
     def __call__(self, arguments, timeout_s):
