@@ -60,6 +60,7 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import NamedTuple
 
 LINK_LIMIT = 32
 
@@ -109,13 +110,19 @@ SPELLING_DOT_OR_SPACE = "spelling:punt-of-spatie"
 VOLUME_REMOTE = "volume:netwerkstation"
 
 
-class PathRefused(Exception):
+class PathRefused(OSError):
     """A local path this module will not open. `str()` is `REASONS[soort]`.
 
     `path` is the place the refusal was about (after following links above the
     root), for the server log and for openness `volledig` only. `followed` says
     whether that place was reached through a link. `status` is the NTSTATUS of
-    the call that failed, for the server log only."""
+    the call that failed, for the server log only.
+
+    An `OSError` on purpose: every reader already has a fail-closed route for
+    a file it cannot open (`except OSError`), so a refusal can never escape as
+    an unhandled exception or pass a reader that only knew the old failures.
+    A reader that names the refusal catches `PathRefused` first and shows
+    `reason`."""
 
     def __init__(
         self,
@@ -135,6 +142,18 @@ class PathRefused(Exception):
         self.detail = detail
         self.followed = followed
         super().__init__(REASONS[soort])
+
+    @property
+    def reason(self) -> str:
+        """The fixed sentence of the kind: never a path, a status or a line break."""
+        return REASONS[self.soort]
+
+
+def describe(exc: BaseException) -> str:
+    """What a message may say about a failed file operation: the fixed
+    sentence of a refusal, else only the class name (an `OSError` text carries
+    the absolute path)."""
+    return exc.reason if isinstance(exc, PathRefused) else exc.__class__.__name__
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +287,7 @@ STATUS_STOPPED_ON_SYMLINK = 0x8000002D
 STATUS_ACCESS_DENIED = 0xC0000022
 STATUS_OBJECT_NAME_INVALID = 0xC0000033
 STATUS_OBJECT_NAME_NOT_FOUND = 0xC0000034
+STATUS_OBJECT_NAME_COLLISION = 0xC0000035
 STATUS_OBJECT_PATH_NOT_FOUND = 0xC000003A
 STATUS_SHARING_VIOLATION = 0xC0000043
 STATUS_DELETE_PENDING = 0xC0000056
@@ -598,9 +618,9 @@ class _Native:
         )
         return status, info.DeviceType, info.Characteristics
 
-    def set_rename(self, handle: int, parent: int, name: str) -> int:
-        """`NtSetInformationFile(FileRenameInformation)` with `ReplaceIfExists`,
-        the target named relative to the held `parent`."""
+    def set_rename(self, handle: int, parent: int, name: str, *, replace: bool = True) -> int:
+        """`NtSetInformationFile(FileRenameInformation)`, the target named
+        relative to the held `parent`; `ReplaceIfExists` only with `replace`."""
         self.calls["NtSetInformationFile"] += 1
         ctypes, wt = self._ct, self._wt
         encoded = name.encode("utf-16-le")
@@ -613,7 +633,7 @@ class _Native:
                 ("FileName", ctypes.c_ubyte * (len(encoded) + 2)),
             ]
 
-        info = FILE_RENAME_INFORMATION(1, parent, len(encoded))
+        info = FILE_RENAME_INFORMATION(1 if replace else 0, parent, len(encoded))
         # Byte copy: a char-array assignment stops at the first NUL of UTF-16.
         ctypes.memmove(ctypes.addressof(info) + FILE_RENAME_INFORMATION.FileName.offset, encoded, len(encoded))
         iosb = self._IOSB()
@@ -782,6 +802,42 @@ class LocalHandle:
             total += len(chunk)
         return b"".join(parts)
 
+    def size(self) -> int:
+        """The size of the held leaf, read on its handle (no open by name)."""
+        if self.closed or self._leaf is None or self.kind != "file":
+            raise PathRefused("onleesbaar", path=self.path, detail="geen leesbaar blad")
+        native = self._native
+        if isinstance(native, _Native):
+            status, size, directory = native.query_standard(self._leaf)
+            if status != STATUS_SUCCESS:
+                raise PathRefused("onleesbaar", path=self.path, status=status)
+            if directory:
+                raise PathRefused("geen_gewoon_bestand", path=self.path)
+            return int(size)
+        return os.fstat(self._leaf).st_size
+
+    def flush_directory(self) -> bool:
+        """Best effort: `FlushFileBuffers` on the HELD parent directory handle
+        (the directory entry of a new file), never a second open by name.
+        False where the platform or the handle's access does not allow it."""
+        directory = self._chain[-1] if self._chain else None
+        if self.closed or directory is None or not isinstance(self._native, _Native):
+            return False
+        return self._native.FlushFileBuffers(directory)
+
+    def detach_leaf_fd(self) -> int:
+        """Windows: hands the leaf handle over to a C runtime file descriptor
+        (for a child process's standard output). The descriptor owns the
+        handle from here: the caller closes it with `os.close`, and `close()`
+        of this chain no longer closes the leaf."""
+        if self.closed or self._leaf is None or self.kind != "file" or not isinstance(self._native, _Native):
+            raise PathRefused("onleesbaar", path=self.path, detail="geen blad om over te dragen")
+        import msvcrt
+
+        fd = msvcrt.open_osfhandle(self._leaf, os.O_WRONLY | os.O_APPEND)
+        self._leaf = None
+        return fd
+
     def write(self, data: bytes) -> None:
         """Writes all of `data` on the handle, then flushes it to disk."""
         if self.closed or self._leaf is None or self.kind != "file":
@@ -926,6 +982,42 @@ def _leaf_open(expect: str, mode: str, shared_writers: bool) -> tuple[int, int, 
     )
 
 
+def _existing_leaf(native: _Native, parent: int, name: str, path: str, status: int) -> Exception:
+    """An exclusive create met a name that exists: the existing object is
+    opened as itself (attributes only) and named. A reparse point is the
+    refusal of its kind (NTFS answers a directory junction with "is a
+    directory" before "exists", so that status comes here too); a directory
+    is `geen_gewoon_bestand`; a file is `FileExistsError` - the caller's own
+    "already there" route (a scan lock held by another scan)."""
+    first = status
+    status, handle = native.NtCreateFile(
+        parent,
+        name,
+        FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_OPEN,
+        FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+    )
+    if status != STATUS_SUCCESS or handle is None:
+        return (
+            _status_refusal(first, path, allow_missing=False)
+            if first in _NOT_REGULAR
+            else FileExistsError(errno.EEXIST, "bestaat al")
+        )
+    try:
+        tag_status, attributes, tag = native.query_attribute_tag(handle)
+    finally:
+        native.NtClose(handle)
+    if tag_status != STATUS_SUCCESS:
+        return PathRefused("onleesbaar", path=path, status=tag_status, detail="tag")
+    if attributes & FILE_ATTRIBUTE_REPARSE_POINT:
+        soort = "koppeling" if tag in (IO_REPARSE_TAG_SYMLINK, IO_REPARSE_TAG_MOUNT_POINT) else "herparseerpunt"
+        return PathRefused(soort, path=path, detail=f"tag 0x{tag:08X} bestaand blad")
+    if attributes & FILE_ATTRIBUTE_DIRECTORY or first in _NOT_REGULAR:
+        return PathRefused("geen_gewoon_bestand", path=path, status=first)
+    return FileExistsError(errno.EEXIST, "bestaat al")
+
+
 def _walk_windows(
     native: _Native,
     path: str,
@@ -972,6 +1064,8 @@ def _walk_windows(
                 )
             status, handle = native.NtCreateFile(held[-1], component, access, share, disposition, options)
             if status != STATUS_SUCCESS or handle is None:
+                if is_leaf and mode == "create" and (status == STATUS_OBJECT_NAME_COLLISION or status in _NOT_REGULAR):
+                    raise _existing_leaf(native, held[-1], component, path, status)
                 refusal = _status_refusal(status, path, allow_missing and mode in ("read", "check"))
                 if isinstance(refusal, _Absent):
                     result = LocalHandle(native, held, None, path, exists=False, kind=expect)
@@ -1224,6 +1318,137 @@ def read_local_bytes(path, *, root=None, max_bytes: int, shared_writers: bool = 
     more than `max_bytes` means over the cap (the caller's cap route)."""
     with open_local(path, root=root, expect="file", mode="read", shared_writers=shared_writers) as handle:
         return handle.read(max_bytes)
+
+
+class LocalRead(NamedTuple):
+    """One read of a file: `exists` False only with `allow_missing`; `size`
+    is the size on the held handle; `over_cap` means nothing was read past
+    the cap and `data` is empty - the caller's own cap route decides."""
+
+    exists: bool
+    data: bytes
+    size: int
+    over_cap: bool
+
+
+def read_local(
+    path, *, root=None, max_bytes: int, allow_missing: bool = False, shared_writers: bool = False
+) -> LocalRead:
+    """`open_local(..., mode="read")`, the size checked on the handle BEFORE a
+    byte is read, then at most `max_bytes + 1` bytes read on the handle."""
+    with open_local(
+        path, root=root, expect="file", mode="read", allow_missing=allow_missing, shared_writers=shared_writers
+    ) as handle:
+        if not handle.exists:
+            return LocalRead(False, b"", 0, False)
+        size = handle.size()
+        if size > max_bytes:
+            return LocalRead(True, b"", size, True)
+        data = handle.read(max_bytes)
+        if len(data) > max_bytes:
+            return LocalRead(True, b"", len(data), True)
+        return LocalRead(True, data, len(data), False)
+
+
+def create_local(path, data: bytes, *, root) -> None:
+    """Creates the file exclusively (`FILE_CREATE`) relative to the held
+    parent and writes `data` on its handle. An existing name raises
+    `FileExistsError`, or the refusal of its kind when it is a reparse point
+    (opened as itself, never followed)."""
+    with open_local(path, root=root, expect="file", mode="create") as handle:
+        handle.write(data)
+
+
+_STRICT_ABSOLUTE = re.compile(r"^(?:[A-Za-z]:\\|\\\\[?.]\\)")
+
+
+def absolute_text(path) -> str:
+    """The text a walk is given for a configured path: the spelling rules
+    first (on the text as written, before anything could drop a trailing dot
+    or space), then - only for a path that is not already absolute - the
+    absolute form against the working directory. An absolute text is
+    returned as it is, so a root and a path below it built from the SAME
+    text keep the same prefix (the walk compares it ordinally)."""
+    text = os.fspath(path)
+    check_spelling(text)
+    if sys.platform != "win32":
+        return text if text.startswith("/") else os.path.abspath(text)
+    if not text.startswith("\\\\"):
+        text = text.replace("/", "\\")
+    if _STRICT_ABSOLUTE.match(text):
+        return text
+    return os.path.abspath(text)
+
+
+def under(root_text: str, *parts: str) -> str:
+    """`parts` below `root_text`, joined as text with the separator of the
+    platform. Nothing is normalized: an empty, `.` or `..` part reaches the
+    walk as it is and is refused there."""
+    separator = "\\" if sys.platform == "win32" else "/"
+    pieces = []
+    for part in parts:
+        pieces.extend(re.split(r"[\\/]", part))
+    return separator.join([root_text.rstrip(separator), *pieces])
+
+
+def parent_text(path_text: str) -> str:
+    """The directory part of a path text (`C:\\a\\b.txt` -> `C:\\a`, `C:\\b`
+    -> `C:\\`), by text: a root for a file whose own directory is the
+    approved place (the ledger, the action register, the code file)."""
+    separator = "\\" if sys.platform == "win32" else "/"
+    head, _, _ = path_text.rstrip(separator).rpartition(separator)
+    if head.endswith(":") or head == "" or head.endswith("\\\\?") or head.endswith("\\\\."):
+        head += separator
+    return head
+
+
+def rename_local(path, new_name: str, *, root) -> None:
+    """Renames the file or directory at `path` to `new_name` in the same,
+    held parent, by the handle of what is renamed; never replaces an existing
+    name (`FileExistsError`). What is renamed is opened as itself and refused
+    when it is a reparse point."""
+    _require_windows_for_writing()
+    text = os.fspath(path)
+    parent, _, name = text.rstrip("\\").rpartition("\\")
+    if not name or not parent:
+        raise PathRefused("onleesbaar", path=text, detail="geen naam")
+    _split(text)
+    if _components(new_name, new_name) != [new_name]:
+        raise PathRefused("onleesbaar", path=text, detail="nieuwe naam is geen onderdeel")
+    if parent.endswith(":"):
+        parent += "\\"
+    native = _native
+    with open_local(parent, root=root, expect="dir") as held:
+        directory = held.directory_handle
+        status, handle = native.NtCreateFile(
+            directory,
+            name,
+            DELETE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            FILE_OPEN,
+            FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+        )
+        if status != STATUS_SUCCESS or handle is None:
+            refusal = _status_refusal(status, text, allow_missing=False)
+            _log_refusal(refusal)
+            raise refusal
+        try:
+            tag_status, attributes, tag = native.query_attribute_tag(handle)
+            if tag_status != STATUS_SUCCESS:
+                raise PathRefused("onleesbaar", path=text, status=tag_status, detail="tag")
+            if attributes & FILE_ATTRIBUTE_REPARSE_POINT:
+                soort = "koppeling" if tag in (IO_REPARSE_TAG_SYMLINK, IO_REPARSE_TAG_MOUNT_POINT) else "herparseerpunt"
+                raise PathRefused(soort, path=text, detail=f"tag 0x{tag:08X} te hernoemen")
+            status = native.set_rename(handle, directory, new_name, replace=False)
+            if status == STATUS_OBJECT_NAME_COLLISION:
+                raise FileExistsError(errno.EEXIST, "de nieuwe naam bestaat al")
+            if status != STATUS_SUCCESS:
+                raise _status_refusal(status, text, allow_missing=False)
+        except PathRefused as exc:
+            _log_refusal(exc)
+            raise
+        finally:
+            native.NtClose(handle)
 
 
 @contextlib.contextmanager
