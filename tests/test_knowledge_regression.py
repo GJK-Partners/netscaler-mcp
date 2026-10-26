@@ -4,10 +4,12 @@ The synthetic package in tests/fixtures/kennis-regressie/ carries the shapes
 the matrix has to cover: a plain predicate, a build-dependent condition
 (`vanaf`), a FIPS branch the `vanaf` rule does not name, `altijd`, and a CVE
 with `naconfiguratieVerplicht`, over two bulletins on one branch (so the
-floor is the higher fix). Its matrix lists the v1.0.3 tag commit and one
-1.1.0 commit; the tests stand in the 1.1.0 identity, because a matrix in
-this repository cannot name the commit that adds it. A real release matrix
-names the released commits (docs/klant/AUTOMATISERING.md).
+floor is the higher fix). Its matrix lists the v1.0.3 tag commit and, for
+1.1.0, the placeholder PLACEHOLDER_COMMIT (forty zeros: no commit at all),
+because a matrix in this repository cannot name the commit that adds it.
+The tests stand in that identity; one test writes the commit of this
+checkout into a copy of the matrix and runs the command end to end. A real
+release matrix names the released commits (docs/klant/AUTOMATISERING.md).
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ MATRIX = FIXTURE / "kennis-regressie.json"
 LIVE_EXPORT = ROOT / "tests" / "fixtures" / "lab-export-vpx-20260826"
 TODAY = date(2026, 10, 26)
 NEEDLE = "naald-3f9a-matrixinhoud"
+PLACEHOLDER_COMMIT = "0" * 40
 
 
 def _matrix() -> dict:
@@ -73,6 +76,16 @@ def test_the_fixture_matrix_holds_on_this_engine(tmp_path):
     assert result.passed
     assert len(result.lines) == len(_matrix()["gevallen"]) == 19
     assert all(line.endswith(": klopt") for line in result.lines)
+
+
+def test_the_fixture_matrix_names_a_placeholder_for_the_1_1_0_commit():
+    """Never a hash that looks like a commit of this repository and is not
+    one: the 1.1.0 entry is forty zeros, which no commit can be."""
+    assert _engine() == EngineIdentity("1.1.0", PLACEHOLDER_COMMIT)
+    present = subprocess.run(
+        ["git", "cat-file", "-e", f"{PLACEHOLDER_COMMIT}^{{commit}}"], cwd=ROOT, capture_output=True
+    )
+    assert present.returncode != 0
 
 
 def test_the_fixture_package_belongs_to_the_existing_line():
@@ -426,6 +439,28 @@ def test_the_regression_command_runs_the_matrix(monkeypatch, capsys):
     out = capsys.readouterr().out.splitlines()
     assert len(out) == 20
     assert out[-1] == f"regressiematrix: 19 gevallen, alle kloppen (engine 1.1.0, commit {_engine().commit})"
+
+
+def test_the_regression_command_runs_end_to_end_on_this_checkout(tmp_path, capsys):
+    """The real route: the identity of the running engine, no stand-in. On
+    a clean checkout of a commit (CI, a release) the fixture matrix with
+    that commit written into it holds; on a checkout whose code differs
+    from its commit, the command refuses with that reason - never a run."""
+    identity, reason = knowledge_regression.engine_identity()
+    matrix = _matrix()
+    matrix["engines"] = [{"versie": "1.1.0", "commit": identity.commit if identity is not None else PLACEHOLDER_COMMIT}]
+    path = _write(tmp_path, "kennis-regressie.json", matrix)
+    code = main(["--regressie", str(PACKAGE), str(path)])
+    printed = capsys.readouterr()
+    if identity is None:
+        assert code == 1
+        assert printed.out == ""
+        assert printed.err == f"regressiematrix geweigerd: de draaiende engine is niet vast te stellen: {reason}\n"
+        return
+    assert code == 0, printed.err
+    assert printed.out.splitlines()[-1] == (
+        f"regressiematrix: 19 gevallen, alle kloppen (engine 1.1.0, commit {identity.commit})"
+    )
 
 
 def test_the_regression_command_refuses_on_an_engine_it_cannot_place(tmp_path, capsys):
