@@ -36,6 +36,7 @@ from mcp.shared.memory import create_connected_server_and_client_session
 from test_product_surface import _BackupCodeSpy
 from test_upgrade_start_window import (
     ONBESLIST,
+    RUN,
     WAIT_S,
     _confirm_r1,
     _held_runner,
@@ -349,6 +350,119 @@ def test_script_pin_mismatch_is_not_reported_as_missing_powershell(tmp_path, sho
     assert r.isError, text
     assert SCRIPTPIN in text, text
     assert "PowerShell niet gevonden" not in text, text
+    _assert_no_leak(text, tmp_path)
+    _assert_free(server)
+
+
+# ---------------------------------------------------------------------------
+# The -WatIs preview of the faserunner: the same typed mapping
+#
+# MEASURED before: the preview runs first, on the proposal AND on the
+# confirmed call, with the same pin check. A changed or unpinned script fell
+# there already, as a bare `ActionError` - the answer said "(ActionError)" and
+# the SCRIPTPIN sentence the manual promises never came.
+# ---------------------------------------------------------------------------
+
+_TYPED_CLASS_NAMES = (
+    "ActionError",
+    "ScriptPinRefused",
+    "PowerShellNotFound",
+    "RunnerWorkdirUnusable",
+    "RunnerProcessNotStarted",
+    "ScriptPinMismatch",
+    "PowerShellMissing",
+    "ChildWorkingDirectoryUnusable",
+    "FileNotFoundError",
+)
+
+_PREVIEW_FAULTS = [
+    ("scriptpin", SCRIPTPIN, ScriptPinRefused, "ScriptPinMismatch"),
+    ("powershell", POWERSHELL, PowerShellNotFound, "PowerShellMissing"),
+    ("werkmap", WERKMAP, RunnerWorkdirUnusable, "ChildWorkingDirectoryUnusable"),
+    ("proces", PROCES, RunnerProcessNotStarted, "FileNotFoundError"),
+]
+
+
+def _fail_the_preview_start(monkeypatch, where: str) -> None:
+    """A start failure of the `-WatIs` preview, injected where it really
+    arises: the pin check and the interpreter dispatch of `upgrade_command`,
+    the working directory and `Popen` of the preview's own process runner.
+    Every one carries the sentinel and a path in its text."""
+    if where == "scriptpin":
+
+        def pins(_script):
+            raise ScriptPinMismatch(SENTINEL + " " + SENTINEL_PATH)
+
+        monkeypatch.setattr(handelen, "check_script_pins", pins)
+    elif where == "powershell":
+
+        def command(*_args, **_kwargs):
+            raise PowerShellMissing("Windows PowerShell niet gevonden op " + SENTINEL_PATH)
+
+        monkeypatch.setattr(handelen, "upgrade_command", command)
+    elif where == "werkmap":
+
+        def unusable():
+            raise ChildWorkingDirectoryUnusable(SENTINEL + " " + SENTINEL_PATH)
+
+        monkeypatch.setattr(handelen, "child_working_directory", unusable)
+    else:
+
+        def popen(*_args, **_kwargs):
+            raise FileNotFoundError(2, SENTINEL, SENTINEL_PATH)
+
+        monkeypatch.setattr(handelen.subprocess, "Popen", popen)
+
+
+def _assert_no_class_name(text: str) -> None:
+    for name in _TYPED_CLASS_NAMES:
+        assert name not in text, text
+
+
+@pytest.mark.parametrize("where,sentence,typed,cause", _PREVIEW_FAULTS)
+def test_the_preview_start_raises_a_typed_error_without_text(tmp_path, monkeypatch, where, sentence, typed, cause):
+    runner = tmp_path / "runner.py"
+    runner.write_text("", encoding="ascii")
+    monkeypatch.setattr(handelen, "check_script_pins", lambda _script: None)
+    _fail_the_preview_start(monkeypatch, where)
+    with pytest.raises(typed) as caught:
+        handelen.run_upgrade_preview(["-WatIs"], runner=runner)
+    assert type(caught.value) is typed
+    assert caught.value.oorzaak == cause
+    assert SENTINEL not in str(caught.value)
+    assert mcp_server._not_started_sentence(caught.value) == sentence
+
+
+@pytest.mark.parametrize("where,sentence,typed,cause", _PREVIEW_FAULTS)
+def test_a_preview_that_cannot_start_on_the_proposal_names_why(tmp_path, monkeypatch, where, sentence, typed, cause):
+    runner = _held_runner(tmp_path)
+    server = _window_server(tmp_path, runner)
+    _fail_the_preview_start(monkeypatch, where)
+    r = _call(server, "onderhoud_upgrade_fase", {"fase": "R1", "run": RUN, "doel": TARGET_NAME})
+    text = _text(r)
+    assert r.isError, text
+    assert f"voorstel kon niet worden opgesteld: {sentence}" in text, text
+    _assert_no_class_name(text)
+    _assert_no_leak(text, tmp_path)
+
+
+@pytest.mark.parametrize("where,sentence,typed,cause", _PREVIEW_FAULTS)
+def test_a_preview_that_cannot_start_on_the_confirmed_call_names_why(
+    tmp_path, short_wait, monkeypatch, where, sentence, typed, cause
+):
+    """The pin changes (or PowerShell goes) between the proposal and the
+    confirmed call: the preview of the confirmed call says why, the code is
+    not redeemed and the target is free."""
+    runner = _held_runner(tmp_path)
+    server = _window_server(tmp_path, runner)
+    code = _propose_r1(server)
+    _fail_the_preview_start(monkeypatch, where)
+    r = _confirm_r1(server, code)
+    text = _text(r)
+    assert r.isError, text
+    assert f"de controle vooraf mislukte ({sentence})" in text, text
+    assert "De bevestigingscode is niet ingewisseld" in text, text
+    _assert_no_class_name(text)
     _assert_no_leak(text, tmp_path)
     _assert_free(server)
 

@@ -1637,11 +1637,19 @@ Zie `OPENSTAANDE-METINGEN.md` voor de precieze status.
 - **Een omwisseling is onderbroken.** In het uitzonderlijke geval dat het proces precies
   tijdens het omwisselen stopt, kan de export als `.vorig` naast de map staan. De
   eerstvolgende scanpoging herstelt dat zelf, nog voordat hij scant.
-- **De faserunner of een script ernaast start niet (sinds 1.1).** Het antwoord zegt dan "De
-  handeling is niet gestart: de faserunner kon niet gestart worden (...)". Bij `config_opslaan`
-  staat er "het script van deze handeling kon niet gestart worden (...)", en bij de live meting
-  van `status_update_preflight` staat dezelfde reden in het leesgat. Tussen de haakjes staat
-  waarom, altijd als een van deze vaste zinnen en nooit met een pad of een foutmelding:
+- **De faserunner of een script ernaast start niet (sinds 1.1).** Het antwoord noemt dan waarom,
+  altijd als een van de vaste zinnen hieronder en nooit met een pad of een foutmelding. Waar die
+  zin staat, hangt af van het moment:
+  - Bij de controle vooraf (`-WatIs`) van `onderhoud_upgrade_fase`, die voor elk voorstel en voor
+    elke uitvoering draait: "voorstel kon niet worden opgesteld: ..." of "De handeling is niet
+    uitgevoerd: de controle vooraf mislukte (...)". Een gewijzigd script of een ontbrekende
+    PowerShell valt meestal hier al op. De bevestigingscode is dan niet ingewisseld.
+  - Bij het starten na het inwisselen van de code: "De handeling is niet gestart: de faserunner
+    kon niet gestart worden (...)". De bevestigingscode is dan verbruikt.
+  - Bij `config_opslaan` staat er "het script van deze handeling kon niet gestart worden (...)",
+    en bij de live meting van `status_update_preflight` staat dezelfde reden in het leesgat.
+
+  De vaste zinnen:
   - "de vaste werkmap voor kindprocessen is niet bruikbaar": de map `System32` onder
     `%SystemRoot%` van het account waaronder de server draait, bestaat niet of is geen absoluut
     pad. Controleer `%SystemRoot%` van dat account.
@@ -1657,8 +1665,8 @@ Zie `OPENSTAANDE-METINGEN.md` voor de precieze status.
 
   De bestaande zin "Windows PowerShell niet gevonden" blijft voor een ontbrekend
   `powershell.exe`. In al deze gevallen is aantoonbaar geen proces gestart: het doel is meteen
-  weer vrij. De bevestigingscode is wel verbruikt; vraag een nieuw voorstel aan zodra de oorzaak
-  weg is. Staat er alleen "de faserunner kon niet gestart worden", zonder haakjes, dan is niet
+  weer vrij. Was de code al ingewisseld, vraag dan een nieuw voorstel aan zodra de oorzaak weg
+  is. Staat er alleen "de faserunner kon niet gestart worden", zonder haakjes, dan is niet
   vast te stellen of er toch een proces draait. Het doel blijft dan bezet tot de regel
   `fase_gestart` in het ledger staat of de tijdslimiet van de fase verstreken is; kijk met
   `onderhoud_upgrade_stand` en in het `.log`-bestand naast het ledger. In het actielogboek staat

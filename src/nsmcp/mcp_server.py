@@ -4554,14 +4554,20 @@ def build_server(
                     runner=onderhoud.runner,
                 )
             except Exception as exc:
+                # 1.1: the preview meets a changed script, a missing
+                # PowerShell or an unusable working directory FIRST - on the
+                # proposal and on the confirmed call alike - so it names the
+                # same fixed sentence as the start does, on the type of the
+                # error. Anything else keeps its class name; never its text.
+                detail = _not_started_sentence(exc) or type(exc).__name__
                 if execution_attempt:
-                    raise _preview_failed(type(exc).__name__) from None
+                    raise _preview_failed(detail) from None
                 raise _failure(
                     doelnaam,
                     f"voorstel {tool}",
                     _note(
                         tool,
-                        f"voorstel kon niet worden opgesteld: {type(exc).__name__}",
+                        f"voorstel kon niet worden opgesteld: {detail}",
                         "de controle vooraf (-WatIs) van de faserunner",
                     ),
                 ) from None

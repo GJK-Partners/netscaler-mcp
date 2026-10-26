@@ -64,6 +64,7 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 14 | startdiagnose: werkmap (1.1) | `mcp_server`: de takken `RunnerWorkdirUnusable` en `RunnerLogUnopenable` van de losgekoppelde start afgebeeld op `RUNNER_NIET_GESTART_PROCES` (alles op PROCES) | `test_unusable_workdir_is_named_as_such` | uitgevoerd 26-10-2026, teruggedraaid |
 | 15 | startdiagnose: scriptpin (1.1) | `mcp_server`: de tak `except ScriptPinMismatch` rond `upgrade_command` weggehaald (de fout valt dan in de tak `PowerShellMissing`) | `test_script_pin_mismatch_is_not_reported_as_missing_powershell` | uitgevoerd 26-10-2026, teruggedraaid |
 | 16 | startdiagnose: doel bezet na `Popen` (1.1) | `handelen.start_detached`: een fout van de Job Object-meting na een geslaagde `Popen` afgebeeld als `RunnerProcessNotStarted` | `test_failure_after_popen_keeps_the_target_reserved` | uitgevoerd 26-10-2026, teruggedraaid |
+| 17 | startdiagnose: controle vooraf (1.1) | `mcp_server`: in de `-WatIs`-tak van `onderhoud_upgrade_fase` de afbeelding op type weggehaald (`detail` alleen nog de klassenaam) | `test_a_preview_that_cannot_start_on_the_proposal_names_why`, `test_a_preview_that_cannot_start_on_the_confirmed_call_names_why` | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en

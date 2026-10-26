@@ -255,15 +255,17 @@ class RunnerProcessNotStarted(ProcessNotStarted):
 
 
 class ScriptPinRefused(ProcessNotStarted):
-    """The script-runner route (`typed_runner`): a script did not match its
-    pin (`powershell.ScriptPinMismatch`), so nothing was started."""
+    """A script did not match its pin (`powershell.ScriptPinMismatch`), so
+    nothing was started: the script-runner route (`typed_runner`) and the
+    `-WatIs` preview of the faserunner."""
 
     soort = "scriptpin"
 
 
 class PowerShellNotFound(ProcessNotStarted):
-    """The script-runner route (`typed_runner`): Windows PowerShell is not
-    where Windows says it is (`powershell.PowerShellMissing`)."""
+    """Windows PowerShell is not where Windows says it is
+    (`powershell.PowerShellMissing`): the script-runner route
+    (`typed_runner`) and the `-WatIs` preview of the faserunner."""
 
     soort = "powershell"
 
@@ -760,15 +762,24 @@ def typed_runner(arguments: list[str], timeout_s: int) -> tuple[int, str, str]:
     `default_runner()`'s; the demo write tools keep `default_runner()`."""
     try:
         process = start_powershell(arguments)
-    except ChildWorkingDirectoryUnusable as exc:
-        raise RunnerWorkdirUnusable(exc) from None
-    except ScriptPinMismatch as exc:
-        raise ScriptPinRefused(exc) from None
-    except PowerShellMissing as exc:
-        raise PowerShellNotFound(exc) from None
-    except OSError as exc:
-        raise RunnerProcessNotStarted(exc) from None
+    except (OSError, PowerShellMissing) as exc:
+        raise _not_started(exc) from None
     return _wait_politely(process, timeout_s)
+
+
+def _not_started(exc: OSError | PowerShellMissing) -> ProcessNotStarted:
+    """The typed error for a start failure that came before any child
+    existed, chosen on the TYPE of `exc` (specific before general:
+    `ScriptPinMismatch` and `ChildWorkingDirectoryUnusable` are subclasses
+    of `PowerShellMissing`). Shared by `typed_runner()` and the `-WatIs`
+    preview of the faserunner."""
+    if isinstance(exc, ChildWorkingDirectoryUnusable):
+        return RunnerWorkdirUnusable(exc)
+    if isinstance(exc, ScriptPinMismatch):
+        return ScriptPinRefused(exc)
+    if isinstance(exc, PowerShellMissing):
+        return PowerShellNotFound(exc)
+    return RunnerProcessNotStarted(exc)
 
 
 def _wait_politely(process: subprocess.Popen[str], timeout_s: int) -> tuple[int, str, str]:
@@ -1395,7 +1406,8 @@ def _default_upgrade_process_runner(argv: list[str], timeout_s: int) -> tuple[in
             errors="replace",
         )
     except (OSError, PowerShellMissing) as exc:
-        raise ActionError(f"kon de faserunner niet starten: {exc}") from None
+        # 1.1: typed, like the confirmed start - no child exists here.
+        raise _not_started(exc) from None
     try:
         stdout, stderr = process.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
@@ -1422,7 +1434,10 @@ def run_upgrade_preview(
     try:
         argv = upgrade_command(runner, script_arguments)
     except PowerShellMissing as exc:
-        raise ActionError(str(exc)) from None
+        # 1.1: the pin check and the interpreter dispatch, typed - the
+        # preview runs before every confirmed start, so this is where a
+        # changed script or a missing PowerShell is met first.
+        raise _not_started(exc) from None
     return _default_upgrade_process_runner(argv, timeout_s)
 
 

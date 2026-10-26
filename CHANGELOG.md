@@ -51,6 +51,13 @@ when a child process does not start).
   gevonden". Behaviour change for a caller that matched on the old sentence:
   "het proces of zijn logbestand kon niet worden geopend" no longer exists, and
   "het proces kon niet worden gestart" now means only that `Popen` failed.
+- The `-WatIs` preview of `onderhoud_upgrade_fase`, which runs before every
+  proposal and before every confirmed call, names the same sentence:
+  "voorstel kon niet worden opgesteld: <sentence>" or "de controle vooraf
+  mislukte (<sentence>)", the code not redeemed. That is where a changed script
+  or a missing PowerShell is usually met first. Measured before: there the
+  answer said "voorstel kon niet worden opgesteld: ActionError" or "de controle
+  vooraf mislukte (ActionError)".
 - Only those cases release the target, because there no child process exists.
   A start failure of any other kind gets the general "de faserunner kon niet
   gestart worden", without the text of the error, and the target stays held in
