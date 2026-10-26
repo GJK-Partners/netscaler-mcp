@@ -212,8 +212,8 @@ def test_a_duplicate_refusal_cannot_forge_an_answer_line(tmp_path, field, value,
 # exactly the text a reader cannot trust to look like what it is.
 
 _HYPHEN = "\u2010"
-BULLETIN_FORM = "CTX gevolgd door cijfers (alleen ASCII, zonder spaties)"
-CVE_FORM = "CVE-, vier cijfers, een koppelteken en vier of meer cijfers (alleen ASCII, zonder spaties)"
+BULLETIN_FORM = "CTX gevolgd door een tot twaalf cijfers (alleen ASCII, zonder spaties)"
+CVE_FORM = "CVE-, vier cijfers, een koppelteken en vier tot tien cijfers (alleen ASCII, zonder spaties)"
 
 
 def _refused_for_its_form(knowledge, field: str, form: str) -> None:

@@ -387,6 +387,10 @@ def _missing_coverage(knowledge: Knowledge, cases: list[_Case]) -> list[str]:
     missing: list[str] = []
     for bulletin in knowledge.cve:
         name = str(bulletin["bulletin"])
+        if not bulletin["getroffen"]:
+            # A bulletin without a branch would need no case at all.
+            missing.append(f"{name}: ten minste een tak (getroffen en fix noemen geen tak)")
+            continue
         for branch in sorted(bulletin["getroffen"]):
             if not _BRANCH.fullmatch(branch):
                 missing.append(f"{name}: een tak die een matrixgeval niet kan noemen (vorm X.Y of X.Y-FIPS)")

@@ -149,11 +149,14 @@ def _with_floor(
                         "datum": "2026-06-30",
                         "getroffen": {"14.1": f"< {fix}"},
                         "fix": {"14.1": fix},
-                        "cves": [],
+                        # 1.1: a bulletin names at least one CVE.
+                        "cves": [
+                            {"id": f"CVE-2026-{9001 + nummer}", "cvss": 5.0, "kern": "proef", "voorwaarde": "altijd"}
+                        ],
                         "advies": "upgrade",
                         "extraStapNaUpgrade": "",
                     }
-                    for naam, fix in bulletins
+                    for nummer, (naam, fix) in enumerate(bulletins)
                 ],
             }
         ),

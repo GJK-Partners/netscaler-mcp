@@ -493,6 +493,16 @@ _CONTENT_ROUTES = [
         _set(_package(), "cve[0].cves[1].id", "cve-2026-88771"),
         "kennispakket: cve[0].cves[1].id noemt een CVE die meer dan eens voorkomt; het zou dubbel meetellen",
     ),
+    (
+        _set(_package(), "cve[0].bulletin", "CTX" + "697096" * 3400),
+        "kennispakket: cve[0].bulletin heeft niet de vorm CTX gevolgd door een tot twaalf cijfers"
+        " (alleen ASCII, zonder spaties)",
+    ),
+    (
+        _set(_package(), "cve[0].cves[0].id", "CVE-2026-" + "88771" * 4000),
+        "kennispakket: cve[0].cves[0].id heeft niet de vorm CVE-, vier cijfers, een koppelteken en vier tot tien"
+        " cijfers (alleen ASCII, zonder spaties)",
+    ),
 ]
 
 
@@ -513,7 +523,50 @@ _CONTENT_ROUTE_IDS = [
     "datum-toekomst",
     "bulletin-dubbel",
     "cve-dubbel",
+    "bulletin-id-lang",
+    "cve-id-lang",
 ]
+
+
+def test_an_identifier_is_at_most_as_long_as_its_grammar_allows(tmp_path):
+    """A bulletin id is CTX and one to twelve digits, a CVE id CVE-yyyy- and
+    four to ten digits (real ones carry six to nine and four to seven): a
+    longer one is no identifier, and would otherwise travel unbounded into
+    every answer and every line of the regression runner that names it."""
+    for path, value in (
+        ("cve[0].bulletin", "CTX" + "1" * 12),
+        ("cve[0].cves[0].id", "CVE-2026-" + "1" * 10),
+        ("cve[0].cves[0].id", "CVE-2026-1234"),
+    ):
+        loaded = _load(tmp_path, _set(_package(), path, value))
+        assert not loaded.missing, (value, loaded.reason)
+    for path, value in (
+        ("cve[0].bulletin", "CTX" + "1" * 13),
+        ("cve[0].cves[0].id", "CVE-2026-" + "1" * 11),
+        ("cve[0].cves[0].id", "CVE-2026-123"),
+    ):
+        loaded = _load(tmp_path, _set(_package(), path, value))
+        assert loaded.missing, value
+        assert loaded.reason.startswith(f"kennispakket: {path} heeft niet de vorm "), value
+
+
+def test_a_bulletin_without_branches_is_refused(tmp_path):
+    """A bulletin that names no branch can be judged on no appliance, and no
+    regression matrix could ever cover it: refused, not loaded as a bulletin
+    that silently never applies."""
+    both_empty = _set(_set(_package(), "cve[0].getroffen", {}), "cve[0].fix", {})
+    loaded = _load(tmp_path, both_empty)
+    assert loaded.missing
+    assert loaded.reason == "kennispakket: cve[0].getroffen moet ten minste een tak noemen"
+    loaded = _load(tmp_path, _set(_package(), "cve[0].fix", {}))
+    assert loaded.missing
+    assert loaded.reason == "kennispakket: cve[0].fix moet ten minste een tak noemen"
+
+
+def test_a_bulletin_without_cves_is_refused(tmp_path):
+    loaded = _load(tmp_path, _set(_package(), "cve[0].cves", []))
+    assert loaded.missing
+    assert loaded.reason == "kennispakket: cve[0].cves moet ten minste een CVE noemen"
 
 
 @pytest.mark.parametrize(("document", "reason"), _CONTENT_ROUTES, ids=_CONTENT_ROUTE_IDS)

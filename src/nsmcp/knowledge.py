@@ -510,10 +510,16 @@ def _identity(value) -> str:
 # second time, with its hyphens replaced by the Unicode hyphen (U+2010),
 # passed the loader of an unpinned package; to the duplicate check it was
 # another identity, to a reader the same CVE.
-_BULLETIN_ID = re.compile(r"CTX[0-9]+")
-_CVE_ID = re.compile(r"CVE-[0-9]{4}-[0-9]{4,}")
-_BULLETIN_FORM = "CTX gevolgd door cijfers (alleen ASCII, zonder spaties)"
-_CVE_FORM = "CVE-, vier cijfers, een koppelteken en vier of meer cijfers (alleen ASCII, zonder spaties)"
+#
+# 1.1: bounded too. A real bulletin carries six to nine digits and a real CVE
+# four to seven after its year; without a bound an id of 20.000 digits
+# loaded and travelled whole into every answer and every line of the
+# regression runner that names it (measured: a coverage refusal of 180.670
+# characters).
+_BULLETIN_ID = re.compile(r"CTX[0-9]{1,12}")
+_CVE_ID = re.compile(r"CVE-[0-9]{4}-[0-9]{4,10}")
+_BULLETIN_FORM = "CTX gevolgd door een tot twaalf cijfers (alleen ASCII, zonder spaties)"
+_CVE_FORM = "CVE-, vier cijfers, een koppelteken en vier tot tien cijfers (alleen ASCII, zonder spaties)"
 
 
 def _identity_problem(value, grammar: re.Pattern, form: str, field_path: str) -> str:
@@ -788,6 +794,10 @@ def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> K
         for field_name in ("getroffen", "fix"):
             if not isinstance(entry[field_name], dict):
                 return _absent(f"kennispakket: '{field_name}' moet een object van tak naar tekst zijn")
+            # 1.1: a bulletin that names no branch applies to no appliance,
+            # and no regression matrix could ever cover it.
+            if not entry[field_name]:
+                return _absent(f"kennispakket: cve[{index}].{field_name} moet ten minste een tak noemen")
         if entry["getroffen"].keys() != entry["fix"].keys():
             # The branch names are attacker-supplied dict keys: the refusal
             # names the two places, never the branches (1.0.3 listed them
@@ -803,6 +813,9 @@ def knowledge_from_document(raw: dict, today: date, *, pin=PIN_NOT_APPLIED) -> K
                 return _absent(f"kennispakket: cve[{index}] draagt voor een tak in getroffen en fix {problem}")
         if not isinstance(entry["cves"], list):
             return _absent("kennispakket: 'cves' moet een lijst zijn")
+        # 1.1: a bulletin without a CVE says nothing an answer could use.
+        if not entry["cves"]:
+            return _absent(f"kennispakket: cve[{index}].cves moet ten minste een CVE noemen")
         for position, cve in enumerate(entry["cves"]):
             if not isinstance(cve, dict) or (_CVE_FIELDS - cve.keys()):
                 return _absent(

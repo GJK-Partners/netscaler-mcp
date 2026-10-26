@@ -456,7 +456,8 @@ def test_the_regression_command_runs_end_to_end_on_this_checkout(tmp_path, capsy
         assert code == 1
         assert printed.out == ""
         assert printed.err == f"regressiematrix geweigerd: de draaiende engine is niet vast te stellen: {reason}\n"
-        return
+        # Visible in `pytest -rs`: this run took the refusal branch.
+        pytest.skip(f"engine-identiteit niet vast te stellen: {reason}")
     assert code == 0, printed.err
     assert printed.out.splitlines()[-1] == (
         f"regressiematrix: 19 gevallen, alle kloppen (engine 1.1.0, commit {identity.commit})"
@@ -736,6 +737,44 @@ def test_the_harness_applies_the_same_matrix_rules_as_the_runner(tmp_path):
         assert both(package=package, matrix=_bound_to(package)).refusal.startswith(
             "de matrix dekt het pakket niet volledig"
         ), label
+
+
+def test_a_long_identifier_never_reaches_a_line_of_the_runner(tmp_path):
+    """An identifier is bounded by its grammar, so the runner, which names
+    bulletin and CVE in its coverage and case lines, never repeats more of
+    it: a package with an id of 20.000 digits does not load, and the
+    refusal is the loader's fixed sentence."""
+    for path, value in (
+        (("cve", 0, "bulletin"), "CTX" + "9" * 20_000),
+        (("cve", 0, "cves", 0, "id"), "CVE-2026-" + "9" * 20_000),
+    ):
+        package = _package()
+        node = package
+        for key in path[:-1]:
+            node = node[key]
+        node[path[-1]] = value
+        matrix = _matrix()
+        matrix["pakketdigest"] = canonical_digest(package)
+        result = _run(tmp_path, package=package, matrix=matrix)
+        assert result.refusal.startswith("het pakket laadt niet op deze engine: kennispakket: cve[0]"), path
+        assert "9" * 20 not in result.refusal
+        assert len(result.refusal) <= 300
+        assert result.lines == ()
+
+
+def test_the_coverage_asks_a_branch_of_every_bulletin_in_runner_and_harness():
+    """A bulletin without branches would need no case at all. The 1.1
+    loader refuses it; the old engine v1.0.3 loads it, so the coverage rule
+    itself names it - in the runner and, word for word, in the harness."""
+    knowledge = load_knowledge(PACKAGE, TODAY)
+    empty = {**knowledge.cve[0], "bulletin": "CTX900003", "getroffen": {}, "fix": {}}
+    widened = dataclasses.replace(knowledge, cve=(*knowledge.cve, empty))
+    cases, problem = knowledge_regression._cases(_matrix(), widened)
+    assert problem == ""
+    mine = knowledge_regression._missing_coverage(widened, cases)
+    harness = _harness_module()
+    assert harness.missing_coverage(harness.load_engine("v1.0.3"), widened, cases) == mine
+    assert mine == ["CTX900003: ten minste een tak (getroffen en fix noemen geen tak)"]
 
 
 def test_the_harness_reads_with_the_ceilings_of_the_engine(tmp_path, monkeypatch):

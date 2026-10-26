@@ -165,6 +165,21 @@ the knowledge package.
   (JJJJ-MM-DD)"; "kennispakket is gedateerd in de toekomst: '<d>'" is
   "kennispakket is gedateerd in de toekomst". Only the indexes in the path
   vary, so the length of a reason no longer depends on what the package says.
+- Three more refusals of the knowledge package. **A package that 1.0.3
+  accepted with one of these is refused by 1.1.** A bulletin whose
+  `getroffen` or `fix` names no branch ("kennispakket: cve[0].getroffen moet
+  ten minste een tak noemen", also `.fix`): it applies to no appliance, and no
+  regression matrix could cover it. A bulletin without a CVE ("kennispakket:
+  cve[0].cves moet ten minste een CVE noemen"). An identifier longer than its
+  grammar: a bulletin is `CTX` and one to twelve digits, a CVE `CVE-yyyy-` and
+  four to ten digits ("kennispakket: cve[0].bulletin heeft niet de vorm CTX
+  gevolgd door een tot twaalf cijfers (alleen ASCII, zonder spaties)", the CVE
+  form likewise); 1.0.3 allowed any number of digits, so an id of 20.000
+  digits loaded and travelled whole into answers and into every line of the
+  regression runner. The coverage of the regression matrix, in the runner and
+  in `tools/regressie-1.0.x/`, also names a bulletin without a branch
+  ("<bulletin>: ten minste een tak"), which the 1.0.3 engine of the harness
+  still loads.
 
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is
