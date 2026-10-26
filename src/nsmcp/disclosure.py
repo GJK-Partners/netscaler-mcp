@@ -38,7 +38,6 @@ Two structural choices to know before editing:
 from __future__ import annotations
 
 import json
-import msvcrt
 import os
 import re
 import threading
@@ -47,6 +46,7 @@ from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.answer import NAME_CUT_NOTE, Answer, Certainty, safe_text
 from nsmcp.cert_usage import names_in_cert_usage_sources
 from nsmcp.chain import ENTRY_RESOURCES, NOT_FOLLOWED, SERVICEGROUP_BINDING, names_in_chain_sources
@@ -61,7 +61,7 @@ from nsmcp.ha import names_in_ha_sources
 from nsmcp.headers import names_in_header_sources
 from nsmcp.hidden_rules import names_in_hidden_rule_sources
 from nsmcp.impact import BINDING_FILE
-from nsmcp.limits import NAME_ECHO_MAX_LEN
+from nsmcp.limits import MAX_FILE_BYTES, NAME_ECHO_MAX_LEN
 from nsmcp.mgmt_plane import names_in_mgmt_sources
 from nsmcp.names import names_in_name_sources
 from nsmcp.overzicht import names_in_overview_sources
@@ -602,6 +602,25 @@ class PseudonymTableBroken(_FilteredTableError):
     """
 
 
+class PseudonymTablePathRefused(PseudonymTableBroken):
+    """1.1 B: the pseudonym table, or the lock beside it, does not lie as a
+    plain local file in the table's own directory (a link, a reparse point,
+    a network place on the way). A `PseudonymTableBroken`, so every caller
+    that already refuses a broken table refuses this one; the message names
+    the kind with its fixed sentence (`localpath.REASONS`) and never the
+    path - this refusal travels at `beperkt` and `minimaal` too."""
+
+
+_TABLE_REFUSED_TAIL = (
+    "; dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit overschreven - herstel de"
+    " plek van de vertaaltabel en stel de vraag opnieuw"
+)
+
+
+def _table_refused(what: str, exc: localpath.PathRefused) -> PseudonymTablePathRefused:
+    return PseudonymTablePathRefused(f"{what} is geweigerd: {exc.reason}{_TABLE_REFUSED_TAIL}")
+
+
 class PseudonymTableLocked(_FilteredTableError):
     """1.0.2: the lock next to the pseudonym table could not be taken -
     it could not be opened (measured in the review: a DIRECTORY at the lock
@@ -740,60 +759,68 @@ class _ProcessLock:
     pseudonym table (see the comment at `_TABLE_LOCK` above for the proven
     lost-update scenario).
 
-    Platform choice, documented explicitly: `msvcrt.locking` on a sidecar
-    `.lock` file next to the pseudonym table itself. This product runs on
-    Windows only (see start.py/README - no `fcntl`, which does not exist
-    there); an OS-enforced file lock is, within that target platform, the
-    portable-enough route, not an assumption about cooperative behavior
-    between processes. `LK_NBLCK` (non-blocking) in a short poll loop gives
-    an honest, time-bounded refusal (`TimeoutError`) instead of a call that
-    can silently hang forever when another process never releases the lock.
+    1.1 B: the lock is the share mode of the lock file itself. The sidecar
+    `.lock` file next to the pseudonym table is opened through `localpath`
+    (the table's directory is the root) for append, WITHOUT write sharing:
+    a second opener - another server process - gets a sharing violation
+    from the file system until the first handle is closed, and the chain
+    to it is held without delete sharing for the whole critical section.
+    That replaces `msvcrt.locking` on a descriptor opened by name. A short
+    poll loop on the sharing violation gives an honest, time-bounded refusal
+    (`PseudonymTableLocked`) instead of a call that can hang forever when
+    another process never releases the lock. A link or reparse point in the
+    place of the lock (or on the way to it) is `PseudonymTablePathRefused`;
+    something else in its place (a directory) keeps the 1.0.2 refusal.
     """
 
     def __init__(self, path: Path) -> None:
         self._lock_path = path.with_name(path.name + ".lock")
-        self._handle = None
+        self._held = None
+
+    def _cannot_open(self, err: BaseException) -> PseudonymTableLocked:
+        return PseudonymTableLocked(
+            f"het slot naast de vertaaltabel ({self._lock_path}) kon niet geopend worden"
+            f" ({localpath.describe(err)}); staat daar een map of ontbreekt het schrijfrecht? Herstel dat"
+            " en stel de vraag opnieuw"
+        )
 
     def __enter__(self) -> _ProcessLock:
         try:
             self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-            self._handle = open(self._lock_path, "a+b")
-            if os.fstat(self._handle.fileno()).st_size == 0:
-                # msvcrt.locking requires a byte to lock; a freshly created lock
-                # file is 0 bytes. The content itself carries no meaning - this
-                # file is never the pseudonym table itself.
-                self._handle.write(b"0")
-                self._handle.flush()
+            root = localpath.absolute_text(self._lock_path.parent)
         except OSError as err:
-            if self._handle is not None:
-                self._handle.close()
-                self._handle = None
-            raise PseudonymTableLocked(
-                f"het slot naast de vertaaltabel ({self._lock_path}) kon niet geopend worden"
-                f" ({err.__class__.__name__}); staat daar een map of ontbreekt het schrijfrecht? Herstel dat"
-                " en stel de vraag opnieuw"
-            ) from err
+            raise self._cannot_open(err) from err
+        target = localpath.under(root, self._lock_path.name)
         deadline = time.monotonic() + _PROCESS_LOCK_TIMEOUT_S
         while True:
+            held = localpath.open_local_for_append(target, root=root, shared_writers=False)
             try:
-                self._handle.seek(0)
-                msvcrt.locking(self._handle.fileno(), msvcrt.LK_NBLCK, 1)
-                return self
+                held.__enter__()
+            except localpath.PathRefused as err:
+                if err.status == _STATUS_SHARING_VIOLATION:
+                    if time.monotonic() >= deadline:
+                        raise PseudonymTableLocked(
+                            f"kon het cross-process slot op {self._lock_path} niet verkrijgen binnen "
+                            f"{_PROCESS_LOCK_TIMEOUT_S}s - een ander proces houdt de vertaaltabel vast"
+                        ) from err
+                    time.sleep(_PROCESS_LOCK_POLL_S)
+                    continue
+                if err.soort == "geen_gewoon_bestand":
+                    raise self._cannot_open(err) from err
+                raise _table_refused("het slot naast de vertaaltabel", err) from err
             except OSError as err:
-                if time.monotonic() >= deadline:
-                    self._handle.close()
-                    raise PseudonymTableLocked(
-                        f"kon het cross-process slot op {self._lock_path} niet verkrijgen binnen "
-                        f"{_PROCESS_LOCK_TIMEOUT_S}s - een ander proces houdt de vertaaltabel vast"
-                    ) from err
-                time.sleep(_PROCESS_LOCK_POLL_S)
+                raise self._cannot_open(err) from err
+            self._held = held
+            return self
 
     def __exit__(self, *exc_info) -> None:
-        try:
-            self._handle.seek(0)
-            msvcrt.locking(self._handle.fileno(), msvcrt.LK_UNLCK, 1)
-        finally:
-            self._handle.close()
+        held, self._held = self._held, None
+        if held is not None:
+            held.__exit__(None, None, None)
+
+
+# A second process holding the lock file (the share mode refuses this open).
+_STATUS_SHARING_VIOLATION = 0xC0000043
 
 
 def _next_number(existing: dict[str, str]) -> int:
@@ -1013,15 +1040,20 @@ def _atomic_write(path: Path, table: dict[str, str]) -> None:
     rename, then replace with `os.replace` - atomic on both Windows and
     POSIX. A reader opening the file at this very moment (an operator
     inspecting it by hand, for instance) therefore always sees EITHER the
-    old, OR the fully new content - never a half-written in-between state."""
+    old, OR the fully new content - never a half-written in-between state.
+
+    1.1 B: `localpath.replace_local` with the table's directory as the root:
+    the temporary file is created relative to the held directory, written
+    and flushed on its handle, and renamed by that handle onto the table; a
+    table that is a link or reparse point is refused before anything is
+    written. The line ends stay what the text-mode write gave them."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(table, indent=2, ensure_ascii=False)
-    temporary = path.with_name(f"{path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
-    with open(temporary, "w", encoding="utf-8") as f:
-        f.write(content)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(temporary, path)
+    content = json.dumps(table, indent=2, ensure_ascii=False).replace("\n", os.linesep)
+    root = localpath.absolute_text(path.parent)
+    try:
+        localpath.replace_local(localpath.under(root, path.name), content.encode("utf-8"), root=root)
+    except localpath.PathRefused as exc:
+        raise _table_refused("de vertaaltabel", exc) from exc
 
 
 def _load_table(path: Path, names: list[str]) -> dict[str, str]:
@@ -1057,9 +1089,25 @@ def _load_table(path: Path, names: list[str]) -> dict[str, str]:
     with _TABLE_LOCK:
         with _ProcessLock(path):
             existing: dict[str, str] = {}
-            if path.exists():
+            # 1.1 B: read through `localpath` from the table's directory: a
+            # link or reparse point in the place of the table (or of the
+            # directory) is `PseudonymTablePathRefused`, never followed.
+            root = localpath.absolute_text(path.parent)
+            try:
+                got = localpath.read_local(
+                    localpath.under(root, path.name), root=root, max_bytes=MAX_FILE_BYTES, allow_missing=True
+                )
+            except localpath.PathRefused as exc:
+                raise _table_refused("de vertaaltabel", exc) from exc
+            except OSError as exc:
+                got = exc
+            if isinstance(got, OSError) or got.exists:
                 try:
-                    raw_text = path.read_text(encoding="utf-8")
+                    if isinstance(got, OSError):
+                        raise got
+                    if got.over_cap:
+                        raise OSError("de vertaaltabel is groter dan het plafond")
+                    raw_text = localpath.as_text(got.data)
                 except (OSError, UnicodeDecodeError) as exc:
                     # UnicodeDecodeError alongside OSError, as everywhere else
                     # in the codebase (target.py, start.py): an unreadable

@@ -690,3 +690,108 @@ def test_targets_a_parent_swapped_for_a_share_link_mid_walk_is_refused(tmp_path,
 
     assert str(refused.value) == "doelenbestand onleesbaar: " + REASONS["netwerkpad"]
     _assert_no_share_open(seam)
+
+
+# ---------------------------------------------------------------------------
+# Family: pseudonym table with its lock, root = the table's directory
+# ---------------------------------------------------------------------------
+
+
+def _table(tmp_path: Path) -> Path:
+    table = tmp_path / "beheer" / "tabel.json"
+    table.parent.mkdir(parents=True)
+    table.write_text(json.dumps({"object-01": "CERT-BINNEN"}), encoding="utf-8")
+    return table
+
+
+def _limited_render(table: Path):
+    from nsmcp.answer import Answer, Certainty, Finding
+    from nsmcp.disclosure import render
+
+    answer = Answer(
+        question="q",
+        findings=[Finding(subject="CERT-BINNEN", outcome="o", certainty=Certainty.ESTABLISHED, evidence="e")],
+    )
+    return render(answer, Disclosure.LIMITED, tool="x", extra_names=("CERT-BINNEN",), pseudonym_table_path=table)
+
+
+def test_table_a_table_directory_swapped_mid_walk_is_refused_and_never_read(tmp_path, seam):
+    from nsmcp.disclosure import PseudonymTablePathRefused
+
+    table = _table(tmp_path)
+    assert "object-01" in _limited_render(table), "premisse"
+    outside = _outside_dir(tmp_path)
+    (outside / "tabel.json").write_text(json.dumps({"object-01": NAALD}), encoding="utf-8")
+    seam.opens.clear()
+    seam.events.clear()
+    _swap_before(seam, "beheer", lambda: _replace_by_junction(table.parent, outside))
+
+    with pytest.raises(PseudonymTablePathRefused) as refused:
+        _limited_render(table)
+
+    assert REASONS["koppeling"] in str(refused.value)
+    assert NAALD not in str(refused.value) and str(tmp_path) not in str(refused.value)
+    assert "tabel.json" not in _opened_names(seam) and "tabel.json.lock" not in _opened_names(seam)
+
+
+def test_table_a_link_in_the_place_of_the_table_is_refused_and_never_overwritten(tmp_path, seam):
+    from nsmcp.disclosure import PseudonymTablePathRefused
+
+    table = _table(tmp_path)
+    outside = _outside_dir(tmp_path)
+    (outside / "x").write_text(NAALD, encoding="utf-8")
+    table.unlink()
+    _junction(table, outside)
+
+    with pytest.raises(PseudonymTablePathRefused) as refused:
+        _limited_render(table)
+
+    assert str(refused.value).startswith("de vertaaltabel is geweigerd: " + REASONS["koppeling"])
+    assert [p.name for p in outside.iterdir()] == ["x"] and seam.calls["WriteFile"] == 0
+
+
+def test_table_a_link_in_the_place_of_the_lock_is_refused_before_the_table_is_read(tmp_path, seam):
+    from nsmcp.disclosure import PseudonymTablePathRefused
+
+    table = _table(tmp_path)
+    outside = _outside_dir(tmp_path)
+    _junction(table.with_name("tabel.json.lock"), outside)
+
+    with pytest.raises(PseudonymTablePathRefused) as refused:
+        _limited_render(table)
+
+    assert str(refused.value).startswith("het slot naast de vertaaltabel is geweigerd: " + REASONS["koppeling"])
+    assert "tabel.json" not in _opened_names(seam), "de tabel zelf is niet geopend"
+    assert list(outside.iterdir()) == []
+
+
+def test_table_a_second_process_holding_the_lock_is_a_lock_refusal(tmp_path, monkeypatch):
+    from nsmcp import disclosure
+    from nsmcp.disclosure import PseudonymTableLocked
+
+    table = _table(tmp_path)
+    monkeypatch.setattr(disclosure, "_PROCESS_LOCK_TIMEOUT_S", 0.3)
+    root = str(table.parent)
+    with localpath.open_local_for_append(localpath.under(root, "tabel.json.lock"), root=root):
+        with pytest.raises(PseudonymTableLocked, match="niet verkrijgen"):
+            _limited_render(table)
+    assert "object-01" in _limited_render(table), "na het loslaten werkt het slot weer"
+
+
+@pytest.mark.parametrize("level", [Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_table_the_needle_never_reaches_an_answer(tmp_path, level):
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    export_dir = _export(tmp_path)
+    table = _table(tmp_path)
+    outside = _outside_dir(tmp_path)
+    (outside / "tabel.json").write_text(json.dumps({"object-01": NAALD}), encoding="utf-8")
+    _replace_by_junction(table.parent, outside)
+    server = build_server(export_dir, _knowledge_file(tmp_path), disclosure=level, pseudonym_table_path=table)
+
+    text = _answers(server, [("certificaat_wat_verloopt_er", {})])["certificaat_wat_verloopt_er"]
+
+    _assert_no_needle(text, tmp_path)
+    if level is Disclosure.LIMITED:
+        assert REASONS["koppeling"] in text
