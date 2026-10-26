@@ -61,6 +61,9 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 13 | primary-node (`secondary_gate`) | Een latere fix: `secondary_gate` beoordeelt sindsdien alleen het blok van de LOKALE node (`Node ID: 0`) uit `show ha node`, niet de hele tekst - de eerdere vorm zocht `"secondary"` over de VOLLEDIGE uitvoer en opende de poort op de PEER's regel terwijl deze fase op de PRIMARY draaide. Herhaalde mutatie op de huidige regel `if staat == "secondary":` vervangen door `if True:` (poort altijd `open`) | `test_a_phase_on_the_primary_node_of_a_real_ha_pair_is_refused_despite_the_peers_secondary_line` (een ECHTE two-node `show ha node`-fixture; de eerdere single-node fixture van deze proef kon de fout niet vangen en blijft daarnaast bestaan als `test_a_phase_on_the_primary_node_is_refused`) | uitgevoerd, teruggedraaid |
 | 9 | hostsleutelcontrole | `start._require_upgrade_hostkeys()`: `if doel is None or not doel.ssh_hostsleutel_vingerafdruk:` vervangen door `if False:` (de startcontrole op `ssh_hostsleutel_vingerafdruk` altijd overslaan) | `test_the_runner_refuses_an_unknown_host_key` | uitgevoerd, teruggedraaid |
 | 8 | identiteitsvereiste | `mcp_server._act()`: `if bevestiger is None:` vervangen door `if False:` (de weigering bij een niet-identificerend codekanaal altijd overslaan) | `test_the_runner_refuses_a_channel_that_cannot_identify_the_confirmer` | uitgevoerd, teruggedraaid |
+| 14 | startdiagnose: werkmap (1.1) | `mcp_server`: de takken `RunnerWorkdirUnusable` en `RunnerLogUnopenable` van de losgekoppelde start afgebeeld op `RUNNER_NIET_GESTART_PROCES` (alles op PROCES) | `test_unusable_workdir_is_named_as_such` | uitgevoerd 26-10-2026, teruggedraaid |
+| 15 | startdiagnose: scriptpin (1.1) | `mcp_server`: de tak `except ScriptPinMismatch` rond `upgrade_command` weggehaald (de fout valt dan in de tak `PowerShellMissing`) | `test_script_pin_mismatch_is_not_reported_as_missing_powershell` | uitgevoerd 26-10-2026, teruggedraaid |
+| 16 | startdiagnose: doel bezet na `Popen` (1.1) | `handelen.start_detached`: een fout van de Job Object-meting na een geslaagde `Popen` afgebeeld als `RunnerProcessNotStarted` | `test_failure_after_popen_keeps_the_target_reserved` | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -79,6 +82,12 @@ volledige testsuite stond daarna weer groen voor er iets werd vastgelegd.
 De twee proeven bij het gereedschap `onderhoud_upgrade_fase` (8 en 9 in de tabel hierboven): elke uitgezette regel bracht
 precies de genoemde test om, en beide wijzigingen zijn meteen teruggedraaid - de werkkopie was
 daarna weer schoon en de volledige testsuite stond weer op groen voor er iets werd vastgelegd.
+
+De drie proeven van de startdiagnose (14-16, versie 1.1): elke mutatie is in de werkkopie
+aangebracht, de genoemde test is alleen gedraaid en viel om op zijn eigen bewering (14: de zin over
+de werkmap ontbrak; 15: de zin over de scriptpin ontbrak; 16: het antwoord noemde "het proces kon
+niet worden gestart" terwijl er een kindproces bestond), en het bestand is daarna byte voor byte
+teruggezet - `git status` was weer schoon.
 
 ## Gemeten: de faserunner is eind-tot-eind tegen een appliance gedraaid (8-9-2026)
 
