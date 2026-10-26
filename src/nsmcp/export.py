@@ -516,7 +516,14 @@ def record_provenance(provenance_dir: Path, target: str, manifest_hash: str, exp
     """Appends the record of one successful scan: the target, the sha256 of
     the manifest the scan left, the moment (UTC) and the export map. One
     JSON object per line, flushed and fsynced before the scan is reported as
-    done. Raises OSError; the caller says so rather than hiding it."""
+    done. Raises OSError; the caller says so rather than hiding it.
+
+    1.1 B: appended through `localpath` from the provenance map (the root):
+    the chain to the map is held, the file opened as itself (created when
+    missing) and refused before a byte is written when it is a link or a
+    reparse point; `LocalHandle.write` flushes it to disk. Readers share
+    writing (an append-only file, like the ledger). A refusal is an OSError
+    for the caller, and its kind goes to the server log."""
     provenance_dir.mkdir(parents=True, exist_ok=True)
     record = {
         "tijd": moment.astimezone(UTC).isoformat().replace("+00:00", "Z"),
@@ -524,10 +531,16 @@ def record_provenance(provenance_dir: Path, target: str, manifest_hash: str, exp
         "manifestSha256": manifest_hash.lower(),
         "exportmap": export_identity(export_dir),
     }
-    with open(provenance_dir / PROVENANCE_FILE, "a", encoding="utf-8", newline="\n") as handle:
-        handle.write(json.dumps(record, ensure_ascii=True) + "\n")
-        handle.flush()
-        os.fsync(handle.fileno())
+    root = _root_text(provenance_dir)
+    line = (json.dumps(record, ensure_ascii=True) + "\n").encode("utf-8")
+    try:
+        with localpath.open_local_for_append(
+            localpath.under(root, PROVENANCE_FILE), root=root, shared_writers=True
+        ) as handle:
+            handle.write(line)
+    except PathRefused as exc:
+        localpath.log_kind("herkomst niet vastgelegd", exc)
+        raise
 
 
 def _provenance_records(provenance_dir: Path | None, target: str, export_dir: Path) -> list[dict]:
@@ -537,12 +550,22 @@ def _provenance_records(provenance_dir: Path | None, target: str, export_dir: Pa
     speak for a scan. No file, no records."""
     if provenance_dir is None:
         return []
+    # 1.1 B: walked from the provenance map with `localpath`; a refusal
+    # (an OSError) is "no records" - no target-bound answer, never a guess.
+    root = _root_text(provenance_dir)
     try:
-        raw = (provenance_dir / PROVENANCE_FILE).read_bytes()
+        got = localpath.read_local(
+            localpath.under(root, PROVENANCE_FILE),
+            root=root,
+            max_bytes=MAX_FILE_BYTES,
+            allow_missing=True,
+            shared_writers=True,
+        )
     except OSError:
         return []
-    if len(raw) > MAX_FILE_BYTES:
+    if not got.exists or got.over_cap:
         return []
+    raw = got.data
     identity = export_identity(export_dir)
     found = []
     for line in raw.decode("utf-8", errors="replace").splitlines():

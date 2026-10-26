@@ -168,6 +168,16 @@ def _debug(line: str) -> None:
         sys.stderr.write("[nsmcp-pad] " + line + "\n")
 
 
+def log_kind(context: str, exc: PathRefused) -> None:
+    """One server-log line (stderr) for a refusal a reader does not show in
+    an answer: a fixed context and the kind, never a path. Best effort: a
+    closed stderr changes nothing on disk."""
+    try:
+        sys.stderr.write(f"[nsmcp-pad] {context}: geweigerd (soort={exc.soort})\n")
+    except (OSError, ValueError):
+        pass
+
+
 def _log_refusal(exc: PathRefused) -> None:
     status = f"0x{exc.status:08X}" if exc.status is not None else "-"
     _debug(f"geweigerd soort={exc.soort} status={status} detail={exc.detail!r} pad={exc.path!r}")

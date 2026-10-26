@@ -96,7 +96,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import Context, FastMCP
 
-from nsmcp import __version__
+from nsmcp import __version__, localpath
 from nsmcp.action import (
     REPLACED_CERTIFICATE_SUBJECT,
     USE_NOT_ESTABLISHED_OUTCOME,
@@ -1246,7 +1246,7 @@ def build_server(
         try:
             record_provenance(provenance_dir, name, collected_hash, export_dir, datetime.now(UTC))
         except OSError as exc:
-            return f"De herkomst is niet vastgelegd ({type(exc).__name__}); {gevolg}."
+            return f"De herkomst is niet vastgelegd ({localpath.describe(exc)}); {gevolg}."
         return ""
 
     def _with_explanation(text: str, knowledge, tool: str) -> str:
