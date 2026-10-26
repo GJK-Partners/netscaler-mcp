@@ -51,14 +51,17 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.collect import _stop_child_process
 from nsmcp.confirm import TTL_S, _fingerprint, _normalize_code, marker_line
+from nsmcp.limits import MAX_FILE_BYTES
 from nsmcp.powershell import PowerShellMissing, child_working_directory
 from nsmcp.upgrade import _bounded_run_echo
 
@@ -398,6 +401,21 @@ class FileCodeChannel:
     def path(self) -> Path:
         return self._path
 
+    def _place(self) -> tuple[str, str]:
+        """(the file's text, its directory's text): the directory of the code
+        file is the root of every read and write of it (1.1 B)."""
+        text = localpath.absolute_text(self._path)
+        return text, localpath.parent_text(text)
+
+    def _write(self, text: str) -> None:
+        """Overwrites the file through `localpath.replace_local`: a temporary
+        file relative to the held directory, renamed by its handle onto the
+        code file; a code file that is a link or reparse point is refused
+        before anything is written. The line ends stay what the text-mode
+        write gave them."""
+        path, root = self._place()
+        localpath.replace_local(path, text.replace("\n", os.linesep).encode("utf-8"), root=root)
+
     def __call__(
         self,
         tool: str,
@@ -411,8 +429,9 @@ class FileCodeChannel:
         body = f"{_message(tool, target, arguments, code, marker, section)}\n\n{proposal_text}\n"
         try:
             with self._lock:
-                self._path.write_text(body, encoding="utf-8")
+                self._write(body)
         except OSError as exc:
+            # A refusal (`PathRefused` is an OSError) reads as its fixed sentence.
             raise CodeChannelError(f"kon het codebestand niet schrijven: {exc}") from None
 
     def notice(self, message: str) -> None:
@@ -421,7 +440,7 @@ class FileCodeChannel:
         in which a dead code is indistinguishable from a live one."""
         try:
             with self._lock:
-                self._path.write_text(f"{message}\n", encoding="utf-8")
+                self._write(f"{message}\n")
         except OSError as exc:
             raise CodeChannelError(f"kon het codebestand niet schrijven: {exc}") from None
 
@@ -439,17 +458,33 @@ class FileCodeChannel:
         successful handling into a crash. The code is spent in the store
         either way - what is left behind here is a dead code, not a usable
         one. The read, the comparison and the rewrite hold the file's lock
-        together, so a proposal written meanwhile lands after them."""
+        together, so a proposal written meanwhile lands after them.
+
+        1.1 B: read and rewritten through `localpath`, the code file's
+        directory being the root. A refusal (a link in the place of the file
+        or on the way to it) keeps this semantics exactly: nothing is read,
+        nothing is rewritten, the kind goes to the server log, and the
+        handling that redeemed the code stays what it was - the code is
+        already spent in the store."""
         with self._lock:
             try:
-                shown = self._path.read_text(encoding="utf-8")
+                path, root = self._place()
+                got = localpath.read_local(path, root=root, max_bytes=MAX_FILE_BYTES)
+                if got.over_cap:
+                    return
+                shown = localpath.as_text(got.data)
+            except localpath.PathRefused as exc:
+                localpath.log_kind("codekanaal: verbruikte code niet gemarkeerd", exc)
+                return
             except (OSError, ValueError):
                 return
             line = next((line for line in shown.splitlines() if line.startswith(CODE_LINE_PREFIX)), None)
             if line is None or _normalize_code(line.removeprefix(CODE_LINE_PREFIX)) != _normalize_code(code):
                 return
             try:
-                self._path.write_text("verbruikt\n", encoding="utf-8")
+                self._write("verbruikt\n")
+            except localpath.PathRefused as exc:
+                localpath.log_kind("codekanaal: verbruikte code niet gemarkeerd", exc)
             except OSError:
                 pass
 

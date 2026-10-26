@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sys
 import threading
 import time
 from pathlib import Path
@@ -5412,3 +5413,58 @@ def test_config_opslaan_is_refused_while_a_phase_is_open_on_the_target(tmp_path)
     tekst = _text(antwoord)
     assert "Vraag: voorstel config_opslaan\n\n- config_opslaan: er staat nog een fase open op dit doel;" in tekst
     assert "    bewijs: ledger van dit doel: regel fase_gestart voor fase R1 zonder sluitregel, gestart om " in tekst
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="een junction bestaat alleen op Windows")
+def test_1_1_a_code_file_that_became_a_link_keeps_the_handling_rereads_nothing_and_the_code_is_spent(
+    tmp_path, monkeypatch, capsys
+):
+    """1.1 B.5, `FileCodeChannel.spent()`: between showing the code and
+    redeeming it, the code file is replaced by a junction to a directory
+    outside the code file's map. The handling that redeems the code stays a
+    success (the code was already authorized), `spent()` reads nothing and
+    rewrites nothing (the link is opened as itself and refused before a
+    byte), the kind goes to the server log, and the code is spent in the
+    store: a second redeem is refused and runs nothing."""
+    import _winapi
+
+    from nsmcp import localpath
+
+    forget_identities()
+    spy = Spy()
+    pad = tmp_path / "kanaal" / "codebestand.txt"
+    pad.parent.mkdir()
+    server = _server(tmp_path, spy, code_presenter=FileCodeChannel(pad))
+    args = WRITING["dienst_lid_uitschakelen"]
+    _call(server, "dienst_lid_uitschakelen", args)
+    code = CODE_SHAPE.search(pad.read_text(encoding="utf-8").split("bevestigingscode:")[1]).group(0)
+    outside = tmp_path / "NAALDBUITEN7Q3"
+    outside.mkdir()
+    (outside / "inhoud.txt").write_text("bevestigingscode: " + code, encoding="utf-8")
+    pad.rename(pad.with_name("weg.txt"))
+    _winapi.CreateJunction(str(outside), str(pad))
+    native = localpath._Native(record=True)
+    read_handles: list[int] = []
+    real_read = native.ReadFile
+
+    def recorded_read(handle, size):
+        read_handles.append(handle)
+        return real_read(handle, size)
+
+    monkeypatch.setattr(native, "ReadFile", recorded_read)
+    monkeypatch.setattr(localpath, "_native", native)
+    capsys.readouterr()
+
+    done = _call(server, "dienst_lid_uitschakelen", {**args, "bevestiging": code})
+
+    assert done.isError is False, _text(done)
+    assert _real_runs(spy) == 1
+    code_file_handles = {record["handle"] for record in native.opens if record["name"] == "codebestand.txt"}
+    assert code_file_handles, "premisse: spent() heeft het codebestand als zichzelf geopend"
+    assert not code_file_handles & set(read_handles), "niets gelezen"
+    assert sorted(p.name for p in outside.iterdir()) == ["inhoud.txt"], "niets herschreven"
+    assert "codekanaal: verbruikte code niet gemarkeerd: geweigerd (soort=koppeling)" in capsys.readouterr().err
+
+    again = _call(server, "dienst_lid_uitschakelen", {**args, "bevestiging": code})
+    assert again.isError is True and "onbekend of al gebruikt" in _text(again)
+    assert _real_runs(spy) == 1

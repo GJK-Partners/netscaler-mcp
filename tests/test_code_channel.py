@@ -155,7 +155,7 @@ def test_the_file_is_marked_spent_however_the_code_was_typed(tmp_path):
     assert path.read_text(encoding="utf-8").strip() == "verbruikt"
 
 
-def test_a_proposal_written_while_a_code_is_spent_is_not_wiped(tmp_path):
+def test_a_proposal_written_while_a_code_is_spent_is_not_wiped(tmp_path, monkeypatch):
     """Proposals do not wait for a redeem: the presenter runs in a worker
     thread while `spent()` runs on the event loop. A newer code written
     between `spent()` reading the file and writing it must survive as well.
@@ -165,17 +165,19 @@ def test_a_proposal_written_while_a_code_is_spent_is_not_wiped(tmp_path):
     channel("t", "doel", ARGS, "AAAAAA", PROPOSAL, "A", "lab")
     newer = threading.Thread(target=channel, args=("t", "doel", ARGS, "BBBBBB", PROPOSAL, "B", "lab"))
 
-    class _NewerProposalDuringTheRead:
-        def read_text(self, encoding):
-            text = path.read_text(encoding=encoding)
-            newer.start()
-            newer.join(timeout=0.5)
-            return text
+    # 1.1 B: `spent()` reads with one `localpath.read_local` walk; the newer
+    # proposal starts from inside that read.
+    from nsmcp import localpath
 
-        def write_text(self, data, encoding):
-            return path.write_text(data, encoding=encoding)
+    real_read_local = localpath.read_local
 
-    channel._path = _NewerProposalDuringTheRead()
+    def newer_proposal_during_the_read(*args, **kwargs):
+        got = real_read_local(*args, **kwargs)
+        newer.start()
+        newer.join(timeout=0.5)
+        return got
+
+    monkeypatch.setattr(localpath, "read_local", newer_proposal_during_the_read)
     channel.spent("AAAAAA")
     newer.join(timeout=5)
     assert "bevestigingscode: BBBBBB" in path.read_text(encoding="utf-8").splitlines()
