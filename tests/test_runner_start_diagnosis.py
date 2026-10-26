@@ -66,7 +66,11 @@ LOGBESTAND = "het logbestand naast het ledger kon niet worden geopend"
 PROCES = "het proces kon niet worden gestart"
 SCRIPTPIN = "een script van de faserunner wijkt af van zijn pin"
 POWERSHELL = "Windows PowerShell niet gevonden"
-ALGEMEEN = "de faserunner kon niet gestart worden"
+ONBESLISTE_START = (
+    "De start van de handeling is onbeslist: of de faserunner gestart is, is niet vast te stellen. "
+    "Het doel blijft bezet tot de regel fase_gestart in het ledger staat of de tijdslimiet van de fase "
+    "verstreken is. De bevestigingscode is verbruikt."
+)
 
 
 @pytest.fixture
@@ -129,7 +133,8 @@ def test_the_runner_start_sentences_are_pinned_byte_for_byte():
     assert mcp_server.RUNNER_NIET_GESTART_PROCES == PROCES
     assert mcp_server.RUNNER_NIET_GESTART_SCRIPTPIN == SCRIPTPIN
     assert mcp_server.RUNNER_NIET_GESTART_POWERSHELL == POWERSHELL
-    assert mcp_server.RUNNER_NIET_GESTART_ALGEMEEN == ALGEMEEN
+    assert mcp_server.RUNNER_START_ONBESLIST_TEXT == ONBESLISTE_START
+    assert not hasattr(mcp_server, "RUNNER_NIET_GESTART_ALGEMEEN")
     assert mcp_server.RUNNER_NIET_GESTART_REDEN == "de faserunner kon niet gestart worden ({soort})"
     assert mcp_server.SCRIPT_NIET_GESTART_REDEN == "het script van deze handeling kon niet gestart worden ({soort})"
     assert mcp_server.SCRIPT_NIET_GESTART_VOORSTEL_TEXT == (
@@ -516,7 +521,9 @@ def test_failure_after_popen_keeps_the_target_reserved(tmp_path, short_wait, mon
     time.sleep(2.0)
 
 
-def test_an_unknown_action_error_gets_the_general_sentence_and_keeps_the_target_held(tmp_path, short_wait, monkeypatch):
+def test_an_unknown_action_error_says_the_start_is_undecided_and_keeps_the_target_held(
+    tmp_path, short_wait, monkeypatch
+):
     runner = _held_runner(tmp_path)
     server = _window_server(tmp_path, runner)
     code = _propose_r1(server)
@@ -528,8 +535,14 @@ def test_an_unknown_action_error_gets_the_general_sentence_and_keeps_the_target_
     r = _confirm_r1(server, code)
     text = _text(r)
     assert r.isError, text
-    assert ALGEMEEN in text, text
-    assert f"{ALGEMEEN} (" not in text, text
+    # Whether a child exists is not established: the answer says so, never
+    # "niet gestart", and the finding is not marked as established.
+    assert ONBESLISTE_START in text, text
+    assert "De handeling is niet gestart" not in text, text
+    assert "kon niet gestart worden" not in text, text
+    assert f"{ONBESLISTE_START} [vastgesteld]" not in text, text
+    assert "[niet vastgesteld]" in text, text
+    _assert_no_class_name(text)
     _assert_no_leak(text, tmp_path)
     _assert_held(server)
 

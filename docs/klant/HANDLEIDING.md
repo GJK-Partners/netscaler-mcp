@@ -1666,11 +1666,15 @@ Zie `OPENSTAANDE-METINGEN.md` voor de precieze status.
   De bestaande zin "Windows PowerShell niet gevonden" blijft voor een ontbrekend
   `powershell.exe`. In al deze gevallen is aantoonbaar geen proces gestart: het doel is meteen
   weer vrij. Was de code al ingewisseld, vraag dan een nieuw voorstel aan zodra de oorzaak weg
-  is. Staat er alleen "de faserunner kon niet gestart worden", zonder haakjes, dan is niet
-  vast te stellen of er toch een proces draait. Het doel blijft dan bezet tot de regel
-  `fase_gestart` in het ledger staat of de tijdslimiet van de fase verstreken is; kijk met
+  is.
+
+  Zegt het antwoord "De start van de handeling is onbeslist: of de faserunner gestart is, is
+  niet vast te stellen", dan gaf de start een fout van een andere soort en kan er toch een proces
+  draaien. Het doel blijft bezet tot de regel `fase_gestart` in het ledger staat of de
+  tijdslimiet van de fase verstreken is; de bevestigingscode is verbruikt. Kijk met
   `onderhoud_upgrade_stand` en in het `.log`-bestand naast het ledger. In het actielogboek staat
-  bij zo'n poging het veld `oorzaak`: de soort fout, nooit de tekst ervan.
+  bij een poging waarbij geen proces startte, of waarbij dat onbeslist is, het veld `oorzaak`: de
+  soort fout, nooit de tekst ervan.
 - **Een generieke foutmelding.** De tekst "Onverwachte fout bij het beantwoorden van deze
   vraag. De details van deze fout zijn niet bewaard: dit product logt alleen zijn
   schrijfhandelingen." wijst op een interne fout. Meld die bij GJK Partners, met de vraag die u stelde en het moment
@@ -1697,8 +1701,8 @@ het codekanaal en wordt voor het inwisselen gelezen. `bevestiger` komt uit
 het kanaal voor die specifieke code, of is null. De code zelf staat nooit
 in het logboek. Een gestart runnerproces krijgt `uitkomst: gestart`; dat is
 geen geslaagde fase. Het faseoordeel komt uit het ledger. Sinds 1.1 draagt een
-regel waarbij een kindproces niet startte een elfde veld, `oorzaak`: de soort
-fout (de klassenaam), nooit de tekst ervan.
+regel waarbij een kindproces niet startte, of waarbij dat onbeslist is, een
+elfde veld, `oorzaak`: de soort fout (de klassenaam), nooit de tekst ervan.
 
 De twaalf bevindingen uit de externe review zijn in deze integratie verwerkt
 (14-9-2026), met drie bewuste afwijkingen van de aangedragen patches: een MCP-host

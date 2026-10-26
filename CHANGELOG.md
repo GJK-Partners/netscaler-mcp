@@ -59,8 +59,10 @@ when a child process does not start).
   answer said "voorstel kon niet worden opgesteld: ActionError" or "de controle
   vooraf mislukte (ActionError)".
 - Only those cases release the target, because there no child process exists.
-  A start failure of any other kind gets the general "de faserunner kon niet
-  gestart worden", without the text of the error, and the target stays held in
+  A start failure of any other kind does not establish whether a child exists:
+  the answer says "De start van de handeling is onbeslist: of de faserunner
+  gestart is, is niet vast te stellen", not marked as established and without
+  the text of the error, and the target stays held in
   the register of undecided starts (per target name and per server process, as
   since 1.0.0) until the runner's row lands or the phase's time limit passes.
   1.0.3 released the target for every `ActionError` of the start.
@@ -71,8 +73,9 @@ when a child process does not start).
   gestart: ..."), where 1.0.3 said "De handeling is gestart maar de uitkomst is
   NIET vastgesteld"; the read gap of the measurement names the sentence instead
   of the scrubbed text of the error. The demo write tools are unchanged.
-- The action log line of an attempt whose child process did not start carries
-  an eleventh field, `oorzaak`: the class name of the error, never its text.
+- The action log line of an attempt whose child process did not start, or whose
+  start is undecided, carries an eleventh field, `oorzaak`: the class name of the
+  error, never its text.
 
 ### Unchanged
 - The three hash-locked install steps (`requirements-build.txt`, then

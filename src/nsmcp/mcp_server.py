@@ -316,10 +316,19 @@ RUNNER_NIET_GESTART_LOGBESTAND = "het logbestand naast het ledger kon niet worde
 RUNNER_NIET_GESTART_PROCES = "het proces kon niet worden gestart"
 RUNNER_NIET_GESTART_SCRIPTPIN = "een script van de faserunner wijkt af van zijn pin"
 RUNNER_NIET_GESTART_POWERSHELL = "Windows PowerShell niet gevonden"
-# An `ActionError` of no known type: the general sentence, without the text
-# of the error, and the target is NOT released - whether a child exists is
-# not established.
-RUNNER_NIET_GESTART_ALGEMEEN = "de faserunner kon niet gestart worden"
+# An `ActionError` of no known type: whether a child exists is NOT
+# established, so the answer never says "niet gestart" - it says the start is
+# undecided, without the text of the error, and the target is NOT released.
+# Not marked as established (`Certainty.NOT_ESTABLISHED`, with
+# `RUNNER_START_ONBESLIST_REASON`).
+RUNNER_START_ONBESLIST_TEXT = (
+    "De start van de handeling is onbeslist: of de faserunner gestart is, is niet vast te stellen. "
+    "Het doel blijft bezet tot de regel fase_gestart in het ledger staat of de tijdslimiet van de fase "
+    "verstreken is. De bevestigingscode is verbruikt."
+)
+RUNNER_START_ONBESLIST_REASON = (
+    "de start gaf een fout van onbekende soort; of er een kindproces is, is niet vast te stellen"
+)
 RUNNER_NIET_GESTART_EVIDENCE = "het starten van de faserunner, na het inwisselen van de code"
 # The same typed mapping on the routes next to the faserunner that start a
 # script of their own (`config_opslaan`; the live measurement says it in its
@@ -4885,17 +4894,29 @@ def build_server(
                 if weigering is not None:
                     raise ToolError(_with_lift_notices(weigering))
 
-            def _niet_gestart(soort: str | None) -> ToolError:
-                # `None`: an error of no known type - the general sentence,
-                # never the text of the error.
-                reden = RUNNER_NIET_GESTART_ALGEMEEN if soort is None else RUNNER_NIET_GESTART_REDEN.format(soort=soort)
+            def _niet_gestart(soort: str) -> ToolError:
                 return _failure(
                     doelnaam,
                     f"uitvoering {tool}",
                     _note(
                         tool,
-                        EXPORTDOEL_NA_INWISSELEN_TEXT.format(reden=reden),
+                        EXPORTDOEL_NA_INWISSELEN_TEXT.format(reden=RUNNER_NIET_GESTART_REDEN.format(soort=soort)),
                         RUNNER_NIET_GESTART_EVIDENCE,
+                    ),
+                )
+
+            def _start_onbeslist() -> ToolError:
+                # An error of no known type: a child may exist, the target
+                # stays held - never "niet gestart", never the error's text.
+                return _failure(
+                    doelnaam,
+                    f"uitvoering {tool}",
+                    _note(
+                        tool,
+                        RUNNER_START_ONBESLIST_TEXT,
+                        RUNNER_NIET_GESTART_EVIDENCE,
+                        certainty=Certainty.NOT_ESTABLISHED,
+                        reason=RUNNER_START_ONBESLIST_REASON,
                     ),
                 )
 
@@ -4970,8 +4991,9 @@ def build_server(
             # the log file did not open, both before `Popen`, or `Popen`
             # failed on every attempt) - and `withdraw()` then restores what
             # the register held before. 1.1: an `ActionError` of any other
-            # type no longer counts as that proof: the general sentence,
-            # without its text, and the target stays held (fail-closed).
+            # type no longer counts as that proof: the answer says the start
+            # is undecided, without its text, and the target stays held
+            # (fail-closed).
             requested = _undecided_start(broke_off=False, waiting_until=launched + timedelta(seconds=wait_s))
             replaced = undecided_starts.record(requested)
 
@@ -4991,7 +5013,7 @@ def build_server(
             except ActionError as exc:
                 _hold_target(broke_off=True)
                 audit.update(oorzaak=_not_started_cause(exc))
-                raise _niet_gestart(None) from None
+                raise _start_onbeslist() from None
             except BaseException:
                 # Cancelled or interrupted during the launch: the thread may
                 # still finish it, so the target stays held - as a wait that

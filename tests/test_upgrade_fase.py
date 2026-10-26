@@ -2917,7 +2917,7 @@ def test_without_a_readable_build_the_server_passes_no_floor(tmp_path):
 _LOKAAL_PAD = r"C:\niet-in-een-antwoord\runner.ps1"
 
 
-def _start_failure(server, ledgermap):
+def _start_failure(server, ledgermap, *, zin="De handeling is niet gestart"):
     code, _ = _propose(server, fase="R0", snapshotverwijzing="checkpoint-1")
     r = _call(
         server, "onderhoud_upgrade_fase", {"fase": "R0", "snapshotverwijzing": "checkpoint-1", "bevestiging": code}
@@ -2925,7 +2925,7 @@ def _start_failure(server, ledgermap):
     tekst = _text(r)
     assert r.isError, tekst
     assert "Onverwachte fout" not in tekst
-    assert "De handeling is niet gestart" in tekst, tekst
+    assert zin in tekst, tekst
     assert "De bevestigingscode is verbruikt" in tekst, tekst
     # Fragments without a backslash: `_LOKAAL_PAD` is a raw string, so both
     # sit intact whether the message carries it through `!r` (escaped
@@ -2944,9 +2944,11 @@ def _start_failure(server, ledgermap):
     return tekst
 
 
-def test_a_detached_start_that_fails_after_the_redeem_says_nothing_started_and_the_code_is_spent(
+def test_a_detached_start_that_fails_after_the_redeem_says_the_start_is_undecided_and_the_code_is_spent(
     tmp_path, ledgermap, monkeypatch
 ):
+    """An `ActionError` of no known type: whether a child exists is not
+    established (1.1), so the answer never says the runner did not start."""
     server = _server(tmp_path, ledgermap=ledgermap)
 
     def weigert(*_args, **_kwargs):
@@ -2955,8 +2957,9 @@ def test_a_detached_start_that_fails_after_the_redeem_says_nothing_started_and_t
         )
 
     monkeypatch.setattr(mcp_server, "start_detached", weigert)
-    tekst = _start_failure(server, ledgermap)
-    assert "de faserunner kon niet gestart worden" in tekst
+    tekst = _start_failure(server, ledgermap, zin="De start van de handeling is onbeslist")
+    assert "De handeling is niet gestart" not in tekst
+    assert "ActionError" not in tekst
 
 
 def test_a_missing_powershell_after_the_redeem_says_nothing_started_and_the_code_is_spent(

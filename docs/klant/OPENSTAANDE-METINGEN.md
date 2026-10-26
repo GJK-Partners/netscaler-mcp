@@ -65,6 +65,7 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 15 | startdiagnose: scriptpin (1.1) | `mcp_server`: de tak `except ScriptPinMismatch` rond `upgrade_command` weggehaald (de fout valt dan in de tak `PowerShellMissing`) | `test_script_pin_mismatch_is_not_reported_as_missing_powershell` | uitgevoerd 26-10-2026, teruggedraaid |
 | 16 | startdiagnose: doel bezet na `Popen` (1.1) | `handelen.start_detached`: een fout van de Job Object-meting na een geslaagde `Popen` afgebeeld als `RunnerProcessNotStarted` | `test_failure_after_popen_keeps_the_target_reserved` | uitgevoerd 26-10-2026, teruggedraaid |
 | 17 | startdiagnose: controle vooraf (1.1) | `mcp_server`: in de `-WatIs`-tak van `onderhoud_upgrade_fase` de afbeelding op type weggehaald (`detail` alleen nog de klassenaam) | `test_a_preview_that_cannot_start_on_the_proposal_names_why`, `test_a_preview_that_cannot_start_on_the_confirmed_call_names_why` | uitgevoerd 26-10-2026, teruggedraaid |
+| 18 | startdiagnose: onbesliste start (1.1) | `mcp_server`: bij een `ActionError` van onbekende soort weer het kader "De handeling is niet gestart: de faserunner kon niet gestart worden", als vastgesteld | `test_an_unknown_action_error_says_the_start_is_undecided_and_keeps_the_target_held` | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -410,8 +411,8 @@ het codekanaal en wordt voor het inwisselen gelezen. `bevestiger` komt uit
 het kanaal voor die specifieke code, of is null. De code zelf staat nooit
 in het logboek. Een gestart runnerproces krijgt `uitkomst: gestart`; dat is
 geen geslaagde fase. Het faseoordeel komt uit het ledger. Sinds 1.1 draagt een
-regel waarbij een kindproces niet startte een elfde veld, `oorzaak`: de soort
-fout (de klassenaam), nooit de tekst ervan.
+regel waarbij een kindproces niet startte, of waarbij dat onbeslist is, een
+elfde veld, `oorzaak`: de soort fout (de klassenaam), nooit de tekst ervan.
 
 De twaalf bevindingen uit de externe review zijn in deze integratie verwerkt
 (14-9-2026), met drie bewuste afwijkingen van de aangedragen patches: een MCP-host
