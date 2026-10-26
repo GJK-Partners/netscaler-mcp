@@ -166,6 +166,7 @@ from nsmcp.handelen import (
     _posh_ssh_wire_fingerprint,
     build_live_measure_arguments,
     build_upgrade_arguments,
+    default_runner,
     echoed_value,
     firmware_target_build,
     perform,
@@ -174,7 +175,6 @@ from nsmcp.handelen import (
     script_command,
     sibling_script,
     start_detached,
-    typed_runner,
     upgrade_command,
     validate,
     validate_phase_arguments,
@@ -338,15 +338,22 @@ SCRIPT_NIET_GESTART_VOORSTEL_TEXT = (
     "Het voorstel kon niet worden opgesteld: {reden}. Er is geen bevestigingscode uitgegeven en er is niets gewijzigd."
 )
 SCRIPT_NIET_GESTART_EVIDENCE = "het starten van het script van deze handeling"
+# The write script of a write tool (`handelen.schrijfscript`) does not stand
+# next to the faserunner (`config_opslaan`'s does): on the write path a pin
+# mismatch names the script of THIS action, not one of the faserunner. No
+# file name - the pin check's text is never repeated.
+SCRIPT_NIET_GESTART_SCRIPTPIN = "een script van deze handeling wijkt af van zijn pin"
 
 
-def _not_started_sentence(exc: BaseException) -> str | None:
+def _not_started_sentence(exc: BaseException, *, scriptpin: str = RUNNER_NIET_GESTART_SCRIPTPIN) -> str | None:
     """The fixed sentence for an error that PROVES no child process started,
     chosen on its TYPE; None for every other error. Specific before general:
     `ScriptPinMismatch` and `ChildWorkingDirectoryUnusable` are subclasses of
-    `PowerShellMissing`, so they come first. Never the text of the error."""
+    `PowerShellMissing`, so they come first. Never the text of the error.
+    `scriptpin` is the pin sentence of the route: the faserunner's by
+    default, `SCRIPT_NIET_GESTART_SCRIPTPIN` on the write path."""
     if isinstance(exc, (ScriptPinMismatch, ScriptPinRefused)):
-        return RUNNER_NIET_GESTART_SCRIPTPIN
+        return scriptpin
     if isinstance(exc, (ChildWorkingDirectoryUnusable, RunnerWorkdirUnusable)):
         return RUNNER_NIET_GESTART_WERKMAP
     if isinstance(exc, (PowerShellMissing, PowerShellNotFound)):
@@ -1152,7 +1159,7 @@ def build_server(
     # says the export's provenance is not established.
     #
     # `live_run` starts the small SSH read script of the pre-flight
-    # (`Invoke-GjkLiveMeting.ps1`); `None` is `handelen.typed_runner`, the
+    # (`Invoke-GjkLiveMeting.ps1`); `None` is `handelen.default_runner`, the
     # same starter and the same polite stop the write script gets, with a
     # typed start failure (1.1). A test
     # hands in a stub, exactly like `run` for the collector.
@@ -2016,9 +2023,10 @@ def build_server(
                     ),
                     False,
                 )
-            # 1.1: `typed_runner`, so a measurement that did not start says
-            # why by type (`_not_started_sentence`), never by the text.
-            runner = live_run or typed_runner
+            # 1.1: `default_runner` is typed, so a measurement that did not
+            # start says why by type (`_not_started_sentence`), never by the
+            # text.
+            runner = live_run or default_runner
             try:
                 code, stdout, _stderr = runner(script_command(script, arguments), LIVE_MEASURE_TIMEOUT_S)
             except subprocess.TimeoutExpired:
@@ -5494,7 +5502,7 @@ def build_server(
                 # configuration problem: it says why the script did not
                 # start, on both paths, with a fixed sentence - never the
                 # PowerShell install path the untyped text carried.
-                not_started = _not_started_sentence(exc)
+                not_started = _not_started_sentence(exc, scriptpin=SCRIPT_NIET_GESTART_SCRIPTPIN)
                 if execution_attempt:
                     raise _preview_failed(not_started or type(exc).__name__) from None
                 if not_started is not None:
@@ -5847,7 +5855,11 @@ def build_server(
                 # (it comes from before any child existed): the honest
                 # "niet gestart", not "gestart maar de uitkomst is NIET
                 # vastgesteld". Every other error keeps that sentence.
-                not_started = _not_started_sentence(exc) if isinstance(exc, ProcessNotStarted) else None
+                not_started = (
+                    _not_started_sentence(exc, scriptpin=SCRIPT_NIET_GESTART_SCRIPTPIN)
+                    if isinstance(exc, ProcessNotStarted)
+                    else None
+                )
                 if not_started is not None:
                     audit.update(outcome="mislukt", oorzaak=_not_started_cause(exc))
                     raise _failure(

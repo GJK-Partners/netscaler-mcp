@@ -77,7 +77,11 @@ when a child process does not start).
   their script the same typed way: a script that did not start names the fixed
   sentence. Measured before: the proposal showed "kon PowerShell niet starten:
   Windows PowerShell niet gevonden op <path>", the PowerShell install path
-  included.
+  included. A pin mismatch on that route says "een script van deze handeling
+  wijkt af van zijn pin" (the write script has a directory of its own,
+  `handelen.schrijfscript`); "een script van de faserunner wijkt af van zijn
+  pin" stays for `onderhoud_upgrade_fase` and the live measurement. Neither
+  names the file.
 - The action log line of an attempt whose child process did not start, or whose
   start is undecided, carries an eleventh field, `oorzaak`: the class name of the
   error, never its text.

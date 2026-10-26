@@ -760,25 +760,28 @@ def default_runner(arguments: list[str], timeout_s: int) -> tuple[int, str, str]
     return _wait_politely(process, timeout_s)
 
 
-# The name the routes next to the faserunner - `config_opslaan`
-# (`perform_save`) and the live measurement of the pre-flight - use for the
-# same runner. Since 1.1 there is one script runner, typed for every route.
-typed_runner = default_runner
-
-
-def _not_started(exc: OSError | PowerShellMissing) -> ProcessNotStarted:
+def _not_started(exc: BaseException) -> ActionError:
     """The typed error for a start failure that came before any child
     existed, chosen on the TYPE of `exc` (specific before general:
     `ScriptPinMismatch` and `ChildWorkingDirectoryUnusable` are subclasses
     of `PowerShellMissing`). Shared by the script runner
-    (`default_runner()`) and the `-WatIs` preview of the faserunner."""
+    (`default_runner()`) and the `-WatIs` preview of the faserunner.
+
+    Fail-closed: only an `OSError` proves that `Popen` itself failed. Any
+    other error - not reachable from today's callers, which catch
+    `(OSError, PowerShellMissing)` only - is never labelled as a process
+    that did not start: it becomes a plain `ActionError` carrying its class
+    name only, which every caller treats as undecided (no fixed sentence,
+    nothing released)."""
     if isinstance(exc, ChildWorkingDirectoryUnusable):
         return RunnerWorkdirUnusable(exc)
     if isinstance(exc, ScriptPinMismatch):
         return ScriptPinRefused(exc)
     if isinstance(exc, PowerShellMissing):
         return PowerShellNotFound(exc)
-    return RunnerProcessNotStarted(exc)
+    if isinstance(exc, OSError):
+        return RunnerProcessNotStarted(exc)
+    return ActionError(type(exc).__name__)
 
 
 def _wait_politely(process: subprocess.Popen[str], timeout_s: int) -> tuple[int, str, str]:
@@ -1584,8 +1587,9 @@ def perform_save(
             target, onderhoud, preview=preview, actie_id=actie_id, forbidden_addresses=forbidden_addresses
         ),
     )
-    # 1.1: `typed_runner`, so a script that did not start says why by type.
-    result = _run_script(command, preview=preview, run=run or typed_runner, bevestiger=bevestiger)
+    # 1.1: `default_runner` is typed, so a script that did not start says
+    # why by type.
+    result = _run_script(command, preview=preview, run=run or default_runner, bevestiger=bevestiger)
     if not preview and result.ok and result.actie_id != actie_id:
         return replace(
             result,

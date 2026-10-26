@@ -65,6 +65,7 @@ WERKMAP = "de vaste werkmap voor kindprocessen is niet bruikbaar"
 LOGBESTAND = "het logbestand naast het ledger kon niet worden geopend"
 PROCES = "het proces kon niet worden gestart"
 SCRIPTPIN = "een script van de faserunner wijkt af van zijn pin"
+SCRIPTPIN_HANDELING = "een script van deze handeling wijkt af van zijn pin"
 POWERSHELL = "Windows PowerShell niet gevonden"
 ONBESLISTE_START = (
     "De start van de handeling is onbeslist: of de faserunner gestart is, is niet vast te stellen. "
@@ -132,6 +133,7 @@ def test_the_runner_start_sentences_are_pinned_byte_for_byte():
     assert mcp_server.RUNNER_NIET_GESTART_LOGBESTAND == LOGBESTAND
     assert mcp_server.RUNNER_NIET_GESTART_PROCES == PROCES
     assert mcp_server.RUNNER_NIET_GESTART_SCRIPTPIN == SCRIPTPIN
+    assert mcp_server.SCRIPT_NIET_GESTART_SCRIPTPIN == SCRIPTPIN_HANDELING
     assert mcp_server.RUNNER_NIET_GESTART_POWERSHELL == POWERSHELL
     assert mcp_server.RUNNER_START_ONBESLIST_TEXT == ONBESLISTE_START
     assert not hasattr(mcp_server, "RUNNER_NIET_GESTART_ALGEMEEN")
@@ -256,44 +258,47 @@ def test_a_failure_after_popen_is_never_a_not_started_error(monkeypatch, tmp_pat
         (FileNotFoundError(2, SENTINEL, SENTINEL_PATH), RunnerProcessNotStarted, "FileNotFoundError"),
     ],
 )
-@pytest.mark.parametrize("runner", ["typed_runner", "default_runner"])
-def test_the_typed_script_runner_names_why_nothing_started(monkeypatch, raised, typed, cause, runner):
-    """Both names: the write tools (`default_runner`, `onderhoud_backup_maken`
-    among them) start their script the same typed way as the routes next to
-    the faserunner."""
+def test_the_script_runner_names_why_nothing_started(monkeypatch, raised, typed, cause):
+    """The write tools (`onderhoud_backup_maken` among them), `config_opslaan`
+    and the live measurement start their script through `default_runner`."""
 
     def start(_arguments):
         raise raised
 
     monkeypatch.setattr(handelen, "start_powershell", start)
     with pytest.raises(typed) as caught:
-        getattr(handelen, runner)(["-File", "x.ps1"], 5)
+        handelen.default_runner(["-File", "x.ps1"], 5)
     assert type(caught.value) is typed
     assert caught.value.oorzaak == cause
     assert SENTINEL not in str(caught.value)
 
 
-def test_perform_save_and_the_live_measurement_use_the_typed_runner():
-    import inspect
-
-    assert "typed_runner" in inspect.getsource(handelen.perform_save)
-    assert "typed_runner" in inspect.getsource(mcp_server.build_server)
+def test_there_is_one_script_runner():
+    assert not hasattr(handelen, "typed_runner")
+    assert not hasattr(mcp_server, "typed_runner")
 
 
-def test_a_write_tool_whose_script_cannot_start_shows_no_powershell_path(tmp_path, monkeypatch):
+@pytest.mark.parametrize("unknown", [ValueError(SENTINEL), RuntimeError(SENTINEL_PATH), KeyError(SENTINEL)])
+def test_an_unrecognised_start_failure_is_never_labelled_as_a_process_that_did_not_start(unknown):
+    """Fail-closed: only an `OSError` proves that `Popen` itself failed. Any
+    other error gets no kind, no sentence - the caller's undecided route -
+    and still never its text."""
+    result = handelen._not_started(unknown)
+    assert isinstance(result, ActionError)
+    assert not isinstance(result, ProcessNotStarted), type(result)
+    assert mcp_server._not_started_sentence(result) is None
+    assert SENTINEL not in str(result)
+    assert str(result) == type(unknown).__name__
+
+
+def _backup_via_the_real_runner(tmp_path: Path):
     """`onderhoud_backup_maken` (a precondition of R0) through the real
-    script runner, with Windows PowerShell absent: the proposal says why the
-    script did not start with the fixed sentence - never the install path
-    PowerShell was looked for at. MEASURED before: the answer carried
-    "kon PowerShell niet starten: Windows PowerShell niet gevonden op <pad>"."""
-    from nsmcp import powershell
-
-    script = tmp_path / "schrijf.ps1"
-    script.write_text("# niet gestart: PowerShell ontbreekt", encoding="ascii")
-    absent = Path("C:\\" + SENTINEL + "\\WindowsPowerShell\\v1.0\\powershell.exe")
-    monkeypatch.setattr(powershell, "powershell_path", lambda: absent)
-    monkeypatch.setattr(handelen, "check_script_pins", lambda _script: None)
-    monkeypatch.setattr(powershell, "check_script_pins", lambda _script: None)
+    script runner (`default_runner`), its write script in a directory of its
+    own, away from the faserunner. Returns the proposal's result and the
+    code channel."""
+    script = tmp_path / "schrijfmap" / "Invoke-GjkLabWrite.ps1"
+    script.parent.mkdir()
+    script.write_text("# niet gestart", encoding="ascii")
     presenter = _BackupCodeSpy()
     server = mcp_server.build_server(
         _export_dir(tmp_path),
@@ -313,7 +318,21 @@ def test_a_write_tool_whose_script_cannot_start_shows_no_powershell_path(tmp_pat
         ) as client:
             return await client.call_tool("onderhoud_backup_maken", {})
 
-    r = asyncio.run(go())
+    return asyncio.run(go()), presenter
+
+
+def test_a_write_tool_whose_script_cannot_start_shows_no_powershell_path(tmp_path, monkeypatch):
+    """With Windows PowerShell absent: the proposal says why the script did
+    not start with the fixed sentence - never the install path PowerShell
+    was looked for at. MEASURED before: the answer carried "kon PowerShell
+    niet starten: Windows PowerShell niet gevonden op <pad>"."""
+    from nsmcp import powershell
+
+    absent = Path("C:\\" + SENTINEL + "\\WindowsPowerShell\\v1.0\\powershell.exe")
+    monkeypatch.setattr(powershell, "powershell_path", lambda: absent)
+    monkeypatch.setattr(handelen, "check_script_pins", lambda _script: None)
+    monkeypatch.setattr(powershell, "check_script_pins", lambda _script: None)
+    r, presenter = _backup_via_the_real_runner(tmp_path)
     text = _text(r)
     assert r.isError, text
     assert (
@@ -323,6 +342,29 @@ def test_a_write_tool_whose_script_cannot_start_shows_no_powershell_path(tmp_pat
     assert SENTINEL not in text, text
     assert "powershell.exe" not in text.lower(), text
     assert "WindowsPowerShell" not in text, text
+    _assert_no_class_name(text)
+    assert presenter.codes == []
+
+
+def test_a_write_tool_whose_script_differs_from_its_pin_names_its_own_script(tmp_path, monkeypatch):
+    """The write script of a write tool does not stand next to the
+    faserunner: a pin mismatch there names the script of THIS action, not
+    one of the faserunner - and still no file name and no path."""
+    from nsmcp import powershell
+
+    def mismatch(_script):
+        raise ScriptPinMismatch(f"{SENTINEL} Invoke-GjkLabWrite.ps1 wijkt af van zijn pin ({SENTINEL_PATH})")
+
+    monkeypatch.setattr(powershell, "check_script_pins", mismatch)
+    r, presenter = _backup_via_the_real_runner(tmp_path)
+    text = _text(r)
+    assert r.isError, text
+    assert (
+        "Het voorstel kon niet worden opgesteld: het script van deze handeling kon niet gestart worden "
+        f"({SCRIPTPIN_HANDELING}). Er is geen bevestigingscode uitgegeven en er is niets gewijzigd."
+    ) in text, text
+    assert "faserunner" not in text, text
+    assert ".ps1" not in text and SENTINEL not in text and str(tmp_path) not in text, text
     _assert_no_class_name(text)
     assert presenter.codes == []
 
@@ -604,9 +646,10 @@ def test_an_unknown_action_error_says_the_start_is_undecided_and_keeps_the_targe
 # ---------------------------------------------------------------------------
 
 
-def _save_server(tmp_path: Path, *, fail_preview, fail_real):
+def _save_server(tmp_path: Path, *, fail_preview, fail_real, inject: bool = True):
     """`config_opslaan` against an injected save-script runner that can fail
-    to start on the preview, on the real run, or neither."""
+    to start on the preview, on the real run, or neither. `inject=False`:
+    no runner is handed in, so `perform_save` uses its own."""
     schrijf = tmp_path / "schrijf.ps1"
     schrijf.write_text("# niet gebruikt door config_opslaan", encoding="utf-8")
     (tmp_path / "Invoke-GjkConfigOpslaan.ps1").write_text("# stand-in", encoding="ascii")
@@ -648,7 +691,7 @@ def _save_server(tmp_path: Path, *, fail_preview, fail_real):
         _knowledge_file(tmp_path),
         action_script=schrijf,
         fixture_dir=tmp_path,
-        action_run=run,
+        action_run=run if inject else None,
         code_presenter=presenter,
         onderhoud=maintenance_config(tmp_path),
         allowlist=Allowlist(per_target={"lab": {"config_opslaan": True}}),
@@ -693,8 +736,9 @@ def test_a_save_script_that_cannot_start_after_the_redeem_says_nothing_started(t
     assert r.isError, text
     assert (
         "De handeling is niet gestart: het script van deze handeling kon niet gestart worden "
-        f"({SCRIPTPIN}). De bevestigingscode is verbruikt."
+        f"({SCRIPTPIN_HANDELING}). De bevestigingscode is verbruikt."
     ) in text, text
+    assert "faserunner" not in text, text
     assert "uitkomst is NIET vastgesteld" not in text, text
     rows = _action_rows(capsys.readouterr().err)
     assert rows[-1]["uitkomst"] == "mislukt" and rows[-1]["oorzaak"] == "ScriptPinMismatch", rows[-1]
@@ -718,3 +762,31 @@ def test_an_unknown_error_after_the_redeem_of_a_save_keeps_its_honest_unknown_ou
     assert r.isError, text
     assert "uitkomst is NIET vastgesteld" in text, text
     assert SENTINEL not in text, text
+
+
+def test_a_save_preview_whose_script_differs_from_its_pin_names_the_script_of_this_action(tmp_path):
+    server = _save_server(tmp_path, fail_preview=(2, ScriptPinRefused(ScriptPinMismatch)), fail_real=None)
+    assert not _save_call(server, {}).isError
+    r = _save_call(server, {"bevestiging": server.code_spy.codes[-1]})
+    text = _text(r)
+    assert r.isError, text
+    assert f"de controle vooraf mislukte ({SCRIPTPIN_HANDELING})" in text, text
+    assert "faserunner" not in text, text
+
+
+def test_config_opslaan_starts_its_script_through_the_script_runner(tmp_path, monkeypatch):
+    """Without an injected runner `perform_save` starts its save script
+    through `handelen.default_runner` - the one typed script runner."""
+    calls: list[list[str]] = []
+
+    def runner(arguments, _timeout_s):
+        calls.append(list(arguments))
+        raise ScriptPinRefused(ScriptPinMismatch)
+
+    monkeypatch.setattr(handelen, "default_runner", runner)
+    server = _save_server(tmp_path, fail_preview=None, fail_real=None, inject=False)
+    r = _save_call(server, {})
+    text = _text(r)
+    assert r.isError, text
+    assert len(calls) == 1 and "-WatIs" in calls[0], calls
+    assert f"({SCRIPTPIN_HANDELING})" in text, text

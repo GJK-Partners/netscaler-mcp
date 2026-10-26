@@ -1660,9 +1660,17 @@ Zie `OPENSTAANDE-METINGEN.md` voor de precieze status.
   - "het proces kon niet worden gestart": Windows weigerde het proces te starten, bijvoorbeeld
     door een ontbrekend programma of door beveiligingssoftware. Controleer `onderhoud.runner`
     en het Windows-gebeurtenislogboek.
-  - "een script van de faserunner wijkt af van zijn pin": een script in de map van de
-    faserunner is gewijzigd of heeft geen pin. Ga na waarom het script veranderde; pin de map
-    pas opnieuw (`python -m nsmcp.powershell --pin <scriptmap>`) als de inhoud de bedoelde is.
+  - "een script van de faserunner wijkt af van zijn pin" (`onderhoud_upgrade_fase` en de live
+    meting): een script in de map van de faserunner (`onderhoud.runner`) is gewijzigd of heeft
+    geen pin.
+  - "een script van deze handeling wijkt af van zijn pin" (de schrijftools): bij `config_opslaan`
+    gaat het om een script in de map van de faserunner (`onderhoud.runner`); bij de andere
+    schrijftools, zoals `onderhoud_backup_maken`, om een script in de map van het schrijfscript
+    (`handelen.schrijfscript`).
+
+    Ga in beide gevallen na waarom het script veranderde; pin die map pas opnieuw
+    (`python -m nsmcp.powershell --pin <scriptmap>`) als de inhoud de bedoelde is. Het antwoord
+    noemt geen bestandsnaam.
 
   De bestaande zin "Windows PowerShell niet gevonden" blijft voor een ontbrekend
   `powershell.exe`. In al deze gevallen is aantoonbaar geen proces gestart: het doel is meteen
