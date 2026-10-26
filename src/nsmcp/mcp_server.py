@@ -154,13 +154,18 @@ from nsmcp.handelen import (
     Allowlist,
     FirmwareBundleError,
     MaintenanceConfig,
+    PowerShellNotFound,
+    ProcessNotStarted,
     Refusal as ActionRefusal,
+    RunnerLogUnopenable,
+    RunnerProcessNotStarted,
+    RunnerWorkdirUnusable,
+    ScriptPinRefused,
     _argument_value,
     _marker,
     _posh_ssh_wire_fingerprint,
     build_live_measure_arguments,
     build_upgrade_arguments,
-    default_runner,
     echoed_value,
     firmware_target_build,
     perform,
@@ -169,6 +174,7 @@ from nsmcp.handelen import (
     script_command,
     sibling_script,
     start_detached,
+    typed_runner,
     upgrade_command,
     validate,
     validate_phase_arguments,
@@ -182,7 +188,13 @@ from nsmcp.mgmt_plane import mgmt_plane
 from nsmcp.names import entity_names
 from nsmcp.overzicht import overview
 from nsmcp.permissions import allow_all
-from nsmcp.powershell import PowerShellMissing, ScriptPolicy, set_script_policy
+from nsmcp.powershell import (
+    ChildWorkingDirectoryUnusable,
+    PowerShellMissing,
+    ScriptPinMismatch,
+    ScriptPolicy,
+    set_script_policy,
+)
 from nsmcp.preflight import (
     FREE_SPACE_FIELD,
     FREE_SPACE_RESOURCE,
@@ -291,10 +303,59 @@ EXPORTDOEL_NA_INWISSELEN_EVIDENCE = (
 # sentence, with a reason that names the KIND of failure only - the
 # exception text carries local paths (the runner, its log file) that an
 # answer never repeats.
+#
+# 1.1: the kind is mapped on the TYPE of the error (`_not_started_sentence`),
+# five fixed sentences. MEASURED before: every failure of the detached start
+# said "het proces of zijn logbestand kon niet worden geopend" (also for an
+# unusable working directory), and a script that did not match its pin said
+# "Windows PowerShell niet gevonden". `RUNNER_NIET_GESTART_PROCES` keeps its
+# name with a narrower meaning: `Popen` itself failed.
 RUNNER_NIET_GESTART_REDEN = "de faserunner kon niet gestart worden ({soort})"
+RUNNER_NIET_GESTART_WERKMAP = "de vaste werkmap voor kindprocessen is niet bruikbaar"
+RUNNER_NIET_GESTART_LOGBESTAND = "het logbestand naast het ledger kon niet worden geopend"
+RUNNER_NIET_GESTART_PROCES = "het proces kon niet worden gestart"
+RUNNER_NIET_GESTART_SCRIPTPIN = "een script van de faserunner wijkt af van zijn pin"
 RUNNER_NIET_GESTART_POWERSHELL = "Windows PowerShell niet gevonden"
-RUNNER_NIET_GESTART_PROCES = "het proces of zijn logbestand kon niet worden geopend"
+# An `ActionError` of no known type: the general sentence, without the text
+# of the error, and the target is NOT released - whether a child exists is
+# not established.
+RUNNER_NIET_GESTART_ALGEMEEN = "de faserunner kon niet gestart worden"
 RUNNER_NIET_GESTART_EVIDENCE = "het starten van de faserunner, na het inwisselen van de code"
+# The same typed mapping on the routes next to the faserunner that start a
+# script of their own (`config_opslaan`; the live measurement says it in its
+# read gap).
+SCRIPT_NIET_GESTART_REDEN = "het script van deze handeling kon niet gestart worden ({soort})"
+SCRIPT_NIET_GESTART_VOORSTEL_TEXT = (
+    "Het voorstel kon niet worden opgesteld: {reden}. Er is geen bevestigingscode uitgegeven en er is niets gewijzigd."
+)
+SCRIPT_NIET_GESTART_EVIDENCE = "het starten van het script van deze handeling"
+
+
+def _not_started_sentence(exc: BaseException) -> str | None:
+    """The fixed sentence for an error that PROVES no child process started,
+    chosen on its TYPE; None for every other error. Specific before general:
+    `ScriptPinMismatch` and `ChildWorkingDirectoryUnusable` are subclasses of
+    `PowerShellMissing`, so they come first. Never the text of the error."""
+    if isinstance(exc, (ScriptPinMismatch, ScriptPinRefused)):
+        return RUNNER_NIET_GESTART_SCRIPTPIN
+    if isinstance(exc, (ChildWorkingDirectoryUnusable, RunnerWorkdirUnusable)):
+        return RUNNER_NIET_GESTART_WERKMAP
+    if isinstance(exc, (PowerShellMissing, PowerShellNotFound)):
+        return RUNNER_NIET_GESTART_POWERSHELL
+    if isinstance(exc, RunnerLogUnopenable):
+        return RUNNER_NIET_GESTART_LOGBESTAND
+    if isinstance(exc, RunnerProcessNotStarted):
+        return RUNNER_NIET_GESTART_PROCES
+    return None
+
+
+def _not_started_cause(exc: BaseException) -> str:
+    """The CLASS name of the underlying error, for the action log - never
+    its text."""
+    if isinstance(exc, ProcessNotStarted) and exc.oorzaak:
+        return exc.oorzaak
+    return type(exc).__name__
+
 
 # The UNDECIDED START: a confirmed phase whose detached runner was launched
 # but whose own `fase_gestart` row this server did not see within the wait
@@ -943,6 +1004,7 @@ def _action_log(
     client: str,
     marker: str | None = None,
     bevestiger: str | None = None,
+    oorzaak: str | None = None,
 ) -> None:
     """ONE structured line per write action, on stderr.
 
@@ -989,6 +1051,10 @@ def _action_log(
         "voorstel": marker,
         "uitkomst": outcome,
     }
+    # 1.1: when a child process did not start, the CLASS of the underlying
+    # error (never its text, which carries local paths). Only on those rows.
+    if oorzaak is not None:
+        row["oorzaak"] = oorzaak
     try:
         print(
             f"{ACTION_LOG_PREFIX} {json.dumps(row, ensure_ascii=True, sort_keys=True)}",
@@ -1077,8 +1143,9 @@ def build_server(
     # says the export's provenance is not established.
     #
     # `live_run` starts the small SSH read script of the pre-flight
-    # (`Invoke-GjkLiveMeting.ps1`); `None` is `handelen.default_runner`, the
-    # same starter and the same polite stop the write script gets. A test
+    # (`Invoke-GjkLiveMeting.ps1`); `None` is `handelen.typed_runner`, the
+    # same starter and the same polite stop the write script gets, with a
+    # typed start failure (1.1). A test
     # hands in a stub, exactly like `run` for the collector.
     server = FastMCP("netscaler-mcp", log_level=_FASTMCP_LOG_LEVEL)
     # 1.0.2: FastMCP takes no version, and the low-level server then
@@ -1940,7 +2007,9 @@ def build_server(
                     ),
                     False,
                 )
-            runner = live_run or default_runner
+            # 1.1: `typed_runner`, so a measurement that did not start says
+            # why by type (`_not_started_sentence`), never by the text.
+            runner = live_run or typed_runner
             try:
                 code, stdout, _stderr = runner(script_command(script, arguments), LIVE_MEASURE_TIMEOUT_S)
             except subprocess.TimeoutExpired:
@@ -1956,11 +2025,16 @@ def build_server(
                     True,
                 )
             except ActionError as exc:
+                sentence = _not_started_sentence(exc)
                 return (
                     None,
                     ReadGap(
                         source=FREE_SPACE_ROUTE_SSH,
-                        reason=f"de live lezing over SSH kon niet gestart worden: {_scrub_error_text(str(exc), target)}",
+                        reason=(
+                            "de live lezing over SSH kon niet gestart worden"
+                            if sentence is None
+                            else f"de live lezing over SSH kon niet gestart worden: {sentence}"
+                        ),
                     ),
                     False,
                 )
@@ -4805,20 +4879,33 @@ def build_server(
                 if weigering is not None:
                     raise ToolError(_with_lift_notices(weigering))
 
-            def _niet_gestart(soort: str) -> ToolError:
+            def _niet_gestart(soort: str | None) -> ToolError:
+                # `None`: an error of no known type - the general sentence,
+                # never the text of the error.
+                reden = RUNNER_NIET_GESTART_ALGEMEEN if soort is None else RUNNER_NIET_GESTART_REDEN.format(soort=soort)
                 return _failure(
                     doelnaam,
                     f"uitvoering {tool}",
                     _note(
                         tool,
-                        EXPORTDOEL_NA_INWISSELEN_TEXT.format(reden=RUNNER_NIET_GESTART_REDEN.format(soort=soort)),
+                        EXPORTDOEL_NA_INWISSELEN_TEXT.format(reden=reden),
                         RUNNER_NIET_GESTART_EVIDENCE,
                     ),
                 )
 
+            # 1.1: mapped on TYPE, specific before general (both are
+            # subclasses of `PowerShellMissing`). Nothing is held yet here,
+            # so there is nothing to release: no child was started.
             try:
                 argv = upgrade_command(onderhoud.runner, real_args)
-            except PowerShellMissing:
+            except ScriptPinMismatch as exc:
+                audit.update(oorzaak=_not_started_cause(exc))
+                raise _niet_gestart(RUNNER_NIET_GESTART_SCRIPTPIN) from None
+            except ChildWorkingDirectoryUnusable as exc:
+                audit.update(oorzaak=_not_started_cause(exc))
+                raise _niet_gestart(RUNNER_NIET_GESTART_WERKMAP) from None
+            except PowerShellMissing as exc:
+                audit.update(oorzaak=_not_started_cause(exc))
                 raise _niet_gestart(RUNNER_NIET_GESTART_POWERSHELL) from None
             log_path = ledger_path.with_suffix(".log")
             # How many `fase_gestart` rows this
@@ -4871,18 +4958,34 @@ def build_server(
             # GESTART. Every way out of this call replaces that entry: a
             # cancellation or any other exception with `broke_off`, a
             # timeout with the waited-out entry, a decided start with
-            # nothing. Only an `ActionError` takes the hold back -
-            # `start_detached()` raises it only when no child exists (the
-            # log file did not open, or the process did not start) - and
-            # `withdraw()` then restores what the register held before.
+            # nothing. Only one of the three TYPED errors takes the hold
+            # back - `start_detached()` raises them only when it is proven
+            # that no child exists (the working directory was unusable or
+            # the log file did not open, both before `Popen`, or `Popen`
+            # failed on every attempt) - and `withdraw()` then restores what
+            # the register held before. 1.1: an `ActionError` of any other
+            # type no longer counts as that proof: the general sentence,
+            # without its text, and the target stays held (fail-closed).
             requested = _undecided_start(broke_off=False, waiting_until=launched + timedelta(seconds=wait_s))
             replaced = undecided_starts.record(requested)
+
+            def _released(exc: ProcessNotStarted, sentence: str) -> ToolError:
+                undecided_starts.withdraw(requested, replaced)
+                audit.update(outcome="mislukt", oorzaak=_not_started_cause(exc))
+                return _niet_gestart(sentence)
+
             try:
                 runner_host = await asyncio.to_thread(start_detached, argv, log_path=log_path)
-            except ActionError:
-                undecided_starts.withdraw(requested, replaced)
-                audit.update(outcome="mislukt")
-                raise _niet_gestart(RUNNER_NIET_GESTART_PROCES) from None
+            except RunnerWorkdirUnusable as exc:
+                raise _released(exc, RUNNER_NIET_GESTART_WERKMAP) from None
+            except RunnerLogUnopenable as exc:
+                raise _released(exc, RUNNER_NIET_GESTART_LOGBESTAND) from None
+            except RunnerProcessNotStarted as exc:
+                raise _released(exc, RUNNER_NIET_GESTART_PROCES) from None
+            except ActionError as exc:
+                _hold_target(broke_off=True)
+                audit.update(oorzaak=_not_started_cause(exc))
+                raise _niet_gestart(None) from None
             except BaseException:
                 # Cancelled or interrupted during the launch: the thread may
                 # still finish it, so the target stays held - as a wait that
@@ -5356,8 +5459,26 @@ def build_server(
                 # keeps the honest configuration text unconditionally: it is
                 # still where a caller learns their target bypasses the
                 # startup gate.
+                #
+                # 1.1: a TYPED start failure (`config_opslaan` runs its save
+                # script through `handelen.typed_runner`) is not a
+                # configuration problem: it says why the script did not
+                # start, on both paths, with a fixed sentence.
+                not_started = _not_started_sentence(exc)
                 if execution_attempt:
-                    raise _preview_failed(type(exc).__name__) from None
+                    raise _preview_failed(not_started or type(exc).__name__) from None
+                if not_started is not None:
+                    raise _failure(
+                        doelnaam,
+                        f"voorstel {tool}",
+                        _note(
+                            tool,
+                            SCRIPT_NIET_GESTART_VOORSTEL_TEXT.format(
+                                reden=SCRIPT_NIET_GESTART_REDEN.format(soort=not_started)
+                            ),
+                            SCRIPT_NIET_GESTART_EVIDENCE,
+                        ),
+                    ) from None
                 raise _failure(
                     doelnaam,
                     f"handeling {tool}",
@@ -5692,6 +5813,24 @@ def build_server(
                 )
                 raise
             except Exception as exc:
+                # 1.1: a TYPED start failure proves the script did not start
+                # (it comes from before any child existed): the honest
+                # "niet gestart", not "gestart maar de uitkomst is NIET
+                # vastgesteld". Every other error keeps that sentence.
+                not_started = _not_started_sentence(exc) if isinstance(exc, ProcessNotStarted) else None
+                if not_started is not None:
+                    audit.update(outcome="mislukt", oorzaak=_not_started_cause(exc))
+                    raise _failure(
+                        doelnaam,
+                        f"uitvoering {tool}",
+                        _note(
+                            tool,
+                            EXPORTDOEL_NA_INWISSELEN_TEXT.format(
+                                reden=SCRIPT_NIET_GESTART_REDEN.format(soort=not_started)
+                            ),
+                            SCRIPT_NIET_GESTART_EVIDENCE + ", na het inwisselen van de code",
+                        ),
+                    ) from None
                 raise _failure(
                     doelnaam,
                     f"uitvoering {tool}",

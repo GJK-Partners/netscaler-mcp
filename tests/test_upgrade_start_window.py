@@ -57,7 +57,7 @@ from upgrade_fase_harness import (
 )
 
 from nsmcp import mcp_server, upgrade
-from nsmcp.handelen import ActionError, Allowlist, MaintenanceConfig
+from nsmcp.handelen import Allowlist, MaintenanceConfig, RunnerProcessNotStarted
 from nsmcp.upgrade import append_line, read_ledger
 
 RUN = "run-venster"
@@ -769,8 +769,9 @@ def test_a_wait_cancelled_while_it_runs_turns_from_waiting_into_broken_off(tmp_p
 
 def test_a_start_that_launched_nothing_does_not_hold_the_target(tmp_path, short_wait, monkeypatch):
     """The other side of holding the target from the moment the start is
-    requested: when `start_detached()` reports that no child exists (an
-    `ActionError`), nothing was launched and nothing may write, so the hold
+    requested: when `start_detached()` reports that no child exists (one of
+    its three typed errors, since 1.1 - an unknown `ActionError` no longer
+    counts as that proof), nothing was launched and nothing may write, so the hold
     is taken back - the answer says the phase did not start, and the next
     writing call on the target is not refused as undecided."""
     runner = _held_runner(tmp_path)
@@ -778,7 +779,7 @@ def test_a_start_that_launched_nothing_does_not_hold_the_target(tmp_path, short_
     code1 = _propose_r1(server)
 
     def launches_nothing(*_args, **_kwargs):
-        raise ActionError("gesimuleerd: het proces kon niet starten")
+        raise RunnerProcessNotStarted(OSError)
 
     monkeypatch.setattr(mcp_server, "start_detached", launches_nothing)
     r1 = _confirm_r1(server, code1)
@@ -812,7 +813,7 @@ def test_a_start_that_launched_nothing_keeps_an_earlier_lapsed_hold_audible(tmp_
     code2 = server.code_spy.codes[-1]
 
     def launches_nothing(*_args, **_kwargs):
-        raise ActionError("gesimuleerd: het proces kon niet starten")
+        raise RunnerProcessNotStarted(OSError)
 
     monkeypatch.setattr(mcp_server, "start_detached", launches_nothing)
     r2 = _confirm_r1(server, code2)

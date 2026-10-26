@@ -74,7 +74,9 @@ from nsmcp.answer import Answer, Certainty, Finding
 from nsmcp.backup import BACKUP_LEVEL, backup_name
 from nsmcp.collect import _stop_child_process
 from nsmcp.powershell import (
+    ChildWorkingDirectoryUnusable,
     PowerShellMissing,
+    ScriptPinMismatch,
     check_script_pins,
     child_working_directory,
     powershell_path,
@@ -206,6 +208,64 @@ _GRACE_S = 5.0
 
 class ActionError(Exception):
     """This action is not allowed or could not be described. Never silent."""
+
+
+class ProcessNotStarted(ActionError):
+    """1.1: a child process of this product did NOT start, and that is
+    PROVEN on the path that raises this: the failure came before `Popen`
+    returned a child (or `Popen` failed on every attempt). A caller may
+    therefore treat it as "no child exists" and release what it reserved.
+
+    No free text: the message is the fixed `soort` only. The underlying
+    error goes along as its CLASS NAME (`oorzaak`), for the action log -
+    never its text, which carries local paths (the runner, its log file,
+    the PowerShell install path). MEASURED before (1.0.3): all three start
+    failures of the detached runner were one `ActionError` with `str(exc)`
+    in it, and the answer named the wrong cause for an unusable working
+    directory. The answer sentence belongs to the caller
+    (`mcp_server._not_started_sentence`), mapped on the TYPE."""
+
+    soort = "proces"
+
+    def __init__(self, cause: BaseException | type[BaseException] | None = None) -> None:
+        if cause is None:
+            self.oorzaak: str | None = None
+        else:
+            self.oorzaak = (cause if isinstance(cause, type) else type(cause)).__name__
+        super().__init__(self.soort)
+
+
+class RunnerWorkdirUnusable(ProcessNotStarted):
+    """The fixed working directory for child processes is not usable
+    (`powershell.ChildWorkingDirectoryUnusable`), before any `Popen`."""
+
+    soort = "werkmap"
+
+
+class RunnerLogUnopenable(ProcessNotStarted):
+    """The log file next to the ledger did not open, before any `Popen`."""
+
+    soort = "logbestand"
+
+
+class RunnerProcessNotStarted(ProcessNotStarted):
+    """`Popen` itself failed, on every attempt it got."""
+
+    soort = "proces"
+
+
+class ScriptPinRefused(ProcessNotStarted):
+    """The script-runner route (`typed_runner`): a script did not match its
+    pin (`powershell.ScriptPinMismatch`), so nothing was started."""
+
+    soort = "scriptpin"
+
+
+class PowerShellNotFound(ProcessNotStarted):
+    """The script-runner route (`typed_runner`): Windows PowerShell is not
+    where Windows says it is (`powershell.PowerShellMissing`)."""
+
+    soort = "powershell"
 
 
 @dataclass(frozen=True)
@@ -687,7 +747,33 @@ def default_runner(arguments: list[str], timeout_s: int) -> tuple[int, str, str]
         process = start_powershell(arguments)
     except (OSError, PowerShellMissing) as exc:
         raise ActionError(f"kon PowerShell niet starten: {exc}") from None
+    return _wait_politely(process, timeout_s)
 
+
+def typed_runner(arguments: list[str], timeout_s: int) -> tuple[int, str, str]:
+    """`default_runner()` with a TYPED start failure (1.1): the routes next
+    to the faserunner - `config_opslaan` (`perform_save`) and the live
+    measurement of the pre-flight - say WHY nothing started, by type and
+    without the text of the underlying error. Every branch here comes
+    before a child exists: `start_powershell` raised, so no process was
+    started. The wait, the time limit and the polite stop are the same as
+    `default_runner()`'s; the demo write tools keep `default_runner()`."""
+    try:
+        process = start_powershell(arguments)
+    except ChildWorkingDirectoryUnusable as exc:
+        raise RunnerWorkdirUnusable(exc) from None
+    except ScriptPinMismatch as exc:
+        raise ScriptPinRefused(exc) from None
+    except PowerShellMissing as exc:
+        raise PowerShellNotFound(exc) from None
+    except OSError as exc:
+        raise RunnerProcessNotStarted(exc) from None
+    return _wait_politely(process, timeout_s)
+
+
+def _wait_politely(process: subprocess.Popen[str], timeout_s: int) -> tuple[int, str, str]:
+    """The wait of `default_runner()`/`typed_runner()`: the child's output,
+    or `subprocess.TimeoutExpired` after the polite stop."""
     try:
         stdout, stderr = process.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
@@ -1484,7 +1570,8 @@ def perform_save(
             target, onderhoud, preview=preview, actie_id=actie_id, forbidden_addresses=forbidden_addresses
         ),
     )
-    result = _run_script(command, preview=preview, run=run, bevestiger=bevestiger)
+    # 1.1: `typed_runner`, so a script that did not start says why by type.
+    result = _run_script(command, preview=preview, run=run or typed_runner, bevestiger=bevestiger)
     if not preview and result.ok and result.actie_id != actie_id:
         return replace(
             result,
@@ -1600,10 +1687,17 @@ def start_detached(arguments: list[str], *, log_path: Path) -> str:
         host_in_job = _process_in_job()
     else:
         extra_kwargs["start_new_session"] = True
+    # 1.1: the three typed errors below are raised ONLY where it is proven
+    # that no child exists: before `Popen` (the log file, the working
+    # directory) or when `Popen` failed on every attempt it got. Once
+    # `Popen` returned a child, every later failure - the Job Object
+    # measurement below included - leaves this function as whatever it is,
+    # never as one of the three: a child may exist, so the caller keeps the
+    # target reserved.
     try:
         log_file = open(log_path, "a", encoding="utf-8", newline="\n")
     except OSError as exc:
-        raise ActionError(f"kon het logbestand van de faserunner niet openen: {exc}") from None
+        raise RunnerLogUnopenable(exc) from None
     # Inside a job: first WITH breakaway (the job may allow it), then, only
     # when the job refuses that (ERROR_ACCESS_DENIED), without - and the
     # measurement below says which lifetime the child actually got.
@@ -1621,8 +1715,8 @@ def start_detached(arguments: list[str], *, log_path: Path) -> str:
         # 1.0.3: a fixed working directory, never the server's own one.
         try:
             working_directory = child_working_directory()
-        except PowerShellMissing as exc:
-            raise ActionError(f"kon de faserunner niet losgekoppeld starten: {exc}") from None
+        except ChildWorkingDirectoryUnusable as exc:
+            raise RunnerWorkdirUnusable(exc) from None
         for index, kwargs in enumerate(attempts):
             try:
                 child = subprocess.Popen(
@@ -1638,7 +1732,7 @@ def start_detached(arguments: list[str], *, log_path: Path) -> str:
             except OSError as exc:
                 refused_breakaway = index + 1 < len(attempts) and getattr(exc, "winerror", None) == _ERROR_ACCESS_DENIED
                 if not refused_breakaway:
-                    raise ActionError(f"kon de faserunner niet losgekoppeld starten: {exc}") from None
+                    raise RunnerProcessNotStarted(exc) from None
     finally:
         log_file.close()
     if sys.platform != "win32":

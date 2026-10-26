@@ -59,6 +59,7 @@ from conftest import expiry_text_today, maintenance_config, provenance_dir_for, 
 from mcp.shared.memory import create_connected_server_and_client_session
 from upgrade_fase_harness import _anchor_target
 
+from nsmcp import handelen
 from nsmcp.export import load_export
 
 # The seven writing tools, by name. Design par. 3.1: a READING tool is every
@@ -1190,6 +1191,52 @@ def test_a_failed_ssh_read_is_a_read_gap_with_its_reason_and_no_second_attempt(
     assert expected_reason in text
     assert "10.0.0.10" not in text
     assert "gjk/netscaler/lab/readonly" not in text
+
+
+def _raises(exc):
+    def run(_arguments, _timeout_s):
+        raise exc
+
+    return run
+
+
+@pytest.mark.parametrize(
+    "live,expected_reason",
+    [
+        (
+            lambda: _raises(handelen.RunnerWorkdirUnusable(handelen.ChildWorkingDirectoryUnusable)),
+            "de live lezing over SSH kon niet gestart worden: de vaste werkmap voor kindprocessen is niet bruikbaar",
+        ),
+        (
+            lambda: _raises(handelen.ScriptPinRefused(handelen.ScriptPinMismatch)),
+            "de live lezing over SSH kon niet gestart worden: een script van de faserunner wijkt af van zijn pin",
+        ),
+        (
+            lambda: _raises(handelen.PowerShellNotFound(handelen.PowerShellMissing)),
+            "de live lezing over SSH kon niet gestart worden: Windows PowerShell niet gevonden",
+        ),
+        (
+            lambda: _raises(handelen.RunnerProcessNotStarted(FileNotFoundError)),
+            "de live lezing over SSH kon niet gestart worden: het proces kon niet worden gestart",
+        ),
+        (
+            lambda: _raises(handelen.ActionError("SENTINEL-E3 C:\\geheim\\pad.ps1")),
+            "de live lezing over SSH kon niet gestart worden",
+        ),
+    ],
+)
+def test_1_1_a_live_read_that_did_not_start_names_why_by_type_and_never_by_text(
+    tmp_path, loop, no_sockets, live, expected_reason
+):
+    """1.1 E.3: the same typed mapping as the phase runner. Before, the
+    reason carried the scrubbed `str(exc)` of whatever was raised."""
+    result, text, collector_calls, ssh_calls = _preflight_over_ssh(tmp_path, loop, live=live())
+    assert result.isError is False, text
+    assert len(ssh_calls) == 1 and collector_calls == []
+    assert "niet beoordeeld" in text
+    assert expected_reason in text, text
+    assert "SENTINEL-E3" not in text and "geheim" not in text, text
+    assert "live gelezen via df -k /var over SSH" not in text, text
 
 
 def test_a_missing_read_script_is_a_read_gap_and_starts_nothing(tmp_path, loop, no_sockets):
