@@ -148,17 +148,25 @@ def test_a_stream_in_any_component_is_a_stream():
 
 
 @pytest.mark.parametrize(
-    ("path", "root", "count"),
+    ("path", "root", "walked"),
     [
-        (r"C:\export\x.json", r"C:\export", 1),
-        (r"C:\EXPORT\x.json", r"c:\export", 1),
-        (r"C:\export", r"C:\export", 1),
-        (r"C:\export\a\b", "C:\\", 0),
+        (r"C:\export\x.json", r"C:\export", ["export", "x.json"]),
+        (r"c:\export\x.json", r"C:\export", ["export", "x.json"]),  # only the volume key ignores case
+        (r"C:\export", r"C:\export", ["export"]),
+        (r"C:\export\a\b", "C:\\", ["export", "a", "b"]),
     ],
 )
-def test_the_root_splits_the_path_text(path, root, count):
+def test_the_root_is_walked_on_its_own_text(path, root, walked):
     key, components = localpath._split(path)
-    assert localpath._within(key, components, root) == count
+    assert localpath._within(key, components, root) == walked
+
+
+def test_containment_never_folds_case():
+    """Python folds differently from NTFS: a mutation back to a folding comparison must fall here."""
+    key, components = localpath._split(r"C:\EXPORT\x.json")
+    with pytest.raises(PathRefused) as refused:
+        localpath._within(key, components, r"C:\export")
+    assert refused.value.soort == "buiten_wortel"
 
 
 @pytest.mark.parametrize(
@@ -199,7 +207,8 @@ def test_a_path_that_does_not_start_with_the_root_is_outside_it(path, root):
         (0xC00000BE, "netwerkpad"),  # BAD_NETWORK_PATH
         (0xC00000CC, "netwerkpad"),  # BAD_NETWORK_NAME
         (0xC000023C, "netwerkpad"),  # NETWORK_UNREACHABLE
-        (0xC0000281, "onleesbaar"),  # not measured: every other status
+        (0xC0000281, "koppeling"),  # DIRECTORY_IS_A_REPARSE_POINT
+        (0xC0000282, "onleesbaar"),  # every other status
         (0xC0000001, "onleesbaar"),
         (0x00000001, "onleesbaar"),
     ],
@@ -318,10 +327,10 @@ def test_posix_a_symlink_inside_the_root_is_a_link(tmp_path, monkeypatch):
 
 
 @posix_only
-def test_posix_a_plain_file_is_read_and_replaced(tmp_path, monkeypatch):
+def test_posix_a_plain_file_is_read_and_never_written(tmp_path, monkeypatch):
     monkeypatch.setattr(localpath, "_native", localpath._PosixNative(record=True))
     (tmp_path / "x.json").write_bytes(b"oud")
     assert localpath.read_local_bytes(str(tmp_path / "x.json"), root=str(tmp_path), max_bytes=10) == b"oud"
-    localpath.replace_local(str(tmp_path / "x.json"), b"nieuw", root=str(tmp_path))
-    assert (tmp_path / "x.json").read_bytes() == b"nieuw"
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["x.json"]
+    with pytest.raises(NotImplementedError):
+        localpath.replace_local(str(tmp_path / "x.json"), b"nieuw", root=str(tmp_path))
+    assert (tmp_path / "x.json").read_bytes() == b"oud"

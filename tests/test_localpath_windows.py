@@ -75,7 +75,7 @@ def _audit(native: localpath._Native) -> list[str]:
             name = record["name"]
             assert name not in ("", ".", "..") and "\\" not in name and "/" not in name and ":" not in name, name
             assert record["options"] & localpath.FILE_OPEN_REPARSE_POINT, record
-        if record["access"] == localpath.DIR_ACCESS:
+        if record["access"] in (localpath.DIR_ACCESS, localpath.DIR_LIST_ACCESS):
             assert record["share"] == localpath.DIR_SHARE, record
         if record["handle"] is not None:
             live.add(record["handle"])
@@ -609,3 +609,112 @@ def test_check_where_it_leads_opens_and_closes_the_chain(tmp_path, seam):
         root / "nog-niet"
     )
     _audit(seam)
+
+
+# ---------------------------------------------------------------------------
+# Containment is structural: the root is walked on its own text
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("root_name", "sibling_name"),
+    [
+        ("staging", "\ufb06aging"),  # LATIN SMALL LIGATURE ST: Python folds it to "ST", NTFS does not
+        ("SS", "\u00df"),  # SHARP S: Python upper() is "SS"
+        ("\u017f", "S"),  # LONG S as the root (it does not even exist): Python upper() is "S"
+    ],
+    ids=["ligatuur", "ringel-s", "lange-s"],
+)
+def test_a_case_folding_sibling_of_the_root_is_outside_it(tmp_path, seam, root_name, sibling_name):
+    sibling = tmp_path / sibling_name
+    sibling.mkdir()
+    (sibling / "x.txt").write_text("ZUSJE", encoding="ascii")
+    if root_name != "\u017f":
+        (tmp_path / root_name).mkdir()
+    refused = _refused(
+        lambda: localpath.read_local_bytes(str(sibling / "x.txt"), root=str(tmp_path / root_name), max_bytes=10)
+    )
+    assert refused.soort == "buiten_wortel"
+    assert seam.calls["NtCreateFile"] == 0, "niets geopend: de wortel is niet het zusje"
+
+
+def test_a_different_case_of_the_root_text_is_outside_it(tmp_path, seam):
+    root, _ = _tree(tmp_path)
+    other_case = tmp_path / "WORTEL" / "P" / "C" / "leaf.txt"
+    refused = _refused(lambda: localpath.read_local_bytes(str(other_case), root=str(root), max_bytes=10))
+    assert refused.soort == "buiten_wortel"
+    assert seam.calls["NtCreateFile"] == 0
+
+
+def test_a_dot_dot_out_of_the_root_is_refused_before_any_open(tmp_path, seam):
+    root, outside = _tree(tmp_path)
+    escape = str(root) + "\\..\\buiten\\leaf.txt"
+    refused = _refused(lambda: localpath.read_local_bytes(escape, root=str(root), max_bytes=10))
+    assert refused.soort in ("onleesbaar", "buiten_wortel")
+    assert seam.calls["NtCreateFile"] == 0
+    assert (outside / "leaf.txt").read_text(encoding="ascii") == "buiten"
+
+
+def test_the_root_is_walked_on_its_own_text_and_the_rest_relative_to_it(tmp_path, seam):
+    root, _ = _tree(tmp_path)
+    assert localpath.read_local_bytes(str(root / "P" / "C" / "leaf.txt"), root=str(root), max_bytes=10) == b"binnen"
+    names = _audit(seam)
+    root_parts = list(root.parts[1:])
+    assert names[1 : 1 + len(root_parts)] == root_parts
+    assert names[1 + len(root_parts) :] == ["P", "C", "leaf.txt"]
+
+
+# ---------------------------------------------------------------------------
+# A directory on the way needs the traverse right only
+# ---------------------------------------------------------------------------
+
+
+def test_an_ancestor_with_only_the_traverse_right_is_walked_and_still_held(tmp_path, seam):
+    import subprocess
+
+    root, _ = _tree(tmp_path)
+    user = os.environ["USERNAME"]
+    hardened = root / "P"
+    denied = subprocess.run(["icacls", str(hardened), "/deny", f"{user}:(RD)"], capture_output=True, text=True)
+    assert denied.returncode == 0, denied.stdout + denied.stderr
+    try:
+        with pytest.raises(PermissionError):
+            os.listdir(hardened)
+        with localpath.open_local(str(root / "P" / "C" / "leaf.txt"), root=str(root)) as handle:
+            assert handle.read(10) == b"binnen"
+            with pytest.raises(PermissionError):
+                hardened.rename(hardened.with_name("P-x"))
+    finally:
+        restored = subprocess.run(["icacls", str(hardened), "/remove:d", user], capture_output=True, text=True)
+        assert restored.returncode == 0, restored.stdout + restored.stderr
+    chain = [record for record in seam.opens if record["name"] in ("P", "C")]
+    assert {record["access"] for record in chain} == {localpath.DIR_ACCESS}
+    assert not localpath.DIR_ACCESS & localpath.FILE_LIST_DIRECTORY
+    _audit(seam)
+
+
+def test_a_directory_asked_for_itself_is_opened_for_listing(tmp_path, seam):
+    root, _ = _tree(tmp_path)
+    with localpath.open_local(str(root / "P"), root=str(root), expect="dir"):
+        pass
+    assert [record["access"] for record in seam.opens if record["name"] == "P"] == [localpath.DIR_LIST_ACCESS]
+    _audit(seam)
+
+
+# ---------------------------------------------------------------------------
+# Off Windows nothing is written through this module
+# ---------------------------------------------------------------------------
+
+
+def test_the_write_routes_refuse_off_windows_before_anything_opens(tmp_path, monkeypatch):
+    native = localpath._PosixNative(record=True)
+    monkeypatch.setattr(localpath, "_native", native)
+    with pytest.raises(NotImplementedError):
+        with localpath.open_local_for_append(str(tmp_path / "x"), root=str(tmp_path)):
+            pass
+    with pytest.raises(NotImplementedError):
+        with localpath.open_local(str(tmp_path / "x"), root=str(tmp_path), mode="create"):
+            pass
+    with pytest.raises(NotImplementedError):
+        localpath.replace_local(str(tmp_path / "x"), b"x", root=str(tmp_path))
+    assert native.opens == []

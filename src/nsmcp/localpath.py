@@ -29,9 +29,10 @@ never follows a link through an open:
    target text goes through steps 1 and 2 before anything of it is opened,
    and the walk starts again at step 3;
 6. the leaf is read with `ReadFile` on the handle; no second open by name;
-7. containment is structural: everything under the root is opened relative
-   to the held root handle. There is no text prefix comparison of a resolved
-   path.
+7. containment is structural: the root is walked on its own text (the path
+   must begin with that text exactly, ordinal, or it is `buiten_wortel`), and
+   everything under it is opened relative to the held root handle. There is
+   no case-folding comparison and no second, separately resolved root path.
 
 `_native` is the seam for every native call: tests count the calls, record
 every open with its parent handle, replace a single call, and run a callback
@@ -41,9 +42,10 @@ The status of a native call goes to the server log only (stderr, with
 `NSMCP_DEBUG`), as a hex value; the path likewise. A `PathRefused` carries a
 fixed Dutch sentence per kind (`REASONS`) without the path.
 
-Off Windows (testability only; the product is Windows-only) the same walk runs
-with `os.open(component, O_NOFOLLOW, dir_fd=parent)`. Those logic runs prove
-nothing about the race freedom on Windows; the Windows proofs are separate.
+Off Windows (testability only; the product is Windows-only) the read walk runs
+with `os.open(component, O_NOFOLLOW, dir_fd=parent)`; the write routes refuse
+there (`NotImplementedError`). Those logic runs prove nothing about the race
+freedom on Windows; the Windows proofs are separate.
 """
 
 from __future__ import annotations
@@ -239,19 +241,21 @@ def _join(key: str, components: list[str]) -> str:
     return base + "\\".join(components)
 
 
-def _within(key: str, components: list[str], root: str | None) -> int | None:
-    """How many components of the path make up the root, or None without a
-    root. Only splits the text into "the root" and "below the root"; whether
-    what is below really is below is decided by the walk (structural)."""
+def _within(key: str, components: list[str], root: str | None) -> list[str] | None:
+    """The components to walk: the ROOT's own text components followed by the
+    components of the path below it, or None without a root. A path whose text
+    does not begin with the root text EXACTLY (ordinal, component by
+    component; only the ASCII volume key ignores case) is `buiten_wortel`:
+    no case folding, because Python folds differently from NTFS (a ligature,
+    a sharp s or a long s would make a sibling of the root count as the root).
+    What lies below the root is then opened relative to the held root handle
+    (structural containment); nothing is compared after this split."""
     if root is None:
         return None
     root_key, root_components = _split(root)
-    if root_key.upper() != key.upper() or len(root_components) > len(components):
+    if root_key.upper() != key.upper() or components[: len(root_components)] != root_components:
         raise PathRefused("buiten_wortel", path=_join(key, components))
-    for mine, theirs in zip(components, root_components, strict=False):
-        if mine.upper() != theirs.upper():
-            raise PathRefused("buiten_wortel", path=_join(key, components))
-    return len(root_components)
+    return root_components + components[len(root_components) :]
 
 
 # ---------------------------------------------------------------------------
@@ -270,13 +274,17 @@ STATUS_DELETE_PENDING = 0xC0000056
 STATUS_FILE_IS_A_DIRECTORY = 0xC00000BA
 STATUS_NOT_A_DIRECTORY = 0xC0000103
 STATUS_REPARSE_POINT_NOT_RESOLVED = 0xC0000280
+STATUS_DIRECTORY_IS_A_REPARSE_POINT = 0xC0000281
 
 _ABSENT = frozenset({STATUS_OBJECT_NAME_NOT_FOUND, STATUS_OBJECT_PATH_NOT_FOUND})
 _NOT_REGULAR = frozenset({STATUS_NOT_A_DIRECTORY, STATUS_FILE_IS_A_DIRECTORY})
 # STATUS_REPARSE and STATUS_STOPPED_ON_SYMLINK do not occur with
 # FILE_OPEN_REPARSE_POINT; STATUS_REPARSE_POINT_NOT_RESOLVED was measured: a
-# held directory emptied and given a mount point, then a relative open under it.
-_LINKISH = frozenset({STATUS_REPARSE, STATUS_STOPPED_ON_SYMLINK, STATUS_REPARSE_POINT_NOT_RESOLVED})
+# held directory emptied and given a mount point, then a relative open under it;
+# STATUS_DIRECTORY_IS_A_REPARSE_POINT is its sibling for the directory itself.
+_LINKISH = frozenset(
+    {STATUS_REPARSE, STATUS_STOPPED_ON_SYMLINK, STATUS_REPARSE_POINT_NOT_RESOLVED, STATUS_DIRECTORY_IS_A_REPARSE_POINT}
+)
 _NETWORK = frozenset(
     {
         0xC00000BE,  # STATUS_BAD_NETWORK_PATH
@@ -360,7 +368,14 @@ FileDispositionInformation = 13
 FileAttributeTagInformation = 35
 FileFsDeviceInformation = 4
 
-DIR_ACCESS = FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE
+# A directory on the way is held with the traverse right only: a relative open
+# needs no access on the parent handle, and a directory that may be traversed
+# but not listed (a hardened D:\Apps) stays walkable, as it was in 1.0.3.
+# Holding does not depend on the access mask but on the share mode below.
+DIR_ACCESS = FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE
+# A directory asked for itself (expect="dir", read) is opened for listing too:
+# its caller works in it (lists it, or renames into it).
+DIR_LIST_ACCESS = FILE_LIST_DIRECTORY | DIR_ACCESS
 # Directories: other processes may read and write in a held directory (a
 # collector writing beside the file, an append on the ledger), but nobody may
 # rename, delete or replace it while it is held.
@@ -677,7 +692,7 @@ class _Native:
 
 
 class _PosixNative:
-    """The same seam names off Windows, over file descriptors."""
+    """The same seam names off Windows, over file descriptors (read route only)."""
 
     def __init__(self, *, record: bool = False) -> None:
         self.calls: Counter[str] = Counter()
@@ -709,21 +724,6 @@ class _PosixNative:
             return os.read(handle, size)
         except OSError:
             return None
-
-    def WriteFile(self, handle: int, data: bytes) -> int | None:
-        self.calls["write"] += 1
-        try:
-            return os.write(handle, data)
-        except OSError:
-            return None
-
-    def FlushFileBuffers(self, handle: int) -> bool:
-        self.calls["fsync"] += 1
-        try:
-            os.fsync(handle)
-        except OSError:
-            return False
-        return True
 
 
 _native: _Native | _PosixNative = _Native() if sys.platform == "win32" else _PosixNative()
@@ -893,7 +893,8 @@ def _leaf_open(expect: str, mode: str, shared_writers: bool) -> tuple[int, int, 
     """(access, share, disposition, options) for the last component. No type
     flag: the tag is read first, the type checked after it."""
     if expect == "dir":
-        return DIR_ACCESS, DIR_SHARE, FILE_OPEN, FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT
+        access = DIR_LIST_ACCESS if mode == "read" else DIR_ACCESS
+        return access, DIR_SHARE, FILE_OPEN, FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT
     share = FILE_SHARE_READ | (FILE_SHARE_WRITE if shared_writers else 0)
     if mode == "read":
         return (
@@ -1077,10 +1078,6 @@ def _walk_posix(
                 want_directory = stat_module.S_ISDIR(info.st_mode)
             if want_directory:
                 flags = directory_flags
-            elif mode == "append":
-                flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK
-            elif mode == "create":
-                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
             else:
                 flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
             try:
@@ -1137,8 +1134,9 @@ def _open(
         while True:
             if isinstance(native, _Native):
                 key, components = _split(current)
-                if hops == 0:
-                    root_count = _within(key, components, root_text)
+                if hops == 0 and root_text is not None:
+                    components = _within(key, components, root_text)
+                    root_count = len(_split(root_text)[1])
             else:
                 components = _split_posix(current)
                 key = ""
@@ -1194,6 +1192,8 @@ def open_local(
         raise ValueError(f"expect moet een van {_EXPECT} zijn")
     if mode not in _MODES or (expect == "dir" and mode != "read"):
         raise ValueError(f"mode moet een van {_MODES} zijn (een map alleen read)")
+    if mode != "read":
+        _require_windows_for_writing()
     handle = _open(
         path, root=root, expect=expect, mode=mode, allow_missing=allow_missing, shared_writers=shared_writers
     )
@@ -1244,23 +1244,24 @@ def replace_local(path, data: bytes, *, root) -> None:
     then a rename of the temporary file by its handle onto the target name,
     relative to the held parent. On a failure only the own temporary file is
     removed, through its handle."""
+    _require_windows_for_writing()
     text = os.fspath(path)
-    separator = "\\" if isinstance(_native, _Native) else "/"
-    parent_text, _, name = text.rstrip(separator).rpartition(separator)
+    parent_text, _, name = text.rstrip("\\").rpartition("\\")
     if not name or not parent_text:
         raise PathRefused("onleesbaar", path=text, detail="geen bestandsnaam")
-    if isinstance(_native, _Native):
-        _split(text)  # the whole spelling, the name included, before anything opens
-        if parent_text.endswith(":"):
-            parent_text += "\\"
-    else:
-        _split_posix(text)
-        parent_text = parent_text or "/"
+    _split(text)  # the whole spelling, the name included, before anything opens
+    if parent_text.endswith(":"):
+        parent_text += "\\"
     with open_local(parent_text, root=root, expect="dir") as parent:
-        if isinstance(_native, _Native):
-            _replace_windows(_native, parent, name, data, text)
-        else:
-            _replace_posix(_native, parent, name, data, text)
+        _replace_windows(_native, parent, name, data, text)
+
+
+def _require_windows_for_writing() -> None:
+    """Off Windows nothing is written through this module: the product is
+    Windows-only, the POSIX walk exists for the logic runs of the read route,
+    and a write route that no run of this repository executes is not offered."""
+    if not isinstance(_native, _Native):
+        raise NotImplementedError("schrijven via nsmcp.localpath bestaat alleen op Windows")
 
 
 def _replace_windows(native: _Native, parent: LocalHandle, name: str, data: bytes, path: str) -> None:
@@ -1312,34 +1313,6 @@ def _replace_windows(native: _Native, parent: LocalHandle, name: str, data: byte
         if not renamed:
             native.set_delete(handle)
         native.NtClose(handle)
-
-
-def _replace_posix(native: _PosixNative, parent: LocalHandle, name: str, data: bytes, path: str) -> None:
-    directory = parent.directory_handle
-    if directory is None:
-        raise PathRefused("onleesbaar", path=path, detail="geen ouder")
-    import stat as stat_module
-
-    try:
-        info = os.stat(name, dir_fd=directory, follow_symlinks=False)
-    except FileNotFoundError:
-        info = None
-    if info is not None and stat_module.S_ISLNK(info.st_mode):
-        raise PathRefused("koppeling", path=path, detail="doel")
-    if info is not None and not stat_module.S_ISREG(info.st_mode):
-        raise PathRefused("geen_gewoon_bestand", path=path, detail="doel")
-    temporary = f".{secrets.token_hex(8)}.nsmcp-tmp"
-    handle = native.open_at(directory, temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW)
-    renamed = False
-    try:
-        LocalHandle(native, [], handle, path, exists=True, kind="file").write(data)
-        os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
-        renamed = True
-    finally:
-        native.NtClose(handle)
-        if not renamed:
-            with contextlib.suppress(OSError):
-                os.unlink(temporary, dir_fd=directory)
 
 
 def drive_is_remote(drive: str) -> bool:
