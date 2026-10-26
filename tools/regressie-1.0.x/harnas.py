@@ -573,7 +573,7 @@ def main(arguments: list) -> int:
         for line in lines:
             print(line)
         if failures:
-            print(f"regressiematrix: {len(lines)} gevallen, {failures} wijken af")
+            print(f"regressiematrix: {len(lines)} gevallen, {failures} {'wijkt' if failures == 1 else 'wijken'} af")
             return 1
         print(f"regressiematrix: {len(lines)} gevallen, alle kloppen (engine {identity[0]}, commit {identity[1]})")
         return 0

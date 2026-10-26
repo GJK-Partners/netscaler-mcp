@@ -588,7 +588,9 @@ def main(package: str, matrix: str) -> int:
         print(line)
     total = len(result.lines)
     if result.failures or identity is None:
-        print(f"regressiematrix: {total} gevallen, {result.failures} wijken af")
+        print(
+            f"regressiematrix: {total} gevallen, {result.failures} {'wijkt' if result.failures == 1 else 'wijken'} af"
+        )
         return 1
     print(f"regressiematrix: {total} gevallen, alle kloppen (engine {identity.version}, commit {identity.commit})")
     return 0
