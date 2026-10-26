@@ -83,6 +83,10 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 33 | kennispakket: weigerzin zonder takkennamen (1.1) | `knowledge.knowledge_from_document`: de takken die maar in een van `getroffen`/`fix` staan weer in de zin (`!r`) | `test_an_existing_refusal_route_names_the_place_not_the_content[tak-alleen-fix]` | uitgevoerd 26-10-2026, teruggedraaid |
 | 34 | oude-lijnharnas: enginebinding gelijk aan de runner (1.1) | `tools/regressie-1.0.x/harnas.py`, `run_matrix`: `if tuple(identity) not in pinned:` vervangen door `if False:` | `test_the_harness_applies_the_same_matrix_rules_as_the_runner` (de vorige vorm van deze test bleef groen) | uitgevoerd 26-10-2026, teruggedraaid |
 | 35 | oude-lijnharnas: drempelregel van de dekking (1.1) | `tools/regressie-1.0.x/harnas.py`, `_applies_below`: `threshold < fix` vervangen door `threshold <= fix` | `test_the_harness_applies_the_same_matrix_rules_as_the_runner` (de vorige vorm van deze test bleef groen) | uitgevoerd 26-10-2026, teruggedraaid |
+| 36 | kennispakket: bulletin zonder tak (1.1) | `knowledge.knowledge_from_document`: `if not entry[field_name]:` vervangen door `if False:` | `test_a_bulletin_without_branches_is_refused` | uitgevoerd 26-10-2026, teruggedraaid |
+| 37 | kennispakket: bulletin zonder CVE (1.1) | `knowledge.knowledge_from_document`: `if not entry["cves"]:` vervangen door `if False:` | `test_a_bulletin_without_cves_is_refused` | uitgevoerd 26-10-2026, teruggedraaid |
+| 38 | kennispakket: lengtegrens van een id (1.1) | `knowledge._BULLETIN_ID`: `CTX[0-9]{1,12}` vervangen door `CTX[0-9]+` | `test_an_identifier_is_at_most_as_long_as_its_grammar_allows` | uitgevoerd 26-10-2026, teruggedraaid |
+| 39 | regressiematrix: dekking eist een tak per bulletin (1.1) | `knowledge_regression._missing_coverage` en, apart, `tools/regressie-1.0.x/harnas.py` `missing_coverage`: `if not bulletin["getroffen"]:` vervangen door `if False:` | `test_the_coverage_asks_a_branch_of_every_bulletin_in_runner_and_harness` (beide mutaties) | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -112,7 +116,7 @@ De tien proeven van het kennispakket en de regressiematrix (22-31, versie 1.1): 
 de werkkopie aangebracht, alleen de genoemde test is gedraaid en viel om, en het bestand is daarna
 byte voor byte teruggezet (sha256 voor en na gelijk) - `git status` was weer schoon.
 
-De vier proeven 32-35 (versie 1.1) op dezelfde manier. 34 en 35 zijn eerst op de vorige vorm van
+De vier proeven 32-35 en de vijf mutaties van 36-39 (versie 1.1) op dezelfde manier. 34 en 35 zijn eerst op de vorige vorm van
 de pariteitstest gedraaid: daar overleefden beide (de test gaf het harnas een vaste, gepinde
 identiteit en kende alleen de synthetische matrix). Op de huidige vorm vallen beide, 34 op een
 geval met een engine die niet in `engines` staat, 35 op een pakket met de `vanaf`-drempel op de
