@@ -1637,6 +1637,32 @@ Zie `OPENSTAANDE-METINGEN.md` voor de precieze status.
 - **Een omwisseling is onderbroken.** In het uitzonderlijke geval dat het proces precies
   tijdens het omwisselen stopt, kan de export als `.vorig` naast de map staan. De
   eerstvolgende scanpoging herstelt dat zelf, nog voordat hij scant.
+- **De faserunner of een script ernaast start niet (sinds 1.1).** Het antwoord zegt dan "De
+  handeling is niet gestart: de faserunner kon niet gestart worden (...)". Bij `config_opslaan`
+  staat er "het script van deze handeling kon niet gestart worden (...)", en bij de live meting
+  van `status_update_preflight` staat dezelfde reden in het leesgat. Tussen de haakjes staat
+  waarom, altijd als een van deze vaste zinnen en nooit met een pad of een foutmelding:
+  - "de vaste werkmap voor kindprocessen is niet bruikbaar": de map `System32` onder
+    `%SystemRoot%` van het account waaronder de server draait, bestaat niet of is geen absoluut
+    pad. Controleer `%SystemRoot%` van dat account.
+  - "het logbestand naast het ledger kon niet worden geopend": het `.log`-bestand in
+    `onderhoud.ledgermap` kon niet worden geopend, bijvoorbeeld omdat de map niet beschrijfbaar
+    is of het bestand vergrendeld is. Controleer de rechten op die map.
+  - "het proces kon niet worden gestart": Windows weigerde het proces te starten, bijvoorbeeld
+    door een ontbrekend programma of door beveiligingssoftware. Controleer `onderhoud.runner`
+    en het Windows-gebeurtenislogboek.
+  - "een script van de faserunner wijkt af van zijn pin": een script in de map van de
+    faserunner is gewijzigd of heeft geen pin. Ga na waarom het script veranderde; pin de map
+    pas opnieuw (`python -m nsmcp.powershell --pin <scriptmap>`) als de inhoud de bedoelde is.
+
+  De bestaande zin "Windows PowerShell niet gevonden" blijft voor een ontbrekend
+  `powershell.exe`. In al deze gevallen is aantoonbaar geen proces gestart: het doel is meteen
+  weer vrij. De bevestigingscode is wel verbruikt; vraag een nieuw voorstel aan zodra de oorzaak
+  weg is. Staat er alleen "de faserunner kon niet gestart worden", zonder haakjes, dan is niet
+  vast te stellen of er toch een proces draait. Het doel blijft dan bezet tot de regel
+  `fase_gestart` in het ledger staat of de tijdslimiet van de fase verstreken is; kijk met
+  `onderhoud_upgrade_stand` en in het `.log`-bestand naast het ledger. In het actielogboek staat
+  bij zo'n poging het veld `oorzaak`: de soort fout, nooit de tekst ervan.
 - **Een generieke foutmelding.** De tekst "Onverwachte fout bij het beantwoorden van deze
   vraag. De details van deze fout zijn niet bewaard: dit product logt alleen zijn
   schrijfhandelingen." wijst op een interne fout. Meld die bij GJK Partners, met de vraag die u stelde en het moment
@@ -1662,7 +1688,9 @@ gestructureerde regel met tien velden. `voorstel` is dezelfde letter als in
 het codekanaal en wordt voor het inwisselen gelezen. `bevestiger` komt uit
 het kanaal voor die specifieke code, of is null. De code zelf staat nooit
 in het logboek. Een gestart runnerproces krijgt `uitkomst: gestart`; dat is
-geen geslaagde fase. Het faseoordeel komt uit het ledger.
+geen geslaagde fase. Het faseoordeel komt uit het ledger. Sinds 1.1 draagt een
+regel waarbij een kindproces niet startte een elfde veld, `oorzaak`: de soort
+fout (de klassenaam), nooit de tekst ervan.
 
 De twaalf bevindingen uit de externe review zijn in deze integratie verwerkt
 (14-9-2026), met drie bewuste afwijkingen van de aangedragen patches: een MCP-host

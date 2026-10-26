@@ -64,13 +64,16 @@ def test_the_lint_gate_is_pinned_in_the_project_file_and_not_only_in_ci():
     assert selected == ["E", "F", "W", "B", "I", "UP", "S102", "S307", "PLE"]
 
 
-def test_the_version_is_the_public_one_dot_zero():
-    assert _project()["version"] == "1.0.3"
+def test_the_version_is_the_one_of_the_release_line_in_progress():
+    # 1.1: the version moves to 1.1.0 with the first part of the line, before
+    # any tag (spec rule 6); the public release stays 1.0.3 until then.
+    assert _project()["version"] == "1.1.0"
 
 
 def test_the_changelog_carries_that_same_version():
     changelog = (PYPROJECT.parent / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## [1.0.3]" in changelog
+    assert "## [1.1.0]" in changelog
+    assert "## [1.0.3] - 2026-10-22" in changelog
 
 
 # --- 1.0.2: the MCP handshake names the product version ---------------

@@ -518,7 +518,9 @@ gestructureerde regel met tien velden. `voorstel` is dezelfde letter als in
 het codekanaal en wordt voor het inwisselen gelezen. `bevestiger` komt uit
 het kanaal voor die specifieke code, of is null. De code zelf staat nooit
 in het logboek. Een gestart runnerproces krijgt `uitkomst: gestart`; dat is
-geen geslaagde fase. Het faseoordeel komt uit het ledger.
+geen geslaagde fase. Het faseoordeel komt uit het ledger. Sinds 1.1 draagt een
+regel waarbij een kindproces niet startte een elfde veld, `oorzaak`: de soort
+fout (de klassenaam), nooit de tekst ervan.
 
 De twaalf bevindingen uit de externe review zijn in deze integratie verwerkt
 (14-9-2026), met drie bewuste afwijkingen van de aangedragen patches: een MCP-host

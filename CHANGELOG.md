@@ -6,7 +6,73 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+Nothing yet outside the 1.1.0 section below.
+
+## [1.1.0] - unreleased
+
+1.1.0 is not released: no tag, no package. This section grows with each part of
+1.1; the version in `pyproject.toml` and `nsmcp.__version__` is 1.1.0 from the
+first part on. The first part is maintenance (dependencies, CI, the diagnosis
+when a child process does not start).
+
+### Changed
+- `uv.lock` is the one source of the dependencies. `requirements-build.txt` is no
+  longer kept by hand: pip, setuptools and wheel are the dependency group `build`
+  in `pyproject.toml`, locked like everything else. Both requirements files are
+  exports with an explicit selection, made with uv 0.12.13:
+  `uv export --frozen --all-extras --no-group build --no-emit-project -o requirements-dev.txt`
+  (the dependencies and the extra `dev`, never the group `build`) and
+  `uv export --frozen --only-group build --no-emit-project -o requirements-build.txt`
+  (only the group `build` and what it asks for). The versions and hashes are the
+  ones 1.0.3 pinned. `tests/test_repo_hygiene.py` computes the closure of each
+  selection from `uv.lock` and compares it per package on version, markers and
+  the full hash set, and compares what `uv.lock` records of the project with
+  `pyproject.toml`; the earlier rule "exactly two hashes per build package" is
+  replaced by "every hash the lock records".
+- Dependabot uses the `uv` ecosystem (same weekly schedule, same limit, `mcp`
+  still excluded). It updates `uv.lock`, not the exports: its pull request fails
+  the export comparison until both commands have been run again
+  (`CONTRIBUTING.md`, pull request template).
+- CI: `actions/checkout` v7.0.1, `actions/setup-python` v7.1.0 and
+  `actions/upload-artifact` v7.0.2, each pinned to the full commit id of that
+  release tag. These run on Node 24 and need GitHub runner 2.327.1 or newer.
+  checkout runs with `persist-credentials: false` (the job pushes nothing);
+  the SBOM upload keeps `archive` at its default, so the artifacts keep their
+  names `sbom-<python-version>`. A push to `feat/release-1-1` starts the full
+  run, next to `feat/release-1-0` and `v*` tags.
+- When the faserunner does not start after the code was redeemed, the answer
+  names why, on the type of the error and never with its text or a path:
+  "de vaste werkmap voor kindprocessen is niet bruikbaar", "het logbestand naast
+  het ledger kon niet worden geopend", "het proces kon niet worden gestart" or
+  "een script van de faserunner wijkt af van zijn pin"; "Windows PowerShell niet
+  gevonden" stays for a missing PowerShell. Measured before: an unusable working
+  directory was reported as "het proces of zijn logbestand kon niet worden
+  geopend", and a script that did not match its pin as "Windows PowerShell niet
+  gevonden". Behaviour change for a caller that matched on the old sentence:
+  "het proces of zijn logbestand kon niet worden geopend" no longer exists, and
+  "het proces kon niet worden gestart" now means only that `Popen` failed.
+- Only those cases release the target, because there no child process exists.
+  A start failure of any other kind gets the general "de faserunner kon niet
+  gestart worden", without the text of the error, and the target stays held in
+  the register of undecided starts (per target name and per server process, as
+  since 1.0.0) until the runner's row lands or the phase's time limit passes.
+  1.0.3 released the target for every `ActionError` of the start.
+- `config_opslaan` and the live measurement of `status_update_preflight` use the
+  same typed mapping. A save script that did not start says so on the proposal
+  ("Het voorstel kon niet worden opgesteld: het script van deze handeling kon
+  niet gestart worden (...)") and after the redeem ("De handeling is niet
+  gestart: ..."), where 1.0.3 said "De handeling is gestart maar de uitkomst is
+  NIET vastgesteld"; the read gap of the measurement names the sentence instead
+  of the scrubbed text of the error. The demo write tools are unchanged.
+- The action log line of an attempt whose child process did not start carries
+  an eleventh field, `oorzaak`: the class name of the error, never its text.
+
+### Unchanged
+- The three hash-locked install steps (`requirements-build.txt`, then
+  `requirements-dev.txt`, both with `--require-hashes`, then
+  `pip install -e . --no-deps --no-build-isolation`), the audit of both files and
+  the two SBOM artifacts.
+- The SSH transport loads exactly Posh-SSH 3.2.7 (`-RequiredVersion 3.2.7`).
 
 ## [1.0.3] - 2026-10-22
 

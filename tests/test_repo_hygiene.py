@@ -1434,6 +1434,8 @@ def _pyproject_lock_differences(pyproject: dict, lock: dict) -> list[str]:
         differences.append(
             f"requires-python: pyproject {project.get('requires-python')} != uv.lock {lock.get('requires-python')}"
         )
+    if project.get("version") != root.get("version"):
+        differences.append(f"version: pyproject {project.get('version')} != uv.lock {root.get('version')}")
     return differences
 
 
@@ -1584,6 +1586,9 @@ def test_the_pyproject_lock_comparison_fails_when_pyproject_moves():
     assert _pyproject_lock_differences(moved, lock)
     moved = copy.deepcopy(pyproject)
     moved["dependency-groups"]["build"].append("tomli==2.0.0")
+    assert _pyproject_lock_differences(moved, lock)
+    moved = copy.deepcopy(pyproject)
+    moved["project"]["version"] = "0.0.1"
     assert _pyproject_lock_differences(moved, lock)
 
 
