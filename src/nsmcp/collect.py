@@ -28,9 +28,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.answer import ReadGap, repeatable_token
 from nsmcp.export import MISSING as _MISSING, TARGET_FILE, USABLE, load_export, shape_of
-from nsmcp.limits import neutralise_hidden
+from nsmcp.limits import MAX_FILE_BYTES, neutralise_hidden
+from nsmcp.localpath import PathRefused
 from nsmcp.powershell import (
     ChildWorkingDirectoryUnusable,
     PowerShellMissing,
@@ -377,23 +379,41 @@ def _has_usable_resource(resources: dict) -> bool:
     return False
 
 
+def _work_read(work_dir: Path, name: str, *, allow_missing: bool = True) -> localpath.LocalRead:
+    """One file the collect script left in the work export map, read through
+    `localpath` with the work export map as the root (1.1 B): a link or a
+    reparse point on the way is a `PathRefused` (an OSError) for the
+    caller's own typed unreadable route; nothing is followed."""
+    root = localpath.absolute_text(work_dir)
+    return localpath.read_local(
+        localpath.under(root, name), root=root, max_bytes=MAX_FILE_BYTES, allow_missing=allow_missing
+    )
+
+
 def _verify(out_dir: Path) -> None:
-    manifest = out_dir / "export-manifest.json"
-    if not manifest.exists():
-        raise CollectError("de scan liep af zonder export-manifest; dat is een mislukte scan, geen lege omgeving")
     # Reading and parsing are two separate steps: each step gets its own,
     # contextual CollectError. A shared catch would cover the one error and
-    # accidentally not the other - an OSError from read_text()
+    # accidentally not the other - an OSError from the read
     # (PermissionError on an ACL conflict, a network path dropping away)
     # must never leak raw past the CollectError contract (see the class
     # docstring above).
     try:
-        manifest_text = manifest.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise CollectError(f"het export-manifest is onleesbaar: {exc}") from None
+        got = _work_read(out_dir, "export-manifest.json")
+    except PathRefused as exc:
+        raise CollectError(f"het export-manifest kon niet gelezen worden: {exc.reason}") from exc
     except OSError as exc:
         # never `{exc}` - see `_os_error_kind`.
         raise CollectError(f"het export-manifest kon niet gelezen worden ({_os_error_kind(exc)})") from exc
+    if not got.exists:
+        raise CollectError("de scan liep af zonder export-manifest; dat is een mislukte scan, geen lege omgeving")
+    if got.over_cap:
+        raise CollectError(
+            f"het export-manifest is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
+        )
+    try:
+        manifest_text = got.data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CollectError(f"het export-manifest is onleesbaar: {exc}") from None
     try:
         raw = json.loads(manifest_text)
     except json.JSONDecodeError as exc:
@@ -483,7 +503,7 @@ def _recover_interrupted_swap(export_dir: Path) -> bool:
     if export_dir.exists() or not previous.exists():
         return False
     try:
-        previous.rename(export_dir)
+        _rename_beside(previous, export_dir.name, export_dir)
     except OSError as exc:
         if export_dir.exists():
             # Another caller won the race between the check above and this
@@ -495,6 +515,17 @@ def _recover_interrupted_swap(export_dir: Path) -> bool:
         # `_os_error_kind`.
         raise CollectError(f"het herstellen van de onderbroken omwisseling is mislukt ({_os_error_kind(exc)})") from exc
     return True
+
+
+def _rename_beside(path: Path, new_name: str, export_dir: Path) -> None:
+    """Renames a directory beside the export map (the export map itself, its
+    recovery slot, a work map) within the map around the export, by handle,
+    never onto an existing name (`localpath.rename_local`, 1.1 B). The root
+    is the map around the export, as configured; what is renamed is opened
+    as itself and refused when it is a link or reparse point. Raises
+    OSError (a refusal included) for the caller's own route."""
+    root = localpath.absolute_text(export_dir.parent)
+    localpath.rename_local(localpath.under(root, path.name), new_name, root=root)
 
 
 def _preserve_as_failed(work_dir: Path, export_dir: Path) -> Path | None:
@@ -512,7 +543,7 @@ def _preserve_as_failed(work_dir: Path, export_dir: Path) -> Path | None:
     if failed.exists():
         shutil.rmtree(failed, ignore_errors=True)
     try:
-        work_dir.rename(failed)
+        _rename_beside(work_dir, failed.name, export_dir)
     except OSError:
         shutil.rmtree(work_dir, ignore_errors=True)
         return None
@@ -552,8 +583,8 @@ def _swap(work_dir: Path, export_dir: Path, retention: Retention | None = None) 
         if previous.exists():
             shutil.rmtree(previous)
         if export_dir.exists():
-            export_dir.rename(previous)
-        work_dir.rename(export_dir)
+            _rename_beside(export_dir, previous.name, export_dir)
+        _rename_beside(work_dir, export_dir.name, export_dir)
     except OSError as exc:
         # Look at the ACTUAL state before naming it, instead of assuming
         # it: in the normal failure (only the last rename fails) .vorig is
@@ -707,12 +738,20 @@ def _lock_path(export_dir: Path) -> Path:
     return export_dir.parent / f"{export_dir.name}.lock"
 
 
+# A pid is a few digits; the lock file is never read past this.
+_LOCK_PID_MAX_BYTES = 64
+
+
 def _read_lock_pid(lock: Path) -> str:
     """Best-effort: purely for a readable error message, never a reason to
     fail on its own when the lock file happens to be unreadable."""
+    root = localpath.absolute_text(lock.parent)
     try:
-        content = lock.read_text(encoding="utf-8").strip()
-    except OSError:
+        got = localpath.read_local(localpath.under(root, lock.name), root=root, max_bytes=_LOCK_PID_MAX_BYTES)
+        content = got.data.decode("utf-8").strip() if not got.over_cap else ""
+    except (OSError, UnicodeDecodeError):
+        # 1.1 B: a refusal (a link in the place of the lock file) is an
+        # OSError too: unreadable, never followed.
         return "onbekend"
     return content or "onbekend"
 
@@ -749,8 +788,14 @@ def _acquire_lock(export_dir: Path, *, recovered_this_call: bool = False) -> Pat
     the scan is refused.
     """
     lock = _lock_path(export_dir)
+    root = localpath.absolute_text(lock.parent)
+    created = False
     try:
-        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        # 1.1 B: created exclusively (`FILE_CREATE`) relative to the held
+        # map around the export, and the pid written on that same handle.
+        with localpath.open_local(localpath.under(root, lock.name), root=root, mode="create") as handle:
+            created = True
+            handle.write(str(os.getpid()).encode("ascii"))
     except FileExistsError:
         pid = _read_lock_pid(lock)
         context = ""
@@ -767,13 +812,21 @@ def _acquire_lock(export_dir: Path, *, recovered_this_call: bool = False) -> Pat
             f"bestaat al (pid {pid}); loopt er geen scan meer, dan mag dit bestand "
             f"handmatig worden verwijderd{context}"
         ) from None
+    except PathRefused as exc:
+        if not created:
+            # A link or reparse point in the place of the lock file, or on
+            # the way to it: the scan refuses, with the kind, never following it.
+            raise CollectError(f"kon geen slot aanmaken voor de scan: {exc.reason}") from exc
+        write_error: OSError | None = exc
     except OSError as exc:
-        # Never `{exc}` - see `_os_error_kind`.
-        raise CollectError(f"kon geen slot aanmaken voor de scan ({_os_error_kind(exc)})") from exc
-    try:
-        with os.fdopen(fd, "w") as handle:
-            handle.write(str(os.getpid()))
-    except OSError as exc:
+        if not created:
+            # Never `{exc}` - see `_os_error_kind`.
+            raise CollectError(f"kon geen slot aanmaken voor de scan ({_os_error_kind(exc)})") from exc
+        write_error = exc
+    else:
+        write_error = None
+    if write_error is not None:
+        exc = write_error
         # If the write itself fails (for example a full disk), the brand
         # new, empty lock file must not stay behind: without takeover
         # (deliberately absent, see above) it would refuse every next scan
@@ -1039,9 +1092,21 @@ def collect(
                 # when that hash matches the manifest actually loaded, not
                 # because this file happens to sit next to it.
                 try:
-                    manifest_bytes = (work_dir / "export-manifest.json").read_bytes()
-                    manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
-                    (work_dir / TARGET_FILE).write_text(f"{target.name}\n{manifest_hash}\n", encoding="utf-8")
+                    # 1.1 B: the manifest `_verify` judged, read again
+                    # through `localpath` from the work export map, and the
+                    # target file written there by handle (`replace_local`).
+                    got = _work_read(work_dir, "export-manifest.json", allow_missing=False)
+                    if got.over_cap:
+                        raise OSError("het export-manifest is groter dan het plafond")
+                    manifest_hash = hashlib.sha256(got.data).hexdigest()
+                    work_root = localpath.absolute_text(work_dir)
+                    localpath.replace_local(
+                        localpath.under(work_root, TARGET_FILE),
+                        f"{target.name}\n{manifest_hash}\n".encode(),
+                        root=work_root,
+                    )
+                except PathRefused as exc:
+                    raise CollectError(f"kon het scandoel niet vastleggen in de werkmap: {exc.reason}") from exc
                 except OSError as exc:
                     # never `{exc}` - see
                     # `_os_error_kind`.
@@ -1394,8 +1459,17 @@ def _phases_from_file(work_dir: Path) -> tuple[list[PhaseReport], str]:
       must use it as-is and never fall back.
     - "found": the file parsed cleanly - `reports` is the final answer.
     """
-    path = work_dir / PHASE_FILE
     try:
+        got = _work_read(work_dir, PHASE_FILE)
+        if got.over_cap:
+            return (
+                _unreadable_phase_reports(
+                    f"het fasebestand is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES})"
+                ),
+                "unreadable",
+            )
+        if not got.exists:
+            return [], "absent"
         # `utf-8-sig`, not `utf-8` - a real
         # collect script writing this file from Windows PowerShell 5.1
         # writes a UTF-8 BOM by default (`export.py:1083` already uses
@@ -1403,9 +1477,12 @@ def _phases_from_file(work_dir: Path) -> tuple[list[PhaseReport], str]:
         # turned every real, BOM-prefixed phase file into a "read gap" on
         # every scan; `utf-8-sig` reads both a BOM-prefixed and a bare
         # UTF-8 file identically.
-        text = path.read_text(encoding="utf-8-sig")
+        text = got.data.decode("utf-8-sig")
     except FileNotFoundError:
         return [], "absent"
+    except PathRefused as exc:
+        # 1.1 B: a link or reparse point on the way to the phase file.
+        return _unreadable_phase_reports(f"het fasebestand is onleesbaar: {exc.reason}"), "unreadable"
     except OSError as exc:
         # Never `{exc}` - `OSError.__str__()` on
         # Windows carries the full absolute local path (MEASURED: a
@@ -1629,11 +1706,12 @@ def _phases_from_artefacts(work_dir: Path) -> list[PhaseReport]:
     them and this process does not, and inventing them from an error sentence
     is exactly what A16 forbids.
     """
-    manifest = work_dir / "export-manifest.json"
     try:
-        raw = json.loads(manifest.read_text(encoding="utf-8"))
+        got = _work_read(work_dir, "export-manifest.json", allow_missing=False)
+        raw = json.loads(got.data.decode("utf-8")) if not got.over_cap else None
         resources = raw.get("resources") if isinstance(raw, dict) else None
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        # 1.1 B: a refusal of the walk is an OSError too: not established.
         resources = None
     if not isinstance(resources, dict):
         login = "niet vastgesteld"

@@ -368,3 +368,138 @@ def test_kept_the_needle_never_reaches_a_comparison_answer(tmp_path, level):
     for text in answers.values():
         _assert_no_needle(text, tmp_path, "kopie")
     assert "staat niet naast de huidige export" in answers["rapport_vergelijk"]
+
+
+# ---------------------------------------------------------------------------
+# Family: collector (work manifests, phase file, scan lock, the swap)
+# ---------------------------------------------------------------------------
+
+
+def _work_export(base: Path, name: str = "werk") -> Path:
+    work = base / name
+    (work / "objects").mkdir(parents=True)
+    (work / "export-manifest.json").write_text(
+        json.dumps(
+            {
+                "manifestVersion": "1.1",
+                "collectedAtUtc": "2026-08-20T09:00:00.0000000Z",
+                "resources": {"config/sslcertkey": {"status": "EMPTY"}},
+                "files": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return work
+
+
+def test_collector_a_work_map_swapped_mid_walk_fails_the_scan_and_is_never_read(tmp_path, seam):
+    from nsmcp.collect import CollectError, _verify
+
+    work = _work_export(tmp_path)
+    outside = _work_export(tmp_path, NAALD)
+    _swap_before(seam, "werk", lambda: _replace_by_junction(work, outside))
+
+    with pytest.raises(CollectError) as refused:
+        _verify(work)
+
+    assert str(refused.value) == "het export-manifest kon niet gelezen worden: " + REASONS["koppeling"]
+    names = _opened_names(seam)
+    assert names[-1] == "werk" and "export-manifest.json" not in names, names
+
+
+def test_collector_a_phase_file_that_is_a_link_is_unreadable_with_its_kind(tmp_path, seam):
+    from nsmcp.collect import PHASE_FILE, phase_report, phase_summary
+
+    work = _work_export(tmp_path)
+    outside = _outside_dir(tmp_path)
+    (outside / "x").mkdir()
+    _junction(work / PHASE_FILE, outside / "x")
+
+    text = phase_summary(phase_report(work, tmp_path / "export"))
+
+    assert REASONS["koppeling"] in text
+    _assert_no_needle(text, tmp_path)
+
+
+def test_collector_a_lock_in_the_place_of_a_link_refuses_the_scan_and_writes_nothing(tmp_path, seam):
+    from nsmcp.collect import CollectError, _acquire_lock, _read_lock_pid
+
+    export_dir = tmp_path / "export"
+    export_dir.mkdir()
+    outside = _outside_dir(tmp_path)
+    (outside / "1234").write_text(NAALD, encoding="utf-8")
+    _junction(tmp_path / "export.lock", outside)
+
+    with pytest.raises(CollectError) as refused:
+        _acquire_lock(export_dir)
+
+    assert str(refused.value) == "kon geen slot aanmaken voor de scan: " + REASONS["koppeling"]
+    assert seam.calls["WriteFile"] == 0 and sorted(p.name for p in outside.iterdir()) == ["1234"]
+    assert _read_lock_pid(tmp_path / "export.lock") == "onbekend"
+
+
+def test_collector_a_work_map_swapped_for_a_link_before_the_swap_is_never_moved_in(tmp_path, seam):
+    from nsmcp.collect import CollectError, _swap
+
+    export_dir = _work_export(tmp_path, "export")
+    work = _work_export(tmp_path, "export.nieuw-test")
+    outside = _work_export(tmp_path, NAALD)
+    _replace_by_junction(work, outside)
+
+    with pytest.raises(CollectError, match="omwisselen"):
+        _swap(work, export_dir)
+
+    assert (outside / "export-manifest.json").is_file(), "het doel van de koppeling is niet verplaatst"
+    assert seam.calls["NtSetInformationFile"] >= 1
+
+
+@pytest.mark.parametrize("level", [Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_collector_the_needle_never_reaches_the_scan_answer(tmp_path, level):
+    from nsmcp.collect import PHASE_FILE
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    export_dir = _export(tmp_path)
+    outside = _outside_dir(tmp_path)
+    (outside / PHASE_FILE).mkdir()
+
+    def scan_with_a_linked_manifest(arguments, timeout_s):
+        out = Path(arguments[arguments.index("-OutDir") + 1])
+        out.mkdir(parents=True, exist_ok=True)
+        (outside / "export-manifest.json").write_text(json.dumps({"collectedAtUtc": NAALD}), encoding="utf-8")
+        _junction(out / "export-manifest.json", outside)
+        _junction(out / PHASE_FILE, outside / PHASE_FILE)
+        return 0, ""
+
+    script = tmp_path / "collector.ps1"
+    script.write_text("# leeg; de test neemt de aanroep over", encoding="utf-8")
+    targets = tmp_path / "doelen.json"
+    targets.write_text(
+        json.dumps(
+            {
+                "doelen": [
+                    {
+                        "naam": "lab",
+                        "adres": "10.0.0.10",
+                        "credentialTarget": "gjk/netscaler/lab/readonly",
+                        "certificaat": "keten",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    server = build_server(
+        export_dir,
+        _knowledge_file(tmp_path),
+        targets_path=targets,
+        collect_script=script,
+        run=scan_with_a_linked_manifest,
+        disclosure=level,
+    )
+
+    text = _answers(server, [("status_ververs", {"doelnaam": "lab"})])["status_ververs"]
+
+    _assert_no_needle(text, tmp_path)
+    assert "het export-manifest kon niet gelezen worden: " + REASONS["koppeling"] in text
+    assert "het fasebestand is onleesbaar: " + REASONS["koppeling"] in text

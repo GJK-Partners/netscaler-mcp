@@ -12,6 +12,52 @@ from nsmcp.collect import CollectError, build_arguments, collect, read_single_re
 from nsmcp.export import load_export
 from nsmcp.target import CertAgreement, Target
 
+# 1.1 B: the collector renames, creates its lock and reads its work files
+# through `nsmcp.localpath`. The fault injections below sit on those seams
+# (the rename by handle, the write on the lock handle, the read walk), where
+# 1.0.3 patched `Path.rename`, `os.fdopen` and `Path.read_text`.
+
+
+def _rename_fails(monkeypatch, when) -> None:
+    """`when(path, new_name)` returns the OSError a rename raises, or None."""
+    from nsmcp import localpath
+
+    original = localpath.rename_local
+
+    def patched(path, new_name, **kwargs):
+        error = when(Path(path), new_name)
+        if error is not None:
+            raise error
+        return original(path, new_name, **kwargs)
+
+    monkeypatch.setattr(localpath, "rename_local", patched)
+
+
+def _lock_write_fails(monkeypatch, error: OSError) -> None:
+    from nsmcp import localpath
+
+    original = localpath.LocalHandle.write
+
+    def patched(self, data):
+        if self.path.endswith(".lock"):
+            raise error
+        return original(self, data)
+
+    monkeypatch.setattr(localpath.LocalHandle, "write", patched)
+
+
+def _work_read_fails(monkeypatch, name: str, error: OSError) -> None:
+    from nsmcp import localpath
+
+    original = localpath.read_local
+
+    def patched(path, *args, **kwargs):
+        if Path(path).name == name:
+            raise error
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(localpath, "read_local", patched)
+
 
 @pytest.fixture
 def script(tmp_path):
@@ -168,14 +214,7 @@ def test_failed_swap_with_retention_still_recovers_previous(tmp_path, monkeypatc
     write_valid_export(current)
     write_valid_export(work)
     (current / "old.txt").write_text("prior", encoding="utf-8")
-    original = Path.rename
-
-    def fail(self, target):
-        if self == work:
-            raise PermissionError("PRIVATE_VALUE")
-        return original(self, target)
-
-    monkeypatch.setattr(Path, "rename", fail)
+    _rename_fails(monkeypatch, lambda path, new_name: PermissionError("PRIVATE_VALUE") if path == work else None)
     with pytest.raises(CollectError, match="omwisselen"):
         _swap(work, current, Retention(enabled=True))
     assert kept_exports(current) == ()
@@ -496,16 +535,14 @@ def test_os_error_during_swap_becomes_a_collect_error(tmp_path, script, monkeypa
         write_valid_export(out)
         return 0, ""
 
-    original_rename = Path.rename
-
-    def broken_rename(self, target):
-        # The last step of the swap (work dir -> export dir) fails; the
-        # earlier step (export dir -> .vorig) must simply proceed.
-        if Path(target) == export_dir:
-            raise PermissionError(5, "toegang geweigerd")
-        return original_rename(self, target)
-
-    monkeypatch.setattr(Path, "rename", broken_rename)
+    # The last step of the swap (work dir -> export dir) fails; the
+    # earlier step (export dir -> .vorig) must simply proceed.
+    _rename_fails(
+        monkeypatch,
+        lambda path, new_name: (
+            PermissionError(5, "toegang geweigerd") if path.parent / new_name == export_dir else None
+        ),
+    )
 
     with pytest.raises(CollectError):
         collect(chain_target(), export_dir, script, run=run_stub)
@@ -808,13 +845,9 @@ def test_failed_lock_write_leaves_no_lock_file_behind(tmp_path, script, monkeypa
     export_dir = tmp_path / "export"
     export_dir.mkdir()
 
-    def broken_fdopen(fd, *a, **k):
-        os.close(fd)
-        raise OSError(28, "geen ruimte meer op het apparaat")
+    _lock_write_fails(monkeypatch, OSError(28, "geen ruimte meer op het apparaat"))
 
-    monkeypatch.setattr(os, "fdopen", broken_fdopen)
-
-    with pytest.raises(CollectError):
+    with pytest.raises(CollectError, match="wegschrijven"):
         collect(chain_target(), export_dir, script, run=lambda *a, **k: (0, ""))
 
     assert not (tmp_path / "export.lock").exists()
@@ -903,14 +936,9 @@ def test_os_error_during_swap_recovery_becomes_a_collect_error(tmp_path, script,
     write_valid_export(previous)
     assert not export_dir.exists()
 
-    original_rename = Path.rename
-
-    def broken_rename(self, target):
-        if self == previous:
-            raise PermissionError(5, "toegang geweigerd")
-        return original_rename(self, target)
-
-    monkeypatch.setattr(Path, "rename", broken_rename)
+    _rename_fails(
+        monkeypatch, lambda path, new_name: PermissionError(5, "toegang geweigerd") if path == previous else None
+    )
 
     def run_stub(arguments, timeout_s):
         return 1, "irrelevant - het herstel faalt al voor de scan begint"
@@ -933,17 +961,15 @@ def test_recovery_race_where_another_caller_already_won_gives_no_error(tmp_path,
     write_valid_export(previous)
     assert not export_dir.exists()
 
-    original_rename = Path.rename
-
-    def other_caller_wins_the_race(self, target):
-        if self == previous and Path(target) == export_dir:
+    def other_caller_wins_the_race(path, new_name):
+        if path == previous and path.parent / new_name == export_dir:
             # Simulates a racing second caller completing the rename just
             # before us: the export dir already exists when WE try.
             write_valid_export(export_dir)
-            raise FileExistsError(183, "een andere aanroeper won de race")
-        return original_rename(self, target)
+            return FileExistsError(183, "een andere aanroeper won de race")
+        return None
 
-    monkeypatch.setattr(Path, "rename", other_caller_wins_the_race)
+    _rename_fails(monkeypatch, other_caller_wins_the_race)
 
     def run_stub(arguments, timeout_s):
         out = Path(arguments[arguments.index("-OutDir") + 1])
@@ -1514,14 +1540,7 @@ def test_manifest_permissionerror_on_read_becomes_a_contextual_collect_error(tmp
         (out / "export-manifest.json").write_text('{"resources":{}}', encoding="utf-8")
         return 0, ""
 
-    original_read_text = Path.read_text
-
-    def broken_read_text(self, *a, **k):
-        if self.name == "export-manifest.json":
-            raise PermissionError(13, "toegang geweigerd")
-        return original_read_text(self, *a, **k)
-
-    monkeypatch.setattr(Path, "read_text", broken_read_text)
+    _work_read_fails(monkeypatch, "export-manifest.json", PermissionError(13, "toegang geweigerd"))
 
     with pytest.raises(CollectError) as err:
         collect(chain_target(), export_dir, script, run=run_stub)
@@ -1823,11 +1842,7 @@ def test_failed_lock_write_and_failed_cleanup_do_not_lose_the_original_error(tmp
     export_dir = tmp_path / "export"
     export_dir.mkdir()
 
-    def broken_fdopen(fd, *a, **k):
-        os.close(fd)
-        raise OSError(28, "geen ruimte meer op het apparaat")
-
-    monkeypatch.setattr(os, "fdopen", broken_fdopen)
+    _lock_write_fails(monkeypatch, OSError(28, "geen ruimte meer op het apparaat"))
 
     original_unlink = Path.unlink
 
@@ -2147,7 +2162,7 @@ def test_an_unreadable_phase_file_never_leaks_the_absolute_path_or_the_os_messag
     work = tmp_path / "werk"
     work.mkdir()
     phase_path = work / PHASE_FILE
-    phase_path.write_text("{}", encoding="utf-8")  # must exist to reach read_text()
+    phase_path.write_text("{}", encoding="utf-8")  # must exist to reach the read
 
     exc = raised(phase_path)
     # Premise, asserted first: the exception really does carry the full
@@ -2156,14 +2171,7 @@ def test_an_unreadable_phase_file_never_leaks_the_absolute_path_or_the_os_messag
     # that untouched and proves the path is really embedded).
     assert work.name in str(exc), "premisse: deze OS-foutmelding bevat echt het volledige pad"
 
-    original_read_text = Path.read_text
-
-    def broken_read_text(self, *a, **k):
-        if self.name == PHASE_FILE:
-            raise exc
-        return original_read_text(self, *a, **k)
-
-    monkeypatch.setattr(Path, "read_text", broken_read_text)
+    _work_read_fails(monkeypatch, PHASE_FILE, exc)
 
     report = phase_report(work, tmp_path / "export")
     text = phase_summary(report)
