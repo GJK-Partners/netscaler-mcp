@@ -19,12 +19,13 @@ import json
 import shutil
 import subprocess
 import sys
+import types
 from datetime import date
 from pathlib import Path
 
 import pytest
 
-from nsmcp import cve, knowledge_regression
+from nsmcp import cve, knowledge, knowledge_regression
 from nsmcp.export import load_export, payload_digest
 from nsmcp.knowledge import canonical_digest, load_knowledge, main
 from nsmcp.knowledge_regression import EngineIdentity, run_regression
@@ -700,6 +701,61 @@ def test_the_harness_applies_the_same_matrix_rules_as_the_runner(tmp_path):
         assert both(package=package, matrix=_bound_to(package)).refusal.startswith(
             "de matrix dekt het pakket niet volledig"
         ), label
+
+
+def test_the_harness_reads_with_the_ceilings_of_the_engine(tmp_path, monkeypatch):
+    """The harness reads the matrix and the package with the size and depth
+    ceilings of the engine it runs on (`nsmcp.limits` of the tag), with the
+    runner's own sentences. Measured before: the harness had a ceiling of
+    its own (10 MiB against the engine's 32 MiB) and no depth check, so a
+    package between the two loaded on the engine but not in the harness."""
+    harness = _harness_module()
+    harness_engine = harness.load_engine("v1.0.3")
+    assert harness_engine.nsmcp_limits_MAX_FILE_BYTES == knowledge_regression.MAX_FILE_BYTES
+
+    def both(package: Path, matrix: Path, engine) -> str:
+        mine = run_regression(package, matrix, engine=_engine(), today=TODAY)
+        refusal, lines, failures = harness.run_matrix(
+            engine, package, matrix, (_engine().version, _engine().commit), "", TODAY
+        )
+        assert (refusal, tuple(lines), failures) == (mine.refusal, mine.lines, mine.failures)
+        return mine.refusal
+
+    deep: object = "x"
+    for _ in range(150):
+        deep = [deep]
+    deep_matrix = _write(tmp_path, "diep-m.json", {**_matrix(), "pakketversie": deep})
+    assert both(PACKAGE, deep_matrix, harness_engine) == "regressiematrix is te diep genest (meer dan 100 niveaus)"
+    deep_package = _write(tmp_path, "diep-p.json", {**_package(), "toelichting": deep})
+    assert both(deep_package, MATRIX, harness_engine) == "kennispakket is te diep genest (meer dan 100 niveaus)"
+    assert both(tmp_path, MATRIX, harness_engine).startswith("kennispad wijst naar een map, geen bestand: ")
+
+    # The size ceiling, lowered on both sides: first below the matrix, then
+    # between the matrix and a padded package.
+    ceiling = PACKAGE.stat().st_size + 10
+    small = types.SimpleNamespace(**{**vars(harness_engine), "nsmcp_limits_MAX_FILE_BYTES": ceiling})
+    monkeypatch.setattr(knowledge_regression, "MAX_FILE_BYTES", ceiling)
+    monkeypatch.setattr(knowledge, "MAX_FILE_BYTES", ceiling)
+    size = MATRIX.stat().st_size
+    assert size > ceiling
+    assert both(PACKAGE, MATRIX, small) == (
+        f"regressiematrix is groter dan het plafond ({size} bytes tegen {ceiling}); niet gelezen"
+    )
+    padded = _package()
+    padded["toelichting"] = "x" * (2 * MATRIX.stat().st_size)
+    padded_path = _write(tmp_path, "groot.json", padded)
+    matrix = _matrix()
+    matrix["pakketdigest"] = canonical_digest(padded)
+    matrix_path = _write(tmp_path, "m-groot.json", matrix)
+    ceiling = matrix_path.stat().st_size + 10
+    small = types.SimpleNamespace(**{**vars(harness_engine), "nsmcp_limits_MAX_FILE_BYTES": ceiling})
+    monkeypatch.setattr(knowledge_regression, "MAX_FILE_BYTES", ceiling)
+    monkeypatch.setattr(knowledge, "MAX_FILE_BYTES", ceiling)
+    size = padded_path.stat().st_size
+    assert size > ceiling
+    assert both(padded_path, matrix_path, small) == (
+        f"kennispakket is groter dan het plafond ({size} bytes tegen {ceiling}); niet gelezen"
+    )
     # The fixed expectation is a fact about 1.0.x only: this engine knows
     # the field and loads the package, so the expectation does not hold here.
     holds, line = harness.refusal_expectation(harness.load_engine("v1.0.1"), "proef", TODAY)

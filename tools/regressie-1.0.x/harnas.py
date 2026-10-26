@@ -78,6 +78,7 @@ TAG_NAMES = {
         ],
         "nsmcp.update_advice": ["floor_for"],
         "nsmcp.answer": ["ReadGap"],
+        "nsmcp.limits": ["MAX_FILE_BYTES", "MAX_JSON_DEPTH", "exceeds_depth"],
     },
 }
 MATRIX_TAG = "v1.0.3"
@@ -90,7 +91,6 @@ _BRANCH = re.compile(r"[0-9]+\.[0-9]+(?:-FIPS)?")
 _BUILD = re.compile(r"[0-9]+\.[0-9]+")
 _FLOOR = re.compile(r"[0-9]+\.[0-9]+(?:-FIPS)?-[0-9]+\.[0-9]+")
 _FIPS_SUFFIX = "-FIPS"
-_MAX_BYTES = 10 * 1024 * 1024
 _MATRIX_KEYS = frozenset({"pakketversie", "pakketdigest", "engines", "gevallen"})
 _ENGINE_KEYS = frozenset({"versie", "commit"})
 _CASE_KEYS = frozenset({"bulletin", "tak", "build", "voorwaarden", "verwacht", "verwachteVloer"})
@@ -200,17 +200,30 @@ def installed_identity(tag: str) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def read_json(path: Path, what: str) -> tuple:
+def read_json(engine, path: Path, what: str) -> tuple:
+    """`what` ("regressiematrix" or "kennispakket") as one object, or None
+    with the reason. The size and depth ceilings are those of the engine
+    (`nsmcp.limits` of the tag), in the sentences of the 1.1 runner and
+    loader: a file the engine reads is a file the harness reads."""
+    if what == "kennispakket" and path.is_dir():
+        return None, f"kennispad wijst naar een map, geen bestand: {path}"
     if not path.is_file():
         return None, f"{what} niet gevonden op {path}"
-    if path.stat().st_size > _MAX_BYTES:
-        return None, f"{what} is groter dan het plafond; niet gelezen"
+    ceiling = engine.nsmcp_limits_MAX_FILE_BYTES
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        return None, f"{what} onleesbaar: {exc.__class__.__name__}"
+    if size > ceiling:
+        return None, f"{what} is groter dan het plafond ({size} bytes tegen {ceiling}); niet gelezen"
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, RecursionError, MemoryError, ValueError) as exc:
         return None, f"{what} onleesbaar: {exc.__class__.__name__}"
     if not isinstance(raw, dict):
         return None, f"{what} moet een object zijn"
+    if engine.nsmcp_limits_exceeds_depth(raw, engine.nsmcp_limits_MAX_JSON_DEPTH):
+        return None, f"{what} is te diep genest (meer dan {engine.nsmcp_limits_MAX_JSON_DEPTH} niveaus)"
     return raw, ""
 
 
@@ -501,13 +514,13 @@ def run_matrix(engine, package: Path, matrix: Path, identity, identity_reason: s
     runner: matrix shape, digest and version, engine, package, cases,
     coverage; only then the cases."""
     verdicts = (engine.nsmcp_cve_GERAAKT, engine.nsmcp_cve_NIET_GERAAKT, engine.nsmcp_cve_NIET_VASTGESTELD)
-    raw_matrix, problem = read_json(matrix, "regressiematrix")
+    raw_matrix, problem = read_json(engine, matrix, "regressiematrix")
     if raw_matrix is None:
         return problem, [], 0
     problem = matrix_shape_problem(raw_matrix, verdicts)
     if problem:
         return problem, [], 0
-    document, problem = read_json(package, "kennispakket")
+    document, problem = read_json(engine, package, "kennispakket")
     if document is None:
         return problem, [], 0
     if engine.nsmcp_knowledge_canonical_digest(document) != raw_matrix["pakketdigest"]:
