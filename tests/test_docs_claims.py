@@ -605,7 +605,8 @@ def test_a_release_tag_gets_its_own_ci_run_and_the_release_notes_name_it():
     ci = _read(".github/workflows/ci.yml")
     on_block = ci.split("\non:", 1)[1].split("\npermissions:", 1)[0]
     assert re.search(r'^\s+tags: \["v\*"\]$', on_block, re.MULTILINE), on_block
-    assert re.search(r'^\s+branches: \["feat/release-1-0"\]$', on_block, re.MULTILINE), on_block
+    # 1.1: the release branch of the new line is added; 1.0's stays.
+    assert re.search(r'^\s+branches: \["feat/release-1-0", "feat/release-1-1"\]$', on_block, re.MULTILINE), on_block
     release = _section(_read("CONTRIBUTING.md"), "## Release")
     assert "`v*`" in release and ".github/release-notes-template.md" in release
     template = _read(".github/release-notes-template.md")

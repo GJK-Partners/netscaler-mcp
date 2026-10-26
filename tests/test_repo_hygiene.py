@@ -1646,6 +1646,55 @@ def test_every_action_in_ci_is_pinned_to_a_full_commit_sha_with_its_tag():
     assert loose == [], f"niet op een volledige commit-SHA met tag als commentaar: {loose}"
 
 
+RELEASE_BRANCH = "feat/release-1-1"
+
+
+def _push_branches(text: str) -> list[str]:
+    """The branch list of `on.push`, read from the workflow text."""
+    import json
+    import re
+
+    on = text.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    push = on.split("\n  push:\n", 1)[1]
+    match = re.search(r"^    branches: (\[.*\])$", push, re.MULTILINE)
+    assert match, "on.push.branches niet als lijst op een regel"
+    return json.loads(match.group(1))
+
+
+def test_ci_runs_on_a_push_to_the_release_branch():
+    """1.0.x started a push run on feat/release-1-0 and `v*` tags only; the
+    1.1 release branch is named explicitly, so its green run exists."""
+    text = _CI.read_text(encoding="utf-8")
+    branches = _push_branches(text)
+    assert RELEASE_BRANCH in branches, branches
+    assert 'tags: ["v*"]' in text.split("\npermissions:", 1)[0]
+    # Negative proof: the 1.0.x trigger does not carry the branch.
+    assert RELEASE_BRANCH not in _push_branches(text.replace(f', "{RELEASE_BRANCH}"', ""))
+
+
+def test_checkout_does_not_persist_credentials():
+    """The job pushes nothing, so the token stays out of .git/config
+    (checkout keeps it in a separate file since v6, but still keeps it).
+    The workflow starts on no `pull_request_target` or `workflow_run`, the
+    two triggers that run fork code with a write token."""
+    text = _CI.read_text(encoding="utf-8")
+    step = text.split("uses: actions/checkout@", 1)[1].split("\n      - ", 1)[0]
+    assert "\n        with:\n          persist-credentials: false" in step, step
+    on = text.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+    assert "pull_request_target" not in on and "workflow_run" not in on
+
+
+def test_the_sbom_upload_keeps_its_archive_and_its_name():
+    """upload-artifact v7 can upload a single file unzipped (`archive:
+    false`), and then ignores `name`. The default (`true`) keeps the
+    artifact name `sbom-<python-version>` the release step looks for."""
+    text = _CI.read_text(encoding="utf-8")
+    step = text.split("uses: actions/upload-artifact@", 1)[1].split("\n      - ", 1)[0]
+    assert "archive:" not in step, step
+    assert "name: sbom-${{ matrix.python-version }}" in step
+    assert "path: sbom-${{ matrix.python-version }}.cdx.json" in step
+
+
 def test_the_install_lines_in_contributing_are_the_install_lines_of_ci():
     """CONTRIBUTING says its install lines mirror CI: the same commands, in the
     same order, both ways - CI cannot add an install line the document does
