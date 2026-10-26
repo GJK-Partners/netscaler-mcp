@@ -300,6 +300,49 @@ zonder melding en negeert het stil: die blijft op of boven de fix-build het te g
 `NIET GERAAKT` geven, en weigert ook een foute waarde niet. De uitrolvolgorde is daarom: eerst
 elke afnemer naar engine 1.0.3, pas daarna een pakket met `naconfiguratieVerplicht`.
 
+**De engine die een pakket vraagt (`minimaleEngine`, sinds 1.1).** Een pakket kan op topniveau
+zeggen welke engine het minimaal vraagt: `"minimaleEngine": "1.1.0"` (drie getallen, alleen
+ASCII-cijfers, numeriek vergeleken met de versie van het product). Is de engine ouder, dan laadt
+het pakket niet en zegt elk antwoord waarom: `kennispakket vraagt engine 1.2.0 of nieuwer; deze
+engine is 1.1.0; werk eerst de engine bij`. Er zijn daardoor twee pakketlijnen:
+
+- **De bestaande lijn**, zonder `minimaleEngine`: laadt op 1.0.x en op 1.1, ook met
+  `naconfiguratieVerplicht`. Dit is de lijn voor afnemers die nog op 1.0.x staan. Een pakket uit
+  deze lijn krijgt nooit achteraf een `minimaleEngine`: elke waarde maakt het onlaadbaar voor de
+  1.0.x-afnemers die het nu gebruiken.
+- **De nieuwe lijn**, met `minimaleEngine` van ten minste `1.1.0`. Een engine 1.0.1, 1.0.2 of
+  1.0.3 weigert zo'n pakket, welke waarde er ook staat, als onbekend veld
+  (`kennispakket bevat onbekend veld: 'minimaleEngine'`; gemeten op alle drie). Daarom weigert
+  1.1 ook een waarde onder `1.1.0`: `minimaleEngine kan niet lager zijn dan 1.1.0: oudere engines
+  kennen dit veld niet en weigeren het pakket`.
+
+Uitrolvolgorde voor een pakket uit de nieuwe lijn: eerst ELKE afnemer naar ten minste de engine
+die het pakket noemt, met bewijs per afnemer (een veld in een pakket is geen bewijs dat een
+afnemer is bijgewerkt), en pas daarna het pakket. Een veld dat na 1.0.3 in het pakketformaat
+kwam, laadt alleen in een pakket waarvan `minimaleEngine` die versie dekt; anders weigert de
+engine het pakket ("het pakket gebruikt <veld> (sinds engine <v>) maar zegt ..."). Zo kan een
+nieuw veld nooit meer stil wegvallen bij een oudere engine, zoals `naconfiguratieVerplicht` bij
+1.0.2.
+
+**Strikt op elk veld (sinds 1.1).** De engine weigert elk veld dat ze niet kent, op elk niveau:
+topniveau, bulletin, CVE-regel, `aangeboden` en de objectvorm van `voorwaarde`. Elk veld heeft
+een vast type, gecontroleerd voordat er iets mee gebeurt: `versie`, `datum`, `toelichting`,
+`bron`, `bulletin`, `advies`, `extraStapNaUpgrade`, `kern` en `id` zijn uitsluitend tekst; `cvss`
+is een getal van 0 tot en met 10; `naconfiguratieVerplicht` is `true` of `false`; `getroffen`,
+`fix`, `vanaf` en `aangeboden.builds` zijn objecten van tak naar tekst. Een verkeerd type weigert
+het hele pakket met het pad en het verwachte type, nooit met de inhoud
+(`kennispakket: cve[3].extraStapNaUpgrade moet tekst zijn`). Tekst die op JSON lijkt, blijft
+gewone tekst. Let op: een pakket dat 1.0.3 accepteerde met een onbekend veld in een CVE-regel of
+met een verkeerd type op een tekstveld, weigert 1.1. Controleer een pakket voor de uitrol met:
+
+```powershell
+python -m nsmcp.knowledge --controleer "C:\GJK\netscaler-mcp\kennis.json"
+```
+
+Dat zegt of deze engine het pakket laadt, en zo niet de reden (zonder pakketinhoud). Bij elke
+pakketrelease hoort ook de regressiematrix ([Automatisering](AUTOMATISERING.md), "Een
+pakketrelease met de regressiematrix").
+
 ### De scripts vastpinnen (`scriptpin`) en het uitvoeringsbeleid (`uitvoeringsbeleid`)
 
 Het product start PowerShell-scripts: het verzamelscript, het schrijfscript, de faserunner en de

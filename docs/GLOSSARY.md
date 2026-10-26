@@ -40,6 +40,18 @@ promised to look.
 | `herkomst: niet vastgesteld (aangeleverde export)` | no record of this server carries this export: the target name, if any, comes from the export itself |
 | `kennispakket niet gepind in de configuratie` | the configuration carries no `kennispin`, so no floor or CVE verdict is established |
 
+## The two knowledge package lines
+
+| Dutch | English | what it means |
+|---|---|---|
+| `minimaleEngine` | minimum engine | a top-level field of the package: the lowest engine version (MAJOR.MINOR.PATCH, at least `1.1.0`) that may load it |
+| bestaande lijn | existing line | packages WITHOUT `minimaleEngine`; they load on 1.0.x and on 1.1 (also with `naconfiguratieVerplicht`). The line for customers still on 1.0.x |
+| nieuwe lijn | new line | packages WITH `minimaleEngine` >= `1.1.0`; every 1.0.x engine refuses them as an unknown field. Released only after every customer runs at least that engine |
+| `kennispakket vraagt engine <x> of nieuwer; deze engine is <y>; werk eerst de engine bij` | the package needs a newer engine | update the engine first; nothing in the package is used |
+| `kennispakket: <pad> moet <type> zijn` | wrong type at a path | the package is refused as a whole; the value is never repeated |
+| `kennispakket: <pad> bevat onbekend veld; ...` | unknown field at a path | this engine refuses a field it does not know instead of ignoring it |
+| `regressiematrix geweigerd: <reden>` | regression matrix refused | the matrix did not run: wrong package digest, an engine not in `engines`, or incomplete coverage |
+
 `kennis_uitleg` reads no export, so its answer carries the `Kennisbasis`
 line only, never the `Gegevens` line - the export/data age does not apply
 to a tool that looks nothing up on the appliance.

@@ -13,7 +13,42 @@ Nothing yet outside the 1.1.0 section below.
 1.1.0 is not released: no tag, no package. This section grows with each part of
 1.1; the version in `pyproject.toml` and `nsmcp.__version__` is 1.1.0 from the
 first part on. The first part is maintenance (dependencies, CI, the diagnosis
-when a child process does not start).
+when a child process does not start); the second is the versioning policy of
+the knowledge package.
+
+### Added
+- A knowledge package can name the lowest engine it needs:
+  `"minimaleEngine": "MAJOR.MINOR.PATCH"` at the top level, compared as numbers
+  with the product version. A newer value refuses the package with
+  "kennispakket vraagt engine <x> of nieuwer; deze engine is <y>; werk eerst de
+  engine bij". A value below `1.1.0` is refused ("minimaleEngine kan niet lager
+  zijn dan 1.1.0: oudere engines kennen dit veld niet en weigeren het pakket"):
+  engines 1.0.1, 1.0.2 and 1.0.3 refuse the field itself as an unknown field
+  (measured on all three tags). Two package lines follow: the existing line
+  without the field (loads on 1.0.x and 1.1, also with
+  `naconfiguratieVerplicht`) and the new line with it, released only after
+  every customer runs at least that engine. The `kennispin` covers the field
+  like any other.
+- `knowledge.FIELD_INTRODUCED` records the engine that introduced each field
+  after 1.0.0 (`naconfiguratieVerplicht` 1.0.3, `minimaleEngine` 1.1.0). A field
+  introduced after 1.0.3 loads only when the package's `minimaleEngine` covers
+  it.
+- `python -m nsmcp.knowledge --controleer <pakket>`: whether this engine loads
+  the package, and if not the reason, without package content.
+- `python -m nsmcp.knowledge --regressie <pakket> <matrix>`: the regression
+  matrix per bulletin (`kennis-regressie.json` beside the package). Refused
+  before any case runs when its `pakketdigest` is not the canonical digest of
+  the package, when the running engine (version and installed commit) is not in
+  its `engines`, or when its coverage per bulletin and branch is incomplete.
+  The condition outcomes are imposed through a seam in `cve._evaluate_condition`
+  that only this runner sets; it proves the choice of rule and the merge, not
+  the recognition of a real appliance shape.
+- `tools/regressie-1.0.x/`: the same matrix and binding on engine v1.0.3,
+  installed from its tag (full commit id) in an environment of its own with
+  that tag's hash-locked requirements, plus the fixed expectation that v1.0.1,
+  v1.0.2 and v1.0.3 refuse a package with `minimaleEngine`. Not part of the
+  suite; the suite imports the harness's names against the source of each tag,
+  which is why CI now checks out the full history (`fetch-depth: 0`).
 
 ### Changed
 - `uv.lock` is the one source of the dependencies. `requirements-build.txt` is no
@@ -85,8 +120,28 @@ when a child process does not start).
 - The action log line of an attempt whose child process did not start, or whose
   start is undecided, carries an eleventh field, `oorzaak`: the class name of the
   error, never its text.
+- The knowledge package loader is strict on every key and every type.
+  **A package that 1.0.3 accepted with an unknown field in a CVE record, or with
+  a wrong type on a text field, is refused by 1.1.** An unknown key is refused
+  at every object level (top level, bulletin, CVE record, `aangeboden`, the
+  object form of `voorwaarde`); 1.0.3 checked a CVE record only for missing
+  fields, so an older engine could drop a new field in silence. Every value has
+  a recorded type (`knowledge._FIELD_TYPES`), checked before anything reads it:
+  `versie`, `datum`, `toelichting`, `bron`, `bulletin`, `advies`,
+  `extraStapNaUpgrade`, `kern` and `id` are text only; `cvss` is a finite
+  number from 0 to 10 (1.0.3 did not check it); `naconfiguratieVerplicht` is a
+  boolean; `getroffen`, `fix`, `vanaf` and `aangeboden.builds` map a branch to
+  text. Measured before: an object on `extraStapNaUpgrade`, also one hiding
+  `naconfiguratieVerplicht`, loaded and gave `NIET GERAAKT` without a read gap;
+  a number as `versie` loaded; a list as `predicaat` raised an unhandled error
+  instead of a named refusal. A refusal names the path and the expected type
+  ("kennispakket: cve[3].extraStapNaUpgrade moet tekst zijn"), never the value;
+  an unknown field is named by its place, no longer by its key. Text that looks
+  like JSON stays plain text.
 
 ### Unchanged
+- A valid package of the existing line (no `minimaleEngine`) loads and is
+  judged exactly as in 1.0.3; `--digest` prints the same pin for it.
 - The three hash-locked install steps (`requirements-build.txt`, then
   `requirements-dev.txt`, both with `--require-hashes`, then
   `pip install -e . --no-deps --no-build-isolation`), the audit of both files and

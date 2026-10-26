@@ -69,6 +69,16 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 19 | startdiagnose: schrijftools (1.1) | `handelen.default_runner`: de startfout weer als `ActionError` met de tekst van de fout (het PowerShell-pad erin) | `test_a_write_tool_whose_script_cannot_start_shows_no_powershell_path` | uitgevoerd 26-10-2026, teruggedraaid |
 | 20 | startdiagnose: pinzin per route (1.1) | `mcp_server`: op het schrijfpad weer de pinzin van de faserunner (`_not_started_sentence(exc)` zonder `scriptpin=`) | `test_a_write_tool_whose_script_differs_from_its_pin_names_its_own_script`, `test_a_save_preview_whose_script_differs_from_its_pin_names_the_script_of_this_action`, `test_a_save_script_that_cannot_start_after_the_redeem_says_nothing_started` | uitgevoerd 26-10-2026, teruggedraaid |
 | 21 | startdiagnose: onbekende startfout (1.1) | `handelen._not_started`: de tak `OSError` weg, elke andere fout weer als `RunnerProcessNotStarted` | `test_an_unrecognised_start_failure_is_never_labelled_as_a_process_that_did_not_start` | uitgevoerd 26-10-2026, teruggedraaid |
+| 22 | kennispakket: de engine die het pakket vraagt (1.1) | `knowledge._minimum_engine_problem`: `if wanted > engine:` vervangen door `if False:` | `test_package_requiring_newer_engine_is_refused` | uitgevoerd 26-10-2026, teruggedraaid |
+| 23 | kennispakket: CVE-regel strikt op sleutels (1.1) | `knowledge._structure_problem`: voor `cve[].cves[]` weer alleen op ontbrekende velden getoetst (de sleutelcontrole overgeslagen, een onbekende sleutel overgeslagen) | `test_unknown_cve_field_is_refused` | uitgevoerd 26-10-2026, teruggedraaid |
+| 24 | kennispakket: ondergrens `minimaleEngine` 1.1.0 (1.1) | `knowledge._minimum_engine_problem`: `if floor is None or wanted < floor:` vervangen door `if False:` | `test_minimum_engine_below_1_1_0_is_refused` (alle vijf waarden; het pakket bleef wel geweigerd, door de introductieregel van `minimaleEngine` zelf, maar niet met de vaste zin) | uitgevoerd 26-10-2026, teruggedraaid |
+| 25 | kennispakket: typecontrole `extraStapNaUpgrade` (1.1) | `knowledge._structure_problem`: de typecontrole overgeslagen voor het pad `cve[].extraStapNaUpgrade` | `test_extra_step_object_is_refused` | uitgevoerd 26-10-2026, teruggedraaid |
+| 26 | kennispakket: introductieregel `FIELD_INTRODUCED` (1.1) | `knowledge._introduction_problem`: `if declared is None or since is None or declared < since:` vervangen door `if False:` | `test_field_newer_than_declared_minimum_is_refused` | uitgevoerd 26-10-2026, teruggedraaid |
+| 27 | regressiematrix: digestbinding (1.1) | `knowledge_regression.run_regression`: `if canonical_digest(document) != raw_matrix["pakketdigest"]:` vervangen door `if False:` | `test_regression_matrix_refuses_a_digest_or_engine_mismatch_before_any_case` (een geval draaide) | uitgevoerd 26-10-2026, teruggedraaid |
+| 28 | regressiematrix: enginebinding (1.1) | `knowledge_regression.run_regression`: `if (engine.version, engine.commit) not in pinned:` vervangen door `if False:` | `test_regression_matrix_refuses_a_digest_or_engine_mismatch_before_any_case` (een geval draaide) | uitgevoerd 26-10-2026, teruggedraaid |
+| 29 | regressiematrix: verplichte dekking (1.1) | `knowledge_regression.run_regression`: `if missing:` vervangen door `if False:` | `test_regression_matrix_requires_full_coverage` | uitgevoerd 26-10-2026, teruggedraaid |
+| 30 | regressiematrix: predicaatseam fail-closed (1.1) | `cve._evaluate_condition`: de seam alleen voor opgelegde namen; een niet opgelegde voorwaarde valt door naar de echte evaluatie | `test_the_seam_refuses_a_condition_the_case_does_not_state` | uitgevoerd 26-10-2026, teruggedraaid |
+| 31 | regressiematrix: engine-identiteit uit een gewijzigde checkout (1.1) | `knowledge_regression.engine_identity`: `if status.strip():` vervangen door `if False:` | `test_an_editable_checkout_counts_only_when_its_code_is_its_commit` | uitgevoerd 26-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -93,6 +103,28 @@ aangebracht, de genoemde test is alleen gedraaid en viel om op zijn eigen beweri
 de werkmap ontbrak; 15: de zin over de scriptpin ontbrak; 16: het antwoord noemde "het proces kon
 niet worden gestart" terwijl er een kindproces bestond), en het bestand is daarna byte voor byte
 teruggezet - `git status` was weer schoon.
+
+De tien proeven van het kennispakket en de regressiematrix (22-31, versie 1.1): elke mutatie is in
+de werkkopie aangebracht, alleen de genoemde test is gedraaid en viel om, en het bestand is daarna
+byte voor byte teruggezet (sha256 voor en na gelijk) - `git status` was weer schoon.
+
+## Gemeten: het oude-lijnharnas op de tags v1.0.1, v1.0.2 en v1.0.3 (26-10-2026)
+
+`tools/regressie-1.0.x/opzetten.py` heeft elke tag in een eigen omgeving geinstalleerd: een kloon op
+de volledige commit van de tag (teruggelezen), de hash-gelockte `requirements-build.txt` en
+`requirements-dev.txt` van die tag, dan de tag zelf. Gemeten:
+
+- v1.0.1, v1.0.2 en v1.0.3 weigeren een pakket met `minimaleEngine` op topniveau, met een passende
+  canonieke pin, als `kennispakket bevat onbekend veld: 'minimaleEngine'`;
+- alle drie eindigen `python -m nsmcp.knowledge --regressie` met exitcode 2 (hun gebruiksregel);
+- de synthetische matrix van `tests/fixtures/kennis-regressie/` (19 gevallen) klopt op engine
+  v1.0.3, met dezelfde digest- en enginebinding als op 1.1; een verkeerde digest, een matrix zonder
+  de v1.0.3-commit, een ontbrekend geval en een verkeerd verwacht oordeel geven elk exitcode 1, de
+  eerste drie voordat er een geval draait.
+
+Grens, blijvend: de predicaatseam bewijst de regelkeuze en de samenvoeging, niet dat een
+exportpredicaat de echte vorm van een appliance herkent; dat blijft het werk van de predicaattests
+op echte exportfixtures (de openstaande A15a/A15b hierboven).
 
 ## Gemeten: de faserunner is eind-tot-eind tegen een appliance gedraaid (8-9-2026)
 

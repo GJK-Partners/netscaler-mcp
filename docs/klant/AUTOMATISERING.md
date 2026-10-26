@@ -253,7 +253,8 @@ nergens in deze procedure herhaald of overgedaan.
 
 1. **Exporteer het kandidaatpakket uit de kennisbron naar het pakketformaat** - hetzelfde JSON-
    formaat als `kennispad` zelf (`versie`, `datum`, `cve`, `uitleg`, `begrippen`, optioneel
-   `aangeboden`; zie [HANDLEIDING.md](HANDLEIDING.md)). Deze stap gebeurt buiten dit product.
+   `aangeboden` en, alleen in de nieuwe pakketlijn, `minimaleEngine`; zie
+   [HANDLEIDING.md](HANDLEIDING.md)). Deze stap gebeurt buiten dit product.
 
 2. **Draai de verversing:**
 
@@ -299,3 +300,78 @@ nergens in deze procedure herhaald of overgedaan.
 Een geplande taak die alleen de exitcode leest, hoeft geen onderscheid te maken tussen deze twee
 niet-nul-uitkomsten: in beide gevallen is er niets veranderd en staat de reden in
 `kennisverversing.log`.
+
+### Een pakketrelease met de regressiematrix
+
+Bij elk pakket hoort een regressiematrix: `kennis-regressie.json`, naast het pakket (hij reist
+met het pakket, niet met deze repository). Per bulletin en per tak zegt de matrix welk oordeel
+een build moet krijgen onder welke uitkomst van de voorwaarden, en de engine rekent elk geval na
+met haar eigen regelpad. De vorm:
+
+```json
+{
+  "pakketversie": "2026.11",
+  "pakketdigest": "<64 hex: de canonieke digest, de uitvoer van --digest>",
+  "engines": [{"versie": "1.1.0", "commit": "<40 hex>"}],
+  "gevallen": [
+    {
+      "bulletin": "CTX...",
+      "tak": "14.1",
+      "build": "73.45",
+      "voorwaarden": {"heeft_gateway_vserver": true},
+      "verwacht": {"CVE-...": "GERAAKT"},
+      "verwachteVloer": "14.1-73.46"
+    }
+  ]
+}
+```
+
+`voorwaarden` noemt per predicaat `true`, `false` of `"onleesbaar"` (`altijd` wordt nooit
+opgelegd); `verwacht` noemt precies de CVE's van het bulletin; `verwachteVloer` is de vloer van
+die tak over het hele pakket, of `null`. Voordat er een geval draait, weigert de runner de matrix
+als `pakketdigest` niet de canonieke digest van het aangeboden pakket is, als de draaiende engine
+(versie EN de commit waarvan zij geinstalleerd is) niet in `engines` staat, of als de dekking
+niet compleet is. Verplichte dekking per bulletin per tak: een build direct onder de fix, de
+fix-build zelf en een build erboven; per predicaat in de voorwaarde `true`, `false` en
+`onleesbaar` (onder de fix, waar dat predicaat daar geldt); beide kanten van elke
+`vanaf`-drempel (de drempel zelf en de build direct eronder); en voor elke CVE met
+`naconfiguratieVerplicht: true`, op of boven de fix, de voorwaarde afwezig, aanwezig en
+onleesbaar. De weigering noemt elk ontbrekend geval.
+
+Grens: de runner legt de uitkomst van de voorwaarden op; hij bewijst de keuze van de regel en de
+samenvoeging, niet dat een predicaat de echte vorm van een appliance herkent. Dat blijft het werk
+van de predicaattests op echte exports.
+
+Per pakketlijn ([HANDLEIDING.md](HANDLEIDING.md), "Het kennispakket vastpinnen"):
+
+- **Nieuwe lijn** (met `minimaleEngine`): draai de matrix op de engine die `minimaleEngine`
+  noemt EN op de nieuwste engine, elk geinstalleerd vanaf een vaste commit
+  (`pip install "git+<repository>@<commit>"`, of een bewerkbare checkout op die commit zonder
+  wijzigingen onder `src/`), en zet beide in `engines`:
+
+  ```
+  python -m nsmcp.knowledge --regressie <pakket> <pakket-map>\kennis-regressie.json
+  ```
+
+  Beide groen (exitcode 0) voordat het pakket uitgaat. Dan eerst elke afnemer naar ten minste die
+  engine, met bewijs per afnemer, en pas daarna het pakket.
+- **Bestaande lijn** (zonder `minimaleEngine`, voor afnemers op 1.0.x): `--regressie` bestaat
+  daar niet (een 1.0.x-engine eindigt die aanroep met exitcode 2). Daarvoor is het harnas
+  `tools/regressie-1.0.x/`: het installeert engine v1.0.3 vanaf zijn tag (gepind op de volledige
+  commit) in een eigen omgeving met de hash-gelockte requirements van die tag, draait dezelfde
+  matrix met dezelfde digest- en enginebinding (`engines` noemt dan
+  `{"versie": "1.0.3", "commit": "41c85229edb6b9f78983fef09d03ebd15ef85641"}`), en toetst
+  daarnaast de vaste verwachting dat v1.0.1, v1.0.2 en v1.0.3 een pakket met `minimaleEngine`
+  weigeren:
+
+  ```
+  python tools\regressie-1.0.x\opzetten.py --bron <clone met de tags> --werkmap <lege map> --pakket <pakket> --matrix <matrix>
+  ```
+
+  De laatste regel is `[EINDE] GESLAAGD` (exitcode 0) of `[EINDE] MISLUKT`.
+
+| exitcode van `--regressie` | betekenis |
+|---|---|
+| 0 | de matrix hoort bij dit pakket en deze engine, de dekking is compleet en elk geval klopt |
+| 1 | geweigerd voordat een geval draaide (de reden staat erbij), of een of meer gevallen wijken af |
+| 2 | verkeerde aanroep |
