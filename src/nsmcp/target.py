@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from nsmcp import localpath
+from nsmcp.limits import MAX_FILE_BYTES
+
 
 class TargetError(Exception):
     """The targets file is unsound. Deliberately no silent fallback."""
@@ -203,10 +206,20 @@ def load_targets(path: Path) -> dict[str, Target]:
     """Reads the targets file. If it is absent, there are no targets - that
     is the service profile, not an error. If it is unsound, that IS an
     error."""
-    if not path.exists():
-        return {}
+    # 1.1 B: read through `localpath` (no root: a configured path); absent
+    # stays "no targets", a refusal is a TargetError with the fixed sentence
+    # of its kind, never the path.
     try:
-        raw_text = path.read_text(encoding="utf-8")
+        got = localpath.read_configured(path, max_bytes=MAX_FILE_BYTES, allow_missing=True)
+        if not got.exists:
+            return {}
+        if got.over_cap:
+            raise TargetError(
+                f"doelenbestand is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
+            )
+        raw_text = localpath.as_text(got.data)
+    except localpath.PathRefused as exc:
+        raise TargetError(f"doelenbestand onleesbaar: {exc.reason}") from None
     except (OSError, UnicodeDecodeError) as exc:
         raise TargetError(f"doelenbestand onleesbaar: {exc}") from None
     try:

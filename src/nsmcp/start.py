@@ -51,6 +51,7 @@ from nsmcp.handelen import (
     _posh_ssh_wire_fingerprint,
 )
 from nsmcp.knowledge import KnowledgePin
+from nsmcp.limits import MAX_FILE_BYTES
 from nsmcp.mcp_server import DEFAULT_CHAPTERS, build_server
 from nsmcp.powershell import DEFAULT_EXECUTION_POLICY, EXECUTION_POLICIES, ScriptPolicy
 from nsmcp.profile import Profile, load_profile
@@ -178,8 +179,18 @@ def load_config(path: Path) -> dict:
     _refuse_remote_or_stream(str(path), "configuratiebestand")
     _refuse_where_it_leads(Path(path), "configuratiebestand")
     _require_file(path, "configuratiebestand")
+    # 1.1 B: read through `localpath` (no root: B.2 step 5 follows a link
+    # above it only after its target passed the spelling and volume steps);
+    # a refusal is a ConfigError with the fixed sentence of its kind.
     try:
-        raw_text = path.read_text(encoding="utf-8")
+        got = localpath.read_configured(path, max_bytes=MAX_FILE_BYTES)
+        if got.over_cap:
+            raise ConfigError(
+                f"configuratiebestand is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
+            )
+        raw_text = localpath.as_text(got.data)
+    except localpath.PathRefused as exc:
+        raise ConfigError(f"configuratiebestand onleesbaar: {exc.reason}") from None
     except (OSError, UnicodeDecodeError) as exc:
         raise ConfigError(f"configuratiebestand onleesbaar: {exc}") from None
     try:

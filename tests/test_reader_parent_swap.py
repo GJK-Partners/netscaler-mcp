@@ -25,6 +25,7 @@ import asyncio
 import json
 import shutil
 import sys
+from datetime import date
 from pathlib import Path
 
 import mcp.types as types
@@ -503,3 +504,189 @@ def test_collector_the_needle_never_reaches_the_scan_answer(tmp_path, level):
     _assert_no_needle(text, tmp_path)
     assert "het export-manifest kon niet gelezen worden: " + REASONS["koppeling"] in text
     assert "het fasebestand is onleesbaar: " + REASONS["koppeling"] in text
+
+
+# ---------------------------------------------------------------------------
+# Families without a root (the path is configured or given on the command
+# line): knowledge package (server, CLI, regression matrix, refresh log),
+# configuration and targets. A link above such a path is FOLLOWED by design
+# (B.2 step 5), so the negative proof is the parent swapped for what may
+# never be followed: a link to a share (a documentation address, never
+# routed) and, through the seam, a cloud placeholder. The refresh log has a
+# root (the beheer map) and gets the junction proof of the rooted families.
+# ---------------------------------------------------------------------------
+
+_SHARE = "\\\\192.0.2.10\\x"
+
+
+def _swap_for_share_link(directory: Path) -> None:
+    import os
+
+    directory.rename(directory.with_name(directory.name + "-weg"))
+    try:
+        os.symlink(_SHARE, directory, target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - depends on the symlink right of the account
+        pytest.skip(f"symbolische link niet toegestaan op deze machine: {exc.__class__.__name__}")
+
+
+def _knowledge_package(tmp_path: Path) -> Path:
+    directory = tmp_path / NAALD / "kennis"
+    directory.mkdir(parents=True)
+    path = directory / "kennis.json"
+    path.write_text(json.dumps({"versie": "2026.08", "datum": "2026-08-16", "cve": []}), encoding="utf-8")
+    return path
+
+
+def _assert_no_share_open(native) -> None:
+    for record in native.opens:
+        name = record["name"].lower()
+        assert "192.0.2.10" not in name and "mup" not in name, record
+
+
+def test_knowledge_a_parent_swapped_for_a_share_link_is_absent_and_the_share_never_opened(tmp_path, seam):
+    from nsmcp.knowledge import load_knowledge
+
+    path = _knowledge_package(tmp_path)
+    assert not load_knowledge(path, date(2026, 8, 20)).missing, "premisse"
+    seam.opens.clear()
+    seam.events.clear()
+    drive_checks = seam.calls["GetDriveTypeW"]
+    _swap_before(seam, "kennis", lambda: _swap_for_share_link(path.parent))
+
+    knowledge = load_knowledge(path, date(2026, 8, 20))
+
+    assert knowledge.missing and knowledge.reason == "kennispakket geweigerd: " + REASONS["netwerkpad"]
+    _assert_no_share_open(seam)
+    assert seam.calls["GetDriveTypeW"] - drive_checks == 1, "het doel van de koppeling kwam niet voorbij de spelling"
+
+
+def test_knowledge_a_cloud_placeholder_on_the_way_is_absent_with_its_kind(tmp_path, seam, monkeypatch):
+    from conftest import reparse_at
+
+    from nsmcp.knowledge import load_knowledge
+
+    path = _knowledge_package(tmp_path)
+    reparse_at(monkeypatch, path.parent, tag=0x9000601A)
+
+    knowledge = load_knowledge(path, date(2026, 8, 20))
+
+    assert knowledge.missing and knowledge.reason == "kennispakket geweigerd: " + REASONS["herparseerpunt"]
+    assert seam.calls["DeviceIoControl"] == 0 and seam.calls["ReadFile"] == 0
+
+
+def test_knowledge_the_cli_refuses_with_its_kind_and_never_names_the_path(tmp_path, seam, monkeypatch, capsys):
+    from conftest import reparse_at
+
+    from nsmcp import knowledge, knowledge_regression
+
+    path = _knowledge_package(tmp_path)
+    matrix = path.parent / "matrix.json"
+    matrix.write_text("{}", encoding="utf-8")
+    reparse_at(monkeypatch, path.parent, tag=0x9000601A)
+
+    assert knowledge.main(["--digest", str(path)]) == 1
+    assert knowledge.main(["--controleer", str(path)]) == 1
+    err = capsys.readouterr().err
+    assert "Fout: kennispakket geweigerd: " + REASONS["herparseerpunt"] + "; geen kennispin berekend" in err
+    assert NAALD not in err
+    raw, problem = knowledge_regression._read_matrix(matrix)
+    assert raw is None and problem == "regressiematrix geweigerd: " + REASONS["herparseerpunt"]
+
+
+def test_knowledge_the_refresh_log_in_the_place_of_a_link_is_not_written(tmp_path, seam, capsys):
+    from nsmcp.knowledge_refresh import LOG_FILE_NAME, _write_log_line
+
+    beheer = tmp_path / "_beheer"
+    beheer.mkdir()
+    outside = _outside_dir(tmp_path)
+    _junction(beheer / LOG_FILE_NAME, outside)
+
+    assert _write_log_line(beheer, "AFGEKEURD", tmp_path / "kennis.json", "reden") is False
+
+    assert list(outside.iterdir()) == [] and seam.calls["WriteFile"] == 0
+    assert "kennisverversing: geen logregel: geweigerd (soort=koppeling)" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("level", [Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_knowledge_the_needle_never_reaches_an_answer(tmp_path, monkeypatch, level):
+    from conftest import reparse_at
+
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    path = _knowledge_package(tmp_path)
+    reparse_at(monkeypatch, path.parent, tag=0x9000601A)
+    server = build_server(_export(tmp_path), path, disclosure=level)
+
+    answers = _answers(server, [("status_cve_controle", {}), ("kennis_uitleg", {"onderwerp": "ns.conf"})])
+
+    for text in answers.values():
+        _assert_no_needle(text, tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Family: configuration and targets (no root)
+# ---------------------------------------------------------------------------
+
+
+def test_config_a_parent_swapped_for_a_share_link_is_a_config_error_of_its_kind(tmp_path, seam):
+    from nsmcp.start import ConfigError, load_config
+
+    directory = tmp_path / NAALD / "config"
+    directory.mkdir(parents=True)
+    path = directory / "nsmcp.json"
+    path.write_text("{}", encoding="utf-8")
+    # The start check walks the path first (and would refuse the swap
+    # itself); the swap lands right before the READ walk opens `config`.
+    encounters = []
+
+    def between(index, name):
+        if name == "config":
+            encounters.append(index)
+            if len(encounters) == 2:
+                _swap_for_share_link(directory)
+
+    seam.between = between
+
+    with pytest.raises(ConfigError) as refused:
+        load_config(path)
+
+    assert str(refused.value) == "configuratiebestand onleesbaar: " + REASONS["netwerkpad"]
+    assert NAALD not in str(refused.value)
+    _assert_no_share_open(seam)
+
+
+def test_targets_a_cloud_placeholder_on_the_way_is_a_target_error_of_its_kind(tmp_path, seam, monkeypatch):
+    from conftest import reparse_at
+
+    from nsmcp.target import TargetError, load_targets
+
+    directory = tmp_path / NAALD
+    directory.mkdir()
+    path = directory / "doelen.json"
+    path.write_text(json.dumps({"doelen": []}), encoding="utf-8")
+    assert load_targets(path) == {}, "premisse"
+    reparse_at(monkeypatch, directory, tag=0x9000601A)
+    reads = seam.calls["ReadFile"]
+
+    with pytest.raises(TargetError) as refused:
+        load_targets(path)
+
+    assert str(refused.value) == "doelenbestand onleesbaar: " + REASONS["herparseerpunt"]
+    assert seam.calls["ReadFile"] == reads
+
+
+def test_targets_a_parent_swapped_for_a_share_link_mid_walk_is_refused(tmp_path, seam):
+    from nsmcp.target import TargetError, load_targets
+
+    directory = tmp_path / NAALD
+    directory.mkdir()
+    path = directory / "doelen.json"
+    path.write_text(json.dumps({"doelen": []}), encoding="utf-8")
+    _swap_before(seam, NAALD, lambda: _swap_for_share_link(directory))
+
+    with pytest.raises(TargetError) as refused:
+        load_targets(path)
+
+    assert str(refused.value) == "doelenbestand onleesbaar: " + REASONS["netwerkpad"]
+    _assert_no_share_open(seam)
