@@ -227,3 +227,144 @@ def test_export_the_needle_never_reaches_an_answer(tmp_path, level):
         assert REASONS["koppeling"] in answers["certificaat_wat_verloopt_er"]
     else:  # minimaal counts the read gaps and names none
         assert "1 leesgat(en)" in answers["certificaat_wat_verloopt_er"]
+
+
+# ---------------------------------------------------------------------------
+# Family: provenance (read and append), root = the provenance map
+# ---------------------------------------------------------------------------
+
+
+def _provenance(tmp_path: Path, export_dir: Path) -> Path:
+    from conftest import record_collected
+
+    provenance = tmp_path / "config" / "herkomst"
+    record_collected(export_dir, "lab", provenance)
+    return provenance
+
+
+def _manifest_hash(export_dir: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256((export_dir / "export-manifest.json").read_bytes()).hexdigest()
+
+
+def test_provenance_a_swapped_provenance_map_is_no_record_and_its_file_is_never_opened(tmp_path, seam):
+    from nsmcp.export import PROVENANCE_FILE, collected_for
+
+    export_dir = _export(tmp_path)
+    provenance = _provenance(tmp_path, export_dir)
+    assert collected_for(provenance, "lab", _manifest_hash(export_dir), export_dir) is not None, "premisse"
+    outside = _outside_dir(tmp_path)
+    shutil.copy(provenance / PROVENANCE_FILE, outside / PROVENANCE_FILE)
+    seam.opens.clear()
+    seam.events.clear()
+    _swap_before(seam, "herkomst", lambda: _replace_by_junction(provenance, outside))
+
+    assert collected_for(provenance, "lab", _manifest_hash(export_dir), export_dir) is None
+    names = _opened_names(seam)
+    assert names[-1] == "herkomst" and PROVENANCE_FILE not in names, names
+
+
+def test_provenance_an_append_on_a_link_writes_nothing_and_logs_the_kind(tmp_path, seam, capsys):
+    from datetime import UTC, datetime
+
+    from nsmcp.export import PROVENANCE_FILE, record_provenance
+
+    export_dir = _export(tmp_path)
+    provenance = tmp_path / "config" / "herkomst"
+    provenance.mkdir(parents=True)
+    outside = _outside_dir(tmp_path)
+    _junction(provenance / PROVENANCE_FILE, outside)
+
+    with pytest.raises(OSError) as refused:
+        record_provenance(provenance, "lab", _manifest_hash(export_dir), export_dir, datetime.now(UTC))
+
+    assert isinstance(refused.value, localpath.PathRefused) and refused.value.soort == "koppeling"
+    assert list(outside.iterdir()) == [] and seam.calls["WriteFile"] == 0
+    err = capsys.readouterr().err
+    assert "herkomst niet vastgelegd: geweigerd (soort=koppeling)" in err
+    assert NAALD not in err and str(tmp_path) not in err
+
+
+@pytest.mark.parametrize("level", [Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_provenance_the_needle_never_reaches_an_answer(tmp_path, level):
+    from nsmcp.export import PROVENANCE_FILE
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    export_dir = _export(tmp_path)
+    provenance = _provenance(tmp_path, export_dir)
+    outside = _outside_dir(tmp_path)
+    shutil.copy(provenance / PROVENANCE_FILE, outside / PROVENANCE_FILE)
+    _replace_by_junction(provenance, outside)
+    server = build_server(export_dir, _knowledge_file(tmp_path), disclosure=level, provenance_dir=provenance)
+
+    text = _answers(server, [("certificaat_wat_verloopt_er", {})])["certificaat_wat_verloopt_er"]
+
+    _assert_no_needle(text, tmp_path)
+    assert "herkomst: niet vastgesteld" in text
+
+
+# ---------------------------------------------------------------------------
+# Family: kept exports (retention, compare), root = the volume root of the text
+# ---------------------------------------------------------------------------
+
+
+def _kept(tmp_path: Path) -> tuple[Path, Path]:
+    base = tmp_path / "exports"
+    base.mkdir()
+    current = _export(base)
+    kept = base / "export.bewaard-20260801T080000Z"
+    shutil.copytree(current, kept)
+    manifest = json.loads((kept / "export-manifest.json").read_text(encoding="utf-8"))
+    manifest["collectedAtUtc"] = "2026-08-01T08:00:00.0000000Z"
+    (kept / "export-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return current, kept
+
+
+def test_kept_a_kept_export_swapped_for_a_link_mid_walk_is_not_kept_and_never_read(tmp_path, seam):
+    from nsmcp.retention import kept_exports
+
+    current, kept = _kept(tmp_path)
+    assert kept_exports(current) == (kept,), "premisse"
+    outside = _outside_dir(tmp_path)
+    shutil.copytree(kept, outside / "kopie")
+    seam.opens.clear()
+    seam.events.clear()
+    _swap_before(seam, kept.name, lambda: _replace_by_junction(kept, outside / "kopie"))
+
+    assert kept_exports(current) == ()
+    names = _opened_names(seam)
+    assert kept.name in names and "export-manifest.json" not in names[names.index(kept.name) :], names
+
+
+def test_kept_an_ancestor_of_the_exports_that_is_a_link_refuses_every_kept_export(tmp_path, seam):
+    from nsmcp.retention import kept_exports
+
+    real = tmp_path / "echt"
+    real.mkdir()
+    current, kept = _kept(real)
+    _junction(tmp_path / "via", real)
+
+    assert kept_exports(tmp_path / "via" / "exports" / "export") == ()
+
+
+@pytest.mark.parametrize("level", [Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_kept_the_needle_never_reaches_a_comparison_answer(tmp_path, level):
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    current, kept = _kept(tmp_path)
+    outside = _outside_dir(tmp_path)
+    shutil.copytree(kept, outside / "kopie")
+    _replace_by_junction(kept, outside / "kopie")
+    server = build_server(current, _knowledge_file(tmp_path), disclosure=level)
+
+    answers = _answers(
+        server,
+        [("rapport_vergelijk", {"mapA": kept.name, "mapB": "export"}), ("rapport_wat_is_er_veranderd", {})],
+    )
+
+    for text in answers.values():
+        _assert_no_needle(text, tmp_path, "kopie")
+    assert "staat niet naast de huidige export" in answers["rapport_vergelijk"]
