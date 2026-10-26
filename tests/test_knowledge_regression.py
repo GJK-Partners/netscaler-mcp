@@ -163,11 +163,9 @@ class _Spy:
         raise AssertionError("een geval draaide")
 
 
-def test_regression_matrix_refuses_a_digest_or_engine_mismatch_before_any_case(tmp_path, monkeypatch):
-    spy = _Spy()
-    monkeypatch.setattr(cve, "cve_verdicts", spy)
-    monkeypatch.setattr(cve, "imposed_predicates", spy)
-
+def _binding_refusals() -> list[tuple[dict, str]]:
+    """Every binding refusal of the runner: (arguments of `_run`, reason).
+    Shared with the parity test of the old-line harness."""
     wrong_digest = _matrix()
     wrong_digest["pakketdigest"] = "0" * 64
     changed_package = _package()
@@ -202,7 +200,15 @@ def test_regression_matrix_refuses_a_digest_or_engine_mismatch_before_any_case(t
             " van de matrix",
         ),
     ]
-    for arguments, reason in cases:
+    return cases
+
+
+def test_regression_matrix_refuses_a_digest_or_engine_mismatch_before_any_case(tmp_path, monkeypatch):
+    spy = _Spy()
+    monkeypatch.setattr(cve, "cve_verdicts", spy)
+    monkeypatch.setattr(cve, "imposed_predicates", spy)
+
+    for arguments, reason in _binding_refusals():
         result = _run(tmp_path, **arguments)
         assert result.refusal == reason, arguments
         assert result.lines == ()
@@ -217,8 +223,10 @@ def _first_case(**change) -> dict:
     return matrix
 
 
-def test_the_matrix_refuses_a_case_that_does_not_fit_the_package(tmp_path):
-    expectations = [
+def _fit_refusals() -> list[tuple[dict, str]]:
+    """Every refusal of a case that does not fit the package: (matrix,
+    reason). Shared with the parity test of the old-line harness."""
+    return [
         (_first_case(bulletin="CTX999999"), "regressiematrix: gevallen[0].bulletin noemt geen bulletin uit het pakket"),
         (
             _first_case(verwacht={"CVE-2026-90001": "GERAAKT"}),
@@ -239,37 +247,42 @@ def test_the_matrix_refuses_a_case_that_does_not_fit_the_package(tmp_path):
             " CVE-2026-90002 op deze build",
         ),
     ]
-    for matrix, reason in expectations:
+
+
+def test_the_matrix_refuses_a_case_that_does_not_fit_the_package(tmp_path):
+    for matrix, reason in _fit_refusals():
         assert _run(tmp_path, matrix=matrix).refusal == reason
 
 
-@pytest.mark.parametrize(
-    ("change", "reason"),
-    [
-        (lambda m: m.update(extra=NEEDLE), "regressiematrix: het document draagt precies de sleutels"),
-        (lambda m: m.update(pakketdigest=NEEDLE), "regressiematrix: pakketdigest is geen digest"),
-        (
-            lambda m: m["engines"][0].update(commit=NEEDLE),
-            "regressiematrix: engines[0].commit is geen volledige commit",
-        ),
-        (lambda m: m["engines"][0].update(versie=NEEDLE), "regressiematrix: engines[0].versie heeft niet de vorm"),
-        (lambda m: m.update(engines=[]), "regressiematrix: engines moet een niet-lege lijst zijn"),
-        (lambda m: m.update(gevallen=[]), "regressiematrix: gevallen moet een niet-lege lijst zijn"),
-        (lambda m: m["gevallen"][1].update(tak=NEEDLE), "regressiematrix: gevallen[1].tak heeft niet de vorm"),
-        (lambda m: m["gevallen"][1].update(build="73"), "regressiematrix: gevallen[1].build heeft niet de vorm X.Y"),
-        (lambda m: m["gevallen"][1].update(build="\uff17\uff13.19"), "regressiematrix: gevallen[1].build heeft niet"),
-        (
-            lambda m: m["gevallen"][1]["voorwaarden"].update(heeft_gateway_vserver=1),
-            "regressiematrix: gevallen[1].voorwaarden draagt een waarde die niet true, false of onleesbaar is",
-        ),
-        (
-            lambda m: m["gevallen"][1]["verwacht"].update({"CVE-2026-90001": NEEDLE}),
-            "regressiematrix: gevallen[1].verwacht draagt een oordeel dat niet",
-        ),
-        (lambda m: m["gevallen"][1].update(verwachteVloer=NEEDLE), "regressiematrix: gevallen[1].verwachteVloer"),
-        (lambda m: m["gevallen"][1].update({NEEDLE: 1}), "regressiematrix: gevallen[1] draagt precies de sleutels"),
-    ],
-)
+# Every shape refusal of the matrix: (change, start of the reason). Shared
+# with the parity test of the old-line harness.
+_SHAPE_REFUSALS = [
+    (lambda m: m.update(extra=NEEDLE), "regressiematrix: het document draagt precies de sleutels"),
+    (lambda m: m.update(pakketdigest=NEEDLE), "regressiematrix: pakketdigest is geen digest"),
+    (
+        lambda m: m["engines"][0].update(commit=NEEDLE),
+        "regressiematrix: engines[0].commit is geen volledige commit",
+    ),
+    (lambda m: m["engines"][0].update(versie=NEEDLE), "regressiematrix: engines[0].versie heeft niet de vorm"),
+    (lambda m: m.update(engines=[]), "regressiematrix: engines moet een niet-lege lijst zijn"),
+    (lambda m: m.update(gevallen=[]), "regressiematrix: gevallen moet een niet-lege lijst zijn"),
+    (lambda m: m["gevallen"][1].update(tak=NEEDLE), "regressiematrix: gevallen[1].tak heeft niet de vorm"),
+    (lambda m: m["gevallen"][1].update(build="73"), "regressiematrix: gevallen[1].build heeft niet de vorm X.Y"),
+    (lambda m: m["gevallen"][1].update(build="\uff17\uff13.19"), "regressiematrix: gevallen[1].build heeft niet"),
+    (
+        lambda m: m["gevallen"][1]["voorwaarden"].update(heeft_gateway_vserver=1),
+        "regressiematrix: gevallen[1].voorwaarden draagt een waarde die niet true, false of onleesbaar is",
+    ),
+    (
+        lambda m: m["gevallen"][1]["verwacht"].update({"CVE-2026-90001": NEEDLE}),
+        "regressiematrix: gevallen[1].verwacht draagt een oordeel dat niet",
+    ),
+    (lambda m: m["gevallen"][1].update(verwachteVloer=NEEDLE), "regressiematrix: gevallen[1].verwachteVloer"),
+    (lambda m: m["gevallen"][1].update({NEEDLE: 1}), "regressiematrix: gevallen[1] draagt precies de sleutels"),
+]
+
+
+@pytest.mark.parametrize(("change", "reason"), _SHAPE_REFUSALS)
 def test_the_matrix_shape_is_strict_and_never_echoes_a_value(tmp_path, change, reason):
     matrix = _matrix()
     change(matrix)
@@ -586,33 +599,107 @@ def _harness_module():
     return module
 
 
+def _bound_to(package: dict) -> dict:
+    """The fixture matrix bound to `package`, every case naming every
+    predicate of its bulletin (missing ones as true), so a changed
+    condition still fits and the coverage rules are what decides."""
+    matrix = _matrix()
+    matrix["pakketdigest"] = canonical_digest(package)
+    bulletins = {bulletin["bulletin"]: bulletin for bulletin in package["cve"]}
+    for case in matrix["gevallen"]:
+        named = set()
+        for entry in bulletins[case["bulletin"]]["cves"]:
+            condition = entry["voorwaarde"]
+            named |= {condition["predicaat"], condition["anders"]} if isinstance(condition, dict) else {condition}
+        for name in sorted(named - {"altijd"}):
+            case["voorwaarden"].setdefault(name, True)
+    return matrix
+
+
+def _edge_packages() -> dict[str, dict]:
+    """The edges of the coverage rules the fixture itself does not reach:
+    a `vanaf` threshold ON the fix (where `<` and `<=` part), one ABOVE the
+    fix, one at X.0, and a fix at X.0 (no build directly below)."""
+    variants = {}
+    for label, threshold in (("vanaf-gelijk-aan-fix", "73.20"), ("vanaf-boven-fix", "73.30"), ("vanaf-x0", "73.0")):
+        package = _package()
+        package["cve"][0]["cves"][1]["voorwaarde"]["vanaf"]["14.1"] = threshold
+        variants[label] = package
+    package = _package()
+    package["cve"][1]["getroffen"]["14.1"] = "< 74.0"
+    package["cve"][1]["fix"]["14.1"] = "74.0"
+    variants["fix-x0"] = package
+    return variants
+
+
+def test_the_coverage_rules_at_the_edges(tmp_path):
+    """A threshold on the fix counts the predicate where it holds, not
+    below the fix: there it holds nowhere."""
+    refusals = {
+        label: _run(tmp_path, package=package, matrix=_bound_to(package)).refusal
+        for label, package in _edge_packages().items()
+    }
+    assert refusals["vanaf-gelijk-aan-fix"] == (
+        "de matrix dekt het pakket niet volledig; ontbrekend:"
+        " CTX900001 tak 14.1, CVE-2026-90002: heeft_saml_action = false waar die voorwaarde geldt;"
+        " CTX900001 tak 14.1, CVE-2026-90002: heeft_saml_action = onleesbaar waar die voorwaarde geldt"
+    )
+    assert "een build op de vanaf-drempel (73.30)" in refusals["vanaf-boven-fix"]
+    assert "heeft_saml_action = false onder de fix" in refusals["vanaf-x0"]
+    assert "CTX900002 tak 14.1: de fix-build zelf (74.0)" in refusals["fix-x0"]
+
+
 def test_the_harness_applies_the_same_matrix_rules_as_the_runner(tmp_path):
     """Parity: the harness's copy of the matrix rules, driven through its own
     name table on THIS engine (every name in it exists here too), gives the
     same refusal or the same lines as `knowledge_regression` - on the
-    fixture, on every matrix with one case dropped, and on a lowered fix."""
+    fixture, on every matrix with one case dropped, on a lowered fix, on
+    every shape, fit and binding refusal the runner has (the engine
+    identity varied: pinned, not pinned, a pair that is pinned only in
+    halves, none at all), and on the edges of the coverage rules. Measured
+    before: with the harness's engine binding switched off, or with its
+    threshold rule `<` turned into `<=`, the earlier version of this test
+    stayed green."""
     harness = _harness_module()
-    engine = harness.load_engine("v1.0.3")
-    identity = (_engine().version, _engine().commit)
+    harness_engine = harness.load_engine("v1.0.3")
+    number = iter(range(10_000))
+    fixture_engine = _engine()
 
-    def both(package: Path, matrix: Path):
-        refusal, lines, failures = harness.run_matrix(engine, package, matrix, identity, "", TODAY)
-        mine = run_regression(package, matrix, engine=_engine(), today=TODAY)
-        assert refusal == mine.refusal
-        assert tuple(lines) == mine.lines
-        assert failures == mine.failures
+    def both(package: dict | None = None, matrix: dict | None = None, engine=fixture_engine, reason: str = ""):
+        package_path = PACKAGE if package is None else _write(tmp_path, f"p{next(number)}.json", package)
+        matrix_path = MATRIX if matrix is None else _write(tmp_path, f"m{next(number)}.json", matrix)
+        identity = None if engine is None else (engine.version, engine.commit)
+        mine = run_regression(package_path, matrix_path, engine=engine, engine_reason=reason, today=TODAY)
+        refusal, lines, failures = harness.run_matrix(
+            harness_engine, package_path, matrix_path, identity, reason, TODAY
+        )
+        assert (refusal, tuple(lines), failures) == (mine.refusal, mine.lines, mine.failures)
         return mine
 
-    assert both(PACKAGE, MATRIX).passed
+    assert both().passed
+    assert both(engine=EngineIdentity("1.0.3", "41c85229edb6b9f78983fef09d03ebd15ef85641")).passed
     full = _matrix()
     for index in range(len(full["gevallen"])):
         matrix = copy.deepcopy(full)
         del matrix["gevallen"][index]
-        assert not both(PACKAGE, _write(tmp_path, f"m{index}.json", matrix)).passed
+        assert both(matrix=matrix).refusal.startswith("de matrix dekt het pakket niet volledig"), index
     lowered = _lowered()
     matrix = _matrix()
     matrix["pakketdigest"] = canonical_digest(lowered)
-    assert not both(_write(tmp_path, "laag.json", lowered), _write(tmp_path, "mlaag.json", matrix)).passed
+    assert not both(package=lowered, matrix=matrix).passed
+    for change, reason in _SHAPE_REFUSALS:
+        matrix = _matrix()
+        change(matrix)
+        assert both(matrix=matrix).refusal.startswith(reason), reason
+    for matrix, reason in _fit_refusals():
+        assert both(matrix=matrix).refusal == reason
+    for arguments, reason in _binding_refusals():
+        assert both(**arguments).refusal == reason
+    assert both(engine=None, reason="geen commit").refusal == "de draaiende engine is niet vast te stellen: geen commit"
+    for label, package in _edge_packages().items():
+        assert both(package=package, matrix=_bound_to(package)).refusal.startswith(
+            "de matrix dekt het pakket niet volledig"
+        ), label
     # The fixed expectation is a fact about 1.0.x only: this engine knows
     # the field and loads the package, so the expectation does not hold here.
     holds, line = harness.refusal_expectation(harness.load_engine("v1.0.1"), "proef", TODAY)
