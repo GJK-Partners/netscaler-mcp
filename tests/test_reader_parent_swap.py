@@ -1163,3 +1163,48 @@ def test_export_on_a_network_drive_is_a_read_gap_of_its_kind_without_any_open(tm
     _, gap = export.objects("config/sslcertkey")
     assert gap is not None and REASONS["netwerkstation"] in gap.reason
     assert seam.calls["NtCreateFile"] == opens, "niets geopend op het netwerkstation"
+
+
+def test_config_a_cloud_placeholder_after_the_start_check_is_a_config_error_of_its_kind(tmp_path, seam, monkeypatch):
+    """The read walk of the configuration file itself, without any network
+    in play: the start check walks the path first (and passes), then the
+    configuration's directory reports a cloud placeholder (seam) right
+    before the read walk opens it."""
+    from nsmcp.start import ConfigError, load_config
+
+    directory = tmp_path / NAALD / "config"
+    directory.mkdir(parents=True)
+    path = directory / "nsmcp.json"
+    path.write_text("{}", encoding="utf-8")
+    names: dict[int, str] = {}
+    encounters: list[int] = []
+    real_open = seam.NtCreateFile
+    real_tag = seam.query_attribute_tag
+
+    def tracked_open(parent, name, *args, **kwargs):
+        status, handle = real_open(parent, name, *args, **kwargs)
+        if handle is not None:
+            names[handle] = name
+        return status, handle
+
+    def tag_after_the_check(handle):
+        status, attributes, tag = real_tag(handle)
+        if names.get(handle) == "config" and len(encounters) >= 2:
+            return status, attributes | localpath.FILE_ATTRIBUTE_REPARSE_POINT, 0x9000601A
+        return status, attributes, tag
+
+    def between(index, name):
+        if name == "config":
+            encounters.append(index)
+
+    monkeypatch.setattr(seam, "NtCreateFile", tracked_open)
+    monkeypatch.setattr(seam, "query_attribute_tag", tag_after_the_check)
+    seam.between = between
+    reads = seam.calls["ReadFile"]
+
+    with pytest.raises(ConfigError) as refused:
+        load_config(path)
+
+    assert len(encounters) == 2, "premisse: de startcontrole en de lezing liepen elk een keer"
+    assert str(refused.value) == "configuratiebestand onleesbaar: " + REASONS["herparseerpunt"]
+    assert seam.calls["ReadFile"] == reads and NAALD not in str(refused.value)
