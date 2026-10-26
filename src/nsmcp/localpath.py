@@ -794,8 +794,9 @@ class LocalHandle:
         if self.closed or self._leaf is None or self.kind != "file":
             raise PathRefused("onleesbaar", path=self.path, detail="geen leesbaar blad")
         native = self._native
+        size: int | None = None
         if isinstance(native, _Native):
-            status, _size, directory = native.query_standard(self._leaf)
+            status, size, directory = native.query_standard(self._leaf)
             if status != STATUS_SUCCESS:
                 raise PathRefused("onleesbaar", path=self.path, status=status)
             if directory:
@@ -803,7 +804,13 @@ class LocalHandle:
         parts: list[bytes] = []
         total = 0
         while total <= cap:
-            chunk = native.ReadFile(self._leaf, min(_READ_CHUNK, cap + 1 - total))
+            want = min(_READ_CHUNK, cap + 1 - total)
+            if size is not None:
+                # The size on the handle sizes the buffer (one byte more, to
+                # see the end or a file that grew); it never ends the read:
+                # the end is a read that returns nothing.
+                want = min(want, max(size - total, 0) + 1)
+            chunk = native.ReadFile(self._leaf, want)
             if chunk is None:
                 raise PathRefused("onleesbaar", path=self.path, detail="lezen mislukt")
             if not chunk:
