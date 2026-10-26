@@ -26,12 +26,12 @@ import hmac
 import json
 import os
 import re
-import stat
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.answer import ReadGap, repeatable_token
 from nsmcp.limits import (
     MAX_FILE_BYTES,
@@ -42,6 +42,7 @@ from nsmcp.limits import (
     exceeds_depth,
     is_hidden_character,
 )
+from nsmcp.localpath import PathRefused
 from nsmcp.redact import redact_config_line, redact_config_lines
 
 USABLE = {"OK", "EMPTY"}
@@ -111,19 +112,31 @@ def plain_path(path: Path, *, directory: bool) -> bool:
     the caller still does its own `resolve().parent` containment check
     afterwards; this only refuses the indirection that would make that
     check meaningless.
+
+    1.1 B: a call of `localpath.check_where_it_leads`, no `lstat` on a path
+    of its own. The root is the volume root of the path's own text, so every
+    component - every ancestor included - lies inside it and any reparse
+    point on the way is refused, exactly as before; the walk opens each
+    component relative to the held one before it.
     """
     try:
-        path = path.absolute()
-        for entry in (path, *path.parents):
-            info = entry.lstat()
-            if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
-                return False
-            if entry != path and not stat.S_ISDIR(info.st_mode):
-                return False
-        info = path.lstat()
-        return stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)
+        text = localpath.absolute_text(path)
+        localpath.check_where_it_leads(text, root=_volume_root(text), expect="dir" if directory else "file")
+        return True
     except (OSError, ValueError):
         return False
+
+
+def _volume_root(text: str) -> str:
+    """The volume root of an absolute path text (`C:\\` of `C:\\a\\b`, the
+    same spelling the text uses), as the text of a root: everything on the
+    volume lies inside it."""
+    if text.startswith("\\\\"):
+        head, _, _ = text[4:].partition("\\")
+        return text[:4] + head + "\\"
+    if text.startswith("/"):
+        return "/"
+    return text[:2] + "\\"
 
 
 def _is_object_name(value) -> bool:
@@ -237,9 +250,20 @@ _REFUSED_PATH_REASON = (
 )
 
 
-def _within(directory: Path, *parts: str) -> Path | None:
-    """The path `parts` names under `directory`, or None when it lands
-    outside it.
+def _root_text(directory) -> str:
+    """The export map as the text every read below is walked from (1.1 B):
+    `localpath.absolute_text`, so the root and every path built under it
+    come from the SAME text. A spelling the walk refuses is handed on as it
+    is, so the read itself names the refusal of its kind."""
+    try:
+        return localpath.absolute_text(directory)
+    except (OSError, ValueError):
+        return os.fspath(directory)
+
+
+def _within(directory: Path, *parts: str) -> str | None:
+    """The path text `parts` names under `directory`, or None when a part
+    would climb out of it.
 
     EVERY path this module builds runs through here, so a caller that
     composes a name from supplied text tomorrow cannot open a new hole with
@@ -248,21 +272,49 @@ def _within(directory: Path, *parts: str) -> Path | None:
     backslash IS a separator, and a value carrying `..` therefore opened,
     hashed and JSON-decoded a file OUTSIDE the export directory.
 
-    BOTH sides are resolved before they are compared: `resolve()` normalizes
-    `..`, symlinks and Windows 8.3 short names, and an unresolved directory
-    would not match a resolved candidate. The containment test is
-    `root in candidate.parents`, which also refuses the export directory
-    itself - that is not a file this module reads.
+    1.1 B: lexical, never resolved. `resolve()` followed a link inside the
+    export to wherever it pointed before anything was checked; now the text
+    is joined to the export map's own text (`_root_text`) and every read
+    walks it with `localpath`, which opens each component relative to the
+    held export map and refuses a link or reparse point inside it with the
+    sentence of its kind. A `..` part is refused here, before any open; the
+    export directory itself (no part left) is not a file this module reads.
     """
-    try:
-        root = directory.resolve()
-        candidate = root.joinpath(*parts).resolve()
-    except (OSError, ValueError):
-        # A path the operating system will not even normalize (a NUL byte, a
-        # name past the platform limit) is refused like any other: no path, so
-        # nothing is opened.
+    pieces: list[str] = []
+    for part in parts:
+        if not isinstance(part, str) or "\0" in part:
+            return None
+        for piece in part.replace("\\", "/").split("/"):
+            if piece in ("", "."):
+                continue
+            if piece == "..":
+                return None
+            pieces.append(piece)
+    if not pieces:
         return None
-    return candidate if root in candidate.parents else None
+    return localpath.under(_root_text(directory), *pieces)
+
+
+def _read_export_file(directory, path_text: str) -> localpath.LocalRead:
+    """One file of the export map, walked from the export map (the root)
+    with `localpath`: a missing file is `exists == False`, an oversized one
+    `over_cap` (nothing read past the ceiling), a refusal `PathRefused`.
+    The leaf is held without write sharing: an export file's bytes stay
+    fixed while they are read."""
+    got = localpath.read_local(path_text, root=_root_text(directory), max_bytes=MAX_FILE_BYTES, allow_missing=True)
+    # A directory type may bring its own ceilings for the bytes read
+    # (`coverage._WatchPath`, the watch over a retained export): an OSError
+    # from it is this reader's own unreadable route.
+    gate = getattr(directory, "gate_read", None)
+    if gate is not None and got.exists and not got.over_cap:
+        gate(path_text, got.data)
+    return got
+
+
+def _refused_reason(what: str, exc: PathRefused) -> str:
+    """The read gap of a refused file: what it is, and the fixed sentence of
+    the kind - never the path (`localpath.REASONS`)."""
+    return f"{what} kon niet gelezen worden: {exc.reason}"
 
 
 def _read_error_kind(exc: OSError) -> str:
@@ -579,14 +631,15 @@ def _read_target_name(directory: Path, manifest_hash: str) -> str | None:
     if path is None:
         return None
     try:
-        # `_within` resolved the path; the bytes, the ceiling and the
-        # decode below happen here too. Read through the RESOLVED path, never the
-        # unchecked join.
-        raw_bytes = path.read_bytes()
+        # 1.1 B: walked from the export map with `localpath`; a link or
+        # reparse point on the way is refused, which reads here as "not
+        # recorded" - the target is not established, never a guess.
+        got = _read_export_file(directory, path)
     except OSError:
         return None
-    if len(raw_bytes) > MAX_FILE_BYTES:
+    if not got.exists or got.over_cap:
         return None
+    raw_bytes = got.data
     try:
         content = raw_bytes.decode("utf-8")
     except UnicodeDecodeError:
@@ -1604,6 +1657,18 @@ class Export:
     # only tested for absence would call it ESTABLISHED, and a read but
     # uninterpretable field is precisely not that.
     target_name_refused: bool = False
+    # 1.1 B: the `localpath` kind when the manifest was refused as a local
+    # file (a link in its path, for example); `manifest_missing` is then True
+    # as well, and every read gap names the kind with its fixed sentence.
+    manifest_refused: str | None = None
+
+    def _no_manifest_reason(self) -> str:
+        if self.manifest_refused is not None:
+            return (
+                f"het manifest van deze export is geweigerd: {localpath.REASONS[self.manifest_refused]};"
+                " niets is te vertrouwen"
+            )
+        return "export draagt geen manifest; niets is te vertrouwen"
 
     def status(self, resource: str) -> str:
         # Presence and validity are two different questions: `resources`
@@ -1661,12 +1726,14 @@ class Export:
         if path is None:
             return False
         try:
-            raw_bytes = path.read_bytes()
+            got = _read_export_file(self.directory, path)
         except OSError:
+            # A refusal (`PathRefused` is an OSError) is no more provably
+            # the same manifest than an unreadable one.
             return False
-        if len(raw_bytes) > MAX_FILE_BYTES:
+        if not got.exists or got.over_cap:
             return False
-        current = hashlib.sha256(raw_bytes).hexdigest()
+        current = hashlib.sha256(got.data).hexdigest()
         return current == self.manifest_hash
 
     def _object_payload(self, resource: str) -> tuple[object, str, ReadGap | None]:
@@ -1686,7 +1753,7 @@ class Export:
         """
         status = self.status(resource)
         if status == "GEEN_MANIFEST":
-            return None, "", ReadGap(source=resource, reason="export draagt geen manifest; niets is te vertrouwen")
+            return None, "", ReadGap(source=resource, reason=self._no_manifest_reason())
         if status == "NIET_IN_MANIFEST":
             return None, "", ReadGap(source=resource, reason="resource staat niet in het manifest van deze export")
         if status not in USABLE:
@@ -1758,15 +1825,13 @@ class Export:
         file_path = _within(self.directory, "objects", f"{property_name}.json")
         if file_path is None:
             return None, "", ReadGap(source="objectbron met een geweigerd pad", reason=_REFUSED_PATH_REASON)
-        if not file_path.exists():
-            return None, "", ReadGap(source=resource, reason="manifest meldt OK maar het bestand ontbreekt")
         try:
-            raw_bytes = file_path.read_bytes()
+            got = _read_export_file(self.directory, file_path)
+        except PathRefused as exc:
+            return None, "", ReadGap(source=resource, reason=_refused_reason("objectbestand", exc))
         except OSError as exc:
-            # TOCTOU: the exists() check above still saw the file, but by
-            # the time the real read happens the export has already been
-            # swapped (or the file is otherwise briefly unreachable).
-            # Never `{exc}` - see `_read_error_kind`.
+            # The file is briefly unreachable (the export swapped during the
+            # read, for example). Never `{exc}` - see `_read_error_kind`.
             return (
                 None,
                 "",
@@ -1775,11 +1840,14 @@ class Export:
                     reason=f"objectbestand kon niet gelezen worden ({_read_error_kind(exc)})",
                 ),
             )
+        if not got.exists:
+            return None, "", ReadGap(source=resource, reason="manifest meldt OK maar het bestand ontbreekt")
         # SECURITY 9. The ceiling comes FIRST, before the manifest identity
         # check, the sha256 over these bytes and the parse - all three scale
         # with the size of what an unauthenticated file happens to carry, and
         # a ceiling applied after them would protect nothing they already did.
-        if len(raw_bytes) > MAX_FILE_BYTES:
+        # 1.1 B: the size is read on the held handle, before a byte is read.
+        if got.over_cap:
             return (
                 None,
                 "",
@@ -1787,10 +1855,11 @@ class Export:
                     source=resource,
                     reason=(
                         f"objectbestand is groter dan het plafond"
-                        f" ({len(raw_bytes)} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
+                        f" ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
                     ),
                 ),
             )
+        raw_bytes = got.data
         if not self._manifest_unchanged():
             # The file above was read without OSError, but may already
             # belong to a DIFFERENT export than the manifest this `Export`
@@ -2051,7 +2120,7 @@ class Export:
         it always has.
         """
         if status == "GEEN_MANIFEST":
-            return ReadGap(source=resource, reason="export draagt geen manifest; niets is te vertrouwen")
+            return ReadGap(source=resource, reason=self._no_manifest_reason())
         if status == "NIET_IN_MANIFEST":
             return ReadGap(source=resource, reason="resource staat niet in het manifest van deze export")
         if status not in USABLE:
@@ -2087,18 +2156,19 @@ class Export:
         file_path = _within(self.directory, *file_name.split("/"))
         if file_path is None:
             return None, ReadGap(source=file_name, reason=_REFUSED_PATH_REASON)
-        if not file_path.exists():
-            return None, ReadGap(source=file_name, reason="manifest draagt een hash maar het bestand ontbreekt")
         try:
-            raw_bytes = file_path.read_bytes()
+            got = _read_export_file(self.directory, file_path)
+        except PathRefused as exc:
+            return None, ReadGap(source=file_name, reason=_refused_reason(file_name, exc))
         except OSError as exc:
-            # Same TOCTOU as in objects()/bindings(): exists() still saw the
-            # file, the real read no longer does. Never `{exc}` - see
-            # `_read_error_kind`.
+            # Same as in objects()/bindings(): the file is briefly
+            # unreachable. Never `{exc}` - see `_read_error_kind`.
             return None, ReadGap(
                 source=file_name,
                 reason=f"{file_name} kon niet gelezen worden ({_read_error_kind(exc)})",
             )
+        if not got.exists:
+            return None, ReadGap(source=file_name, reason="manifest draagt een hash maar het bestand ontbreekt")
         # Same ceiling, same place in the order as in `_object_payload`:
         # before the identity check, the decode and the sha256 over these
         # bytes. `kind` names what this source is
@@ -2107,13 +2177,12 @@ class Export:
         # the gap names `file_name` - the file actually given - never a
         # module constant: a read gap addressed to the
         # wrong source is a read gap the operator cannot act on.
-        if len(raw_bytes) > MAX_FILE_BYTES:
+        if got.over_cap:
             return None, ReadGap(
                 source=file_name,
-                reason=(
-                    f"{kind} is groter dan het plafond ({len(raw_bytes)} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
-                ),
+                reason=(f"{kind} is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"),
             )
+        raw_bytes = got.data
         if not self._manifest_unchanged():
             # Before the hash comparison, for the same reason as in
             # `_binding_document`: an unchanged file next to a changed
@@ -2413,7 +2482,7 @@ class Export:
         would be two places to drift apart in exactly the check that matters.
         """
         if self.manifest_missing:
-            return None, ReadGap(source=file_name, reason="export draagt geen manifest; niets is te vertrouwen")
+            return None, ReadGap(source=file_name, reason=self._no_manifest_reason())
         # The path gate stands BEFORE every other decision about this name -
         # before the hash lookup, before the existence check, before the read.
         # That order is exactly the earlier mistake, made right:
@@ -2438,27 +2507,28 @@ class Export:
         expected = self.file_hashes.get(manifest_key)
         if not expected:
             return None, ReadGap(source=file_name, reason="geen hash in het manifest; geen hash is geen vertrouwen")
-        if not file_path.exists():
-            return None, ReadGap(source=file_name, reason="bindingsbestand ontbreekt")
         try:
-            content = file_path.read_bytes()
+            got = _read_export_file(self.directory, file_path)
+        except PathRefused as exc:
+            return None, ReadGap(source=file_name, reason=_refused_reason("bindingsbestand", exc))
         except OSError as exc:
-            # Same TOCTOU as in objects(): exists() still saw the file, the
-            # real read no longer does. Never `{exc}` - see
-            # `_read_error_kind`.
+            # Same as in objects(): the file is briefly unreachable. Never
+            # `{exc}` - see `_read_error_kind`.
             return None, ReadGap(
                 source=file_name,
                 reason=f"bindingsbestand kon niet gelezen worden ({_read_error_kind(exc)})",
             )
+        if not got.exists:
+            return None, ReadGap(source=file_name, reason="bindingsbestand ontbreekt")
         # Same ceiling, same place in the order as in `_object_payload`.
-        if len(content) > MAX_FILE_BYTES:
+        if got.over_cap:
             return None, ReadGap(
                 source=file_name,
                 reason=(
-                    f"bindingsbestand is groter dan het plafond"
-                    f" ({len(content)} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
+                    f"bindingsbestand is groter dan het plafond ({got.size} bytes tegen {MAX_FILE_BYTES}); niet gelezen"
                 ),
             )
+        content = got.data
         if not self._manifest_unchanged():
             # The hash comparison below protects against a CHANGED binding
             # file, but not against a swap in which the bindings happen to
@@ -2888,11 +2958,15 @@ def load_export(directory: Path) -> Export:
     if manifest is None:
         return Export(directory=directory, manifest_missing=True)
     try:
-        raw_bytes = manifest.read_bytes()
+        got = _read_export_file(directory, manifest)
+    except PathRefused as exc:
+        # 1.1 B: a manifest that does not lie as a plain local file in the
+        # export map is no more trustworthy than a missing one - the same
+        # branch, with the kind kept so every read gap names it.
+        return Export(directory=directory, manifest_missing=True, manifest_refused=exc.soort)
     except OSError:
-        # Covers both the ordinary "does not exist" and the TOCTOU race
-        # with _swap (collect.py): if the read falls inside the
-        # window in which `export/` briefly does not exist, it must never
+        # The TOCTOU race with _swap (collect.py): if the read falls inside
+        # the window in which `export/` briefly does not exist, it must never
         # leak out as a bare FileNotFoundError - it is the same missing
         # manifest as every other case here.
         return Export(directory=directory, manifest_missing=True)
@@ -2902,8 +2976,9 @@ def load_export(directory: Path) -> Export:
     # is the TRUST ANCHOR every other read in this module checks against,
     # read FIRST on every answer. An oversized manifest is no more
     # trustworthy than a missing one - the same honest branch.
-    if len(raw_bytes) > MAX_FILE_BYTES:
+    if not got.exists or got.over_cap:
         return Export(directory=directory, manifest_missing=True)
+    raw_bytes = got.data
     try:
         raw = json.loads(raw_bytes.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):

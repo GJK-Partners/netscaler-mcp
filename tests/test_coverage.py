@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from datetime import date
 from pathlib import Path
@@ -1113,20 +1114,26 @@ def test_watch_is_offline_and_real_fixture_sources_are_readable(tmp_path, monkey
     assert len(changes) == 29
 
 
-@pytest.mark.parametrize("method", ["slash", "joinpath", "resolve"])
+@pytest.mark.parametrize("method", ["slash", "joinpath", "load_export"])
 def test_watch_path_adapter_preserves_bounded_reads(tmp_path, monkeypatch, method):
+    """1.1 B: the Export parser reads every file with `localpath` and hands
+    the bytes to the directory's `gate_read`; the watch's ceiling holds on
+    that route, through `/`, `joinpath` and a real `load_export`."""
     import nsmcp.coverage as module
+    from nsmcp.export import load_export
 
     path = tmp_path / "data.txt"
     path.write_bytes(b"x" * 20)
     monkeypatch.setattr(module, "MAX_WATCH_BYTES", 10)
     root = module._WatchPath(tmp_path)
+    if method == "load_export":
+        (tmp_path / "export-manifest.json").write_bytes(b"{" + b" " * 20 + b"}")
+        assert load_export(root).manifest_missing, "een manifest boven het plafond van de bewaking is onleesbaar"
+        return
     candidate = root / "data.txt" if method == "slash" else root.joinpath("data.txt")
-    if method == "resolve":
-        candidate = candidate.resolve()
-    for read in (candidate.read_bytes, candidate.read_text):
-        with pytest.raises(OSError):
-            read()
+    with pytest.raises(OSError):
+        candidate.parent.gate_read(str(candidate), path.read_bytes())
+    assert candidate.parent.gate_read(str(candidate), b"x" * 10) == b"x" * 10
 
 
 @pytest.mark.parametrize(
@@ -1143,15 +1150,25 @@ def test_watch_depth_and_object_limits_are_read_gaps(tmp_path, payload):
     assert changes and changes[0].now == "MISLUKT"
 
 
-def test_watch_refuses_a_reparse_path_before_resolving_it(tmp_path, monkeypatch):
-    import nsmcp.coverage as module
-    import nsmcp.retention as retention
+@pytest.mark.skipif(sys.platform != "win32", reason="een junction bestaat alleen op Windows")
+def test_watch_refuses_a_reparse_path_before_resolving_it(tmp_path):
+    """1.1 B: the link gate of the watch is the `localpath` walk of every
+    read: an object directory that is a junction to a place outside the
+    retained export is a lost source, and the outside content never
+    reaches the change text."""
+    import _winapi
 
-    path = tmp_path / "data.txt"
-    path.write_text("SECRET")
-    monkeypatch.setattr(retention, "_plain_path", lambda *args, **kwargs: False)
-    with pytest.raises(OSError):
-        module._WatchPath(path).resolve()
+    from nsmcp.coverage import coverage_changes
+
+    before = _watch_export(tmp_path, "before", {"config/sslcertkey": "OK"})
+    after = _watch_export(tmp_path, "after", {"config/sslcertkey": "OK"})
+    outside = tmp_path / "SECRET-buiten"
+    shutil.copytree(after.directory / "objects", outside)
+    shutil.rmtree(after.directory / "objects")
+    _winapi.CreateJunction(str(outside), str(after.directory / "objects"))
+    changes = coverage_changes(before, after)
+    assert len(changes) == 1 and changes[0].now == "MISLUKT"
+    assert "SECRET" not in changes[0].to_text()
 
 
 def test_watch_safe_renderer_never_echoes_supplied_fields():
@@ -1202,7 +1219,9 @@ def test_watch_adapter_brackets_inside_json_strings_do_not_count_as_depth(tmp_pa
     path = tmp_path / "data.json"
     content = json.dumps({"text": '["\\' * 101}).encode()
     path.write_bytes(content)
-    assert _WatchPath(path).read_bytes() == content
+    assert _WatchPath(tmp_path).gate_read(str(path), content) == content
+    with pytest.raises(OSError):
+        _WatchPath(tmp_path).gate_read(str(path), b"[" * 101 + b"]" * 101)
 
 
 @pytest.mark.parametrize(

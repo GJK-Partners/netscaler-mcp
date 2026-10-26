@@ -50,40 +50,32 @@ MAX_WATCH_TEXT_LINES = MAX_TEXT_LINES
 
 
 class _WatchPath(type(Path())):
-    """Path gate for a RETAINED export: refuse symlinks and reparse points
-    (`retention._plain_path`) BEFORE resolution can erase them, on every
-    read the Export parser makes through this directory. pathlib preserves
-    this type through /, joinpath and resolve. No export-format parsing
-    lives here.
+    """The directory of a RETAINED export, as the watch reads it: the
+    watch's own ceilings on every read the Export parser makes in it. No
+    export-format parsing lives here, and no read either.
 
-    Since the merge on the release (14-9-2026) the size and depth ceilings
-    below duplicate what the Export reader already enforces on its own
-    reads (`export._object_payload`, `_read_verified_bytes`,
-    `_binding_document`); they stay because a retained export is read
-    through THIS adapter before that reader ever sees it, and because the
-    link gate has no equivalent there. Both draw their numbers from
+    1.1 B: every read of the Export parser is a `localpath` walk from the
+    export map (`export._read_export_file`), which refuses a link or reparse
+    point anywhere in the export map - the link gate this adapter used to
+    apply by overriding `resolve`/`read_bytes` is that walk now. What stays
+    is `gate_read`: the parser hands it the bytes it read on the held handle,
+    and an `OSError` from here is the parser's own unreadable route. Since
+    the merge on the release (14-9-2026) the size and depth ceilings duplicate
+    what the Export reader already enforces; they stay because the watch
+    applies its own numbers (`MAX_WATCH_*`, and the target file's
+    `retention.MAX_TARGET_BYTES`). Both draw their numbers from
     `nsmcp.limits`, so there is still one source of truth for them.
     """
 
-    def resolve(self, strict=False):
-        from nsmcp.retention import _plain_path
-
-        if not _plain_path(Path(self), directory=self.is_dir()):
-            raise OSError("leespad niet bruikbaar")
-        return super().resolve(strict=strict)
-
-    def read_bytes(self):
+    def gate_read(self, path_text: str, data: bytes) -> bytes:
         from nsmcp.export import TARGET_FILE
-        from nsmcp.retention import MAX_TARGET_BYTES, _plain_path
+        from nsmcp.retention import MAX_TARGET_BYTES
 
-        if not _plain_path(Path(self), directory=False):
-            raise OSError("leespad niet bruikbaar")
-        limit = MAX_TARGET_BYTES if self.name == TARGET_FILE else MAX_WATCH_BYTES
-        with self.open("rb") as stream:
-            data = stream.read(limit + 1)
+        name = Path(path_text).name
+        limit = MAX_TARGET_BYTES if name == TARGET_FILE else MAX_WATCH_BYTES
         if len(data) > limit:
             raise OSError("bestand overschrijdt leesgrens")
-        if self.suffix == ".json":
+        if name.endswith(".json"):
             # Count JSON containers outside strings before the existing JSON
             # parser runs. Escaped quotes/brackets are content, not nesting.
             depth = 0
@@ -105,12 +97,6 @@ class _WatchPath(type(Path())):
                 elif byte in (93, 125):
                     depth -= 1
         return data
-
-    def read_text(self, encoding=None, errors=None, **kwargs):
-        try:
-            return self.read_bytes().decode(encoding or "utf-8", errors or "strict")
-        except UnicodeError:
-            raise OSError("tekst niet leesbaar") from None
 
 
 @dataclass(frozen=True)
@@ -785,10 +771,22 @@ def _binding_files(export) -> BindingFiles:
 
 
 def _log_lines(export) -> int | None:
+    """The number of non-empty lines of the scan log in the export map, or
+    None when it cannot be read (1.1 B: walked from the export map with
+    `localpath`; a link or reparse point on the way is a refusal, which is
+    unreadable here too)."""
+    from nsmcp.export import _read_export_file, _within
+
+    path = _within(export.directory, LOG_FILE)
+    if path is None:
+        return None
     try:
-        text = (export.directory / LOG_FILE).read_text(encoding="utf-8", errors="replace")
+        got = _read_export_file(export.directory, path)
     except OSError:
         return None
+    if not got.exists or got.over_cap:
+        return None
+    text = got.data.decode("utf-8", errors="replace")
     return len([line for line in text.splitlines() if line.strip()])
 
 

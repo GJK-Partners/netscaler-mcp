@@ -661,21 +661,13 @@ def test_manifest_vanishing_just_before_the_read_is_a_read_gap_not_a_crash(tmp_p
     """Second symptom of the same finding: if the read falls in the
     middle of `_swap`'s window in which `export/` briefly does not exist
     at all, `load_export` must not crash on a bare FileNotFoundError.
-    Simulates the race by making `Path.exists()` LIE (yes, while the file
-    is not there) - so the test is not coupled to whether the
-    implementation uses `read_text` or `read_bytes`, only to the
-    observable behavior."""
+    Simulates the race by making the read walk (`localpath.read_local`,
+    1.1 B) raise the OSError of a file that vanished between the walk and
+    the read - so the test is coupled only to the observable behavior."""
     dir_ = tmp_path / "export"
     dir_.mkdir()  # deliberately NO export-manifest.json: that IS the race
 
-    original_exists = Path.exists
-
-    def lies_about_existence(self, *a, **k):
-        if self.name == "export-manifest.json":
-            return True
-        return original_exists(self, *a, **k)
-
-    monkeypatch.setattr(Path, "exists", lies_about_existence)
+    _read_raises_the_os_error_of(monkeypatch, "export-manifest.json")
 
     e = load_export(dir_)
     _, gap = e.objects("config/sslcertkey")
@@ -687,14 +679,7 @@ def test_object_file_vanishing_just_before_the_read_is_a_read_gap_not_a_crash(tm
     dir_ = _build(tmp_path)
     (dir_ / "objects" / "sslcertkey.json").unlink()
 
-    original_exists = Path.exists
-
-    def lies_about_existence(self, *a, **k):
-        if self.name == "sslcertkey.json":
-            return True
-        return original_exists(self, *a, **k)
-
-    monkeypatch.setattr(Path, "exists", lies_about_existence)
+    _read_raises_the_os_error_of(monkeypatch, "sslcertkey.json")
 
     e = load_export(dir_)
     _, gap = e.objects("config/sslcertkey")
@@ -707,14 +692,7 @@ def test_binding_file_vanishing_just_before_the_read_is_a_read_gap_not_a_crash(t
     dir_ = _build(tmp_path)
     (dir_ / "bindings" / "sslvserver_sslcertkey_binding.by-parent.json").unlink()
 
-    original_exists = Path.exists
-
-    def lies_about_existence(self, *a, **k):
-        if self.name == "sslvserver_sslcertkey_binding.by-parent.json":
-            return True
-        return original_exists(self, *a, **k)
-
-    monkeypatch.setattr(Path, "exists", lies_about_existence)
+    _read_raises_the_os_error_of(monkeypatch, "sslvserver_sslcertkey_binding.by-parent.json")
 
     e = load_export(dir_)
     _, gap = e.bindings("sslvserver_sslcertkey_binding.by-parent.json")
@@ -754,19 +732,29 @@ def test_object_file_read_error_names_no_local_path(tmp_path, monkeypatch):
     else:
         pytest.fail("premisse faalt: het bestand is nog leesbaar")
 
-    original_exists = Path.exists
-
-    def lies_about_existence(self, *a, **k):
-        if self.name == "sslcertkey.json":
-            return True
-        return original_exists(self, *a, **k)
-
-    monkeypatch.setattr(Path, "exists", lies_about_existence)
+    _read_raises_the_os_error_of(monkeypatch, "sslcertkey.json")
 
     e = load_export(dir_)
     _, gap = e.objects("config/sslcertkey")
     assert gap is not None  # premise: this really is a read gap
+    assert "kon niet gelezen worden" in gap.reason, "premisse: de leesfoutroute, niet de ontbreekt-route"
     assert tmp_path.name not in gap.reason, f"lokaal pad lekt in het leesgat: {gap.reason}"
+
+
+def _read_raises_the_os_error_of(monkeypatch, name: str) -> None:
+    """1.1 B: the read of an export file is one `localpath.read_local` walk.
+    For the file `name` that walk raises the OSError a vanished file gives -
+    with the absolute path in its text, the leak these tests guard against."""
+    from nsmcp import localpath
+
+    original_read_local = localpath.read_local
+
+    def vanished(path, *a, **k):
+        if Path(path).name == name:
+            raise FileNotFoundError(2, "Het systeem kan het opgegeven bestand niet vinden", str(path))
+        return original_read_local(path, *a, **k)
+
+    monkeypatch.setattr(localpath, "read_local", vanished)
 
 
 def test_binding_file_read_error_names_no_local_path(tmp_path, monkeypatch):
@@ -781,18 +769,12 @@ def test_binding_file_read_error_names_no_local_path(tmp_path, monkeypatch):
     else:
         pytest.fail("premisse faalt: het bestand is nog leesbaar")
 
-    original_exists = Path.exists
-
-    def lies_about_existence(self, *a, **k):
-        if self.name == "sslvserver_sslcertkey_binding.by-parent.json":
-            return True
-        return original_exists(self, *a, **k)
-
-    monkeypatch.setattr(Path, "exists", lies_about_existence)
+    _read_raises_the_os_error_of(monkeypatch, "sslvserver_sslcertkey_binding.by-parent.json")
 
     e = load_export(dir_)
     _, gap = e.bindings("sslvserver_sslcertkey_binding.by-parent.json")
     assert gap is not None  # premise
+    assert "kon niet gelezen worden" in gap.reason, "premisse: de leesfoutroute, niet de ontbreekt-route"
     assert tmp_path.name not in gap.reason, f"lokaal pad lekt in het leesgat: {gap.reason}"
 
 
@@ -842,11 +824,15 @@ def test_swap_between_manifest_read_and_target_name_read_yields_no_target_name(t
     old_hash = hashlib.sha256(old_manifest_bytes).hexdigest()
     (dir_ / TARGET_FILE).write_text(f"lab\n{old_hash}\n", encoding="utf-8")
 
-    original_read_bytes = Path.read_bytes
+    # 1.1 B: every export read is one `localpath.read_local` walk; the swap
+    # lands right after the walk that read the manifest returned.
+    from nsmcp import localpath
 
-    def swap_after_manifest_read(self, *a, **k):
-        content = original_read_bytes(self, *a, **k)
-        if self.name == "export-manifest.json":
+    original_read_local = localpath.read_local
+
+    def swap_after_manifest_read(path, *a, **k):
+        content = original_read_local(path, *a, **k)
+        if Path(path).name == "export-manifest.json":
             # The swap lands here: AFTER the manifest has been read, but
             # BEFORE scan-doel.txt is read (that happens later in
             # load_export). Both the manifest and scan-doel.txt change -
@@ -862,7 +848,7 @@ def test_swap_between_manifest_read_and_target_name_read_yields_no_target_name(t
             (dir_ / TARGET_FILE).write_text(f"prod\n{new_hash}\n", encoding="utf-8")
         return content
 
-    monkeypatch.setattr(Path, "read_bytes", swap_after_manifest_read)
+    monkeypatch.setattr(localpath, "read_local", swap_after_manifest_read)
 
     e = load_export(dir_)
 
@@ -1158,19 +1144,22 @@ def test_binding_parents_carries_the_parent_names_for_the_name_collection(tmp_pa
 
 
 def _spy_on_reads(monkeypatch) -> list[Path]:
-    """Legt elk bestand vast dat via `Path.read_bytes` echt GEOPEND wordt.
+    """Legt elk bestand vast dat de export echt GEOPEND heeft.
 
     Een leesgat met de juiste tekst bewijst nog niet dat er niets geopend is;
     dit doet dat wel. Dit is precies de handeling die gemeten werd: het
-    bestand werd geopend, gedecodeerd en ontleed."""
+    bestand werd geopend, gedecodeerd en ontleed. Sinds 1.1 B is elke lezing
+    van de export een `localpath.read_local`-wandeling: daar zit de spion."""
+    from nsmcp import localpath
+
     gelezen: list[Path] = []
-    echt = Path.read_bytes
+    echt = localpath.read_local
 
-    def spion(self, *args, **kwargs):
-        gelezen.append(Path(self))
-        return echt(self, *args, **kwargs)
+    def spion(path, *args, **kwargs):
+        gelezen.append(Path(path))
+        return echt(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "read_bytes", spion)
+    monkeypatch.setattr(localpath, "read_local", spion)
     return gelezen
 
 
@@ -2460,14 +2449,7 @@ def test_running_config_read_error_names_no_local_path(tmp_path, monkeypatch):
     else:
         pytest.fail("premisse faalt: het bestand is nog leesbaar")
 
-    original_exists = Path.exists
-
-    def lies_about_existence(self, *a, **k):
-        if self.name == "runningconfig.txt":
-            return True
-        return original_exists(self, *a, **k)
-
-    monkeypatch.setattr(Path, "exists", lies_about_existence)
+    _read_raises_the_os_error_of(monkeypatch, "runningconfig.txt")
 
     lines, gap = load_export(directory).running_config_lines()
     assert lines == []
@@ -2593,14 +2575,7 @@ def test_systemuser_read_error_names_no_local_path(tmp_path, monkeypatch):
     else:
         pytest.fail("premisse faalt: het bestand is nog leesbaar")
 
-    original_exists = Path.exists
-
-    def lies_about_existence(self, *a, **k):
-        if self.name == "systemuser.json":
-            return True
-        return original_exists(self, *a, **k)
-
-    monkeypatch.setattr(Path, "exists", lies_about_existence)
+    _read_raises_the_os_error_of(monkeypatch, "systemuser.json")
 
     rows, gap = load_export(directory).systemuser_rows()
     assert rows == []
