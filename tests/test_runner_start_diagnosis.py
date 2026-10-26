@@ -213,7 +213,9 @@ def test_start_detached_names_a_log_file_that_does_not_open_and_starts_nothing(m
     log_path.mkdir()
     with pytest.raises(RunnerLogUnopenable) as caught:
         handelen.start_detached(["x"], log_path=log_path)
-    assert caught.value.oorzaak in {"PermissionError", "IsADirectoryError"}, caught.value.oorzaak
+    # 1.1 B: the log is opened through `localpath`; a directory in its place
+    # is its refusal (`geen_gewoon_bestand`), named by class only.
+    assert caught.value.oorzaak == "PathRefused", caught.value.oorzaak
     assert str(tmp_path) not in str(caught.value)
     assert started == []
 
@@ -406,12 +408,17 @@ def test_a_log_file_that_does_not_open_is_named_without_a_path(tmp_path, short_w
     code = _propose_r1(server)
     during = _only_during_the_detached_start(monkeypatch)
 
+    # 1.1 B: the log file is opened for append through `localpath`.
+    from nsmcp import localpath
+
+    real_open = localpath.open_local_for_append
+
     def no_log(path, *args, **kwargs):
         if during[0]:
             raise PermissionError(13, SENTINEL, str(path))
-        return open(path, *args, **kwargs)
+        return real_open(path, *args, **kwargs)
 
-    monkeypatch.setattr(handelen, "open", no_log, raising=False)
+    monkeypatch.setattr(localpath, "open_local_for_append", no_log)
     r = _confirm_r1(server, code)
     text = _text(r)
     assert r.isError, text

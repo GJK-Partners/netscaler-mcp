@@ -63,6 +63,8 @@ denylist, which an allowlist may never release.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
 import subprocess
 import sys
@@ -70,6 +72,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.answer import Answer, Certainty, Finding
 from nsmcp.backup import BACKUP_LEVEL, backup_name
 from nsmcp.collect import _stop_child_process
@@ -1137,8 +1140,20 @@ def firmware_target_build(firmwaremap: Path) -> FirmwareBundle:
             FIRMWAREMAP_MEER_BUNDELS_TEXT,
         )
     match = _FIRMWARE_BUNDLE_RE.match(kandidaten[0])
+    # 1.1 B: the bundle is opened through `localpath` with
+    # `onderhoud.firmwaremap` as the root (held read-only, its size read on
+    # the handle): a link or reparse point in its place or on the way is no
+    # target build, with the fixed sentence of its kind; the path only at
+    # openness `volledig` (the `FirmwareBundleError` rule of this directory).
     try:
-        grootte = (Path(firmwaremap) / kandidaten[0]).stat().st_size
+        root = localpath.absolute_text(firmwaremap)
+        with localpath.open_local(localpath.under(root, kandidaten[0]), root=root) as bundle:
+            grootte = bundle.size()
+    except localpath.PathRefused as exc:
+        raise FirmwareBundleError(
+            f"de firmwarebundel in onderhoud.firmwaremap is geweigerd: {exc.reason}: {Path(firmwaremap) / kandidaten[0]}",
+            f"de firmwarebundel in onderhoud.firmwaremap is geweigerd: {exc.reason}",
+        ) from None
     except OSError as exc:
         raise ActionError(f"de grootte van de firmwarebundel is niet leesbaar: {exc}") from None
     return FirmwareBundle(
@@ -1712,9 +1727,22 @@ def start_detached(arguments: list[str], *, log_path: Path) -> str:
     # measurement below included - leaves this function as whatever it is,
     # never as one of the three: a child may exist, so the caller keeps the
     # target reserved.
+    # 1.1 B: the log file is opened for append through `localpath`, its
+    # own directory (the ledger map) being the root, shared with the
+    # runner's own writes; a link or reparse point in its place is refused
+    # before `Popen` (`RunnerLogUnopenable`: no child exists). The held leaf
+    # is handed to the child as its standard output through a C runtime
+    # descriptor, closed right after `Popen`; the chain is closed with it.
+    log_chain = contextlib.ExitStack()
     try:
-        log_file = open(log_path, "a", encoding="utf-8", newline="\n")
-    except OSError as exc:
+        log_text = localpath.absolute_text(log_path)
+        log_handle = log_chain.enter_context(
+            localpath.open_local_for_append(log_text, root=localpath.parent_text(log_text), shared_writers=True)
+        )
+        log_file = log_handle.detach_leaf_fd()
+    except (OSError, NotImplementedError) as exc:
+        # NotImplementedError: off Windows `localpath` writes nothing.
+        log_chain.close()
         raise RunnerLogUnopenable(exc) from None
     # Inside a job: first WITH breakaway (the job may allow it), then, only
     # when the job refuses that (ERROR_ACCESS_DENIED), without - and the
@@ -1752,7 +1780,8 @@ def start_detached(arguments: list[str], *, log_path: Path) -> str:
                 if not refused_breakaway:
                     raise RunnerProcessNotStarted(exc) from None
     finally:
-        log_file.close()
+        os.close(log_file)
+        log_chain.close()
     if sys.platform != "win32":
         return RUNNER_LOSGEKOPPELD
     child_in_job = _process_in_job(child.pid)
