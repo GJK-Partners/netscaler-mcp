@@ -240,7 +240,7 @@ def test_classic_advanced_http_req_is_not_classic():
 
 
 def test_classic_an_expression_in_a_removed_family_that_is_neither_is_undecided():
-    lines = ['add cs policy CSP_Q -rule "Q.URL.CONTAINS(\\"x\\")"', "bind cs vserver CS_VS -policyName CSP_Q"]
+    lines = ['add cs policy CSP_C -rule "CONNECTION.SRCIP.EQ(192.0.2.1)"', "bind cs vserver CS_VS -policyName CSP_C"]
     assert _sets(lines) == {1: SET_UNDECIDED}
 
 
@@ -370,11 +370,50 @@ def test_classic_unknown_family_is_undecided():
 
 
 def test_classic_a_family_the_spec_names_no_class_for_stays_undecided():
-    """Priority queuing is in CTX296948 table 1, but A.5.1 names no class for
-    it: adding a blocking class is a spec change with review, so it stays
-    undecided here (never blocking, never open)."""
-    lines = ["add pq policy PQ_OUD -rule ns_true -priority 1", "bind lb vserver LB_VS -policyName PQ_OUD"]
+    """A family without a vendor row (an ICA access policy is in none of the
+    three tables of CTX296948) stays undecided with a classic expression,
+    bound or not: never blocking, never open (ruling R3b: set 4 is only for
+    forms without a vendor row)."""
+    lines = ["add ica accessPolicy IA_OUD ns_true IA_PROF", "bind vpn vserver V -policy IA_OUD"]
     assert _sets(lines) == {1: SET_UNDECIDED}
+
+
+@pytest.mark.parametrize(
+    ("line", "row"),
+    [
+        ("add pq policy PQ_OUD -rule ns_true -priority 1", 2),
+        ("add dos policy DOS_OUD -qDepth 100", 3),
+        ("add appqoe policy AQ_OUD -rule ns_true -action AQ_ACT", 4),
+    ],
+)
+def test_classic_table_1_families_block_with_their_row(line, row):
+    """Ruling R3b: every form with its own row in CTX296948 table 1 or 2
+    blocks the transition (set 1 bound, set 2 unbound - both block)."""
+    name = line.split()[3]
+    bound = classify([line, f"bind lb vserver LB_VS -policyName {name}"]).findings
+    assert [(f.verzameling, f.bron.startswith(f"CTX296948 tabel 1 rij {row} ")) for f in bound] == [
+        (SET_BLOCKING, True)
+    ]
+    assert _sets([line]) == {1: SET_UNBOUND}
+
+
+def test_classic_an_advanced_appqoe_policy_is_no_finding():
+    assert _sets(['add appqoe policy AQ_NIEUW -rule "HTTP.REQ.URL.CONTAINS(\\"x\\")" -action AQ_ACT']) == {}
+
+
+@pytest.mark.parametrize(
+    ("line", "row"),
+    [
+        ("add tunnel trafficPolicy TT_OUD ns_true TT_ACT", 14),
+        ("add aaa preauthenticationpolicy PA_OUD ns_true PA_ACT", 4),
+    ],
+)
+def test_classic_table_3_families_without_a_spec_class_are_deprecated_with_their_row(line, row):
+    """Ruling R3b: set 4 is only for forms without a vendor row, so the table 3
+    rows A.5.1 did not list are set 3 (never blocking) with their row."""
+    findings = classify([line]).findings
+    assert [f.verzameling for f in findings] == [SET_DEPRECATED]
+    assert findings[0].bron.startswith(f"CTX296948 tabel 3 rij {row} ")
 
 
 # ---------------------------------------------------------------------------
@@ -551,6 +590,11 @@ def test_classic_transition_reads_the_saved_config_too(tmp_path):
     )
 
 
+def test_classic_transition_blocks_on_a_rest_form_in_the_saved_config(tmp_path):
+    export = _export_with_configs(tmp_path, [], ["set cmp parameter -policyType CLASSIC"])
+    assert _check_2_classic_transition(export).word == BLOCKER
+
+
 def test_classic_transition_without_saved_config_is_not_assessed_with_the_fixed_reason(tmp_path):
     check = _check_2_classic_transition(_export_with_configs(tmp_path, [], with_saved=False))
     assert check.word == NOT_ASSESSED
@@ -639,11 +683,16 @@ def test_the_in_line_pre_flight_still_uses_the_1_0_3_check(tmp_path):
         (['add rewrite action RB replace HTTP.REQ.URL "\\"x\\"" -bypassSafetyCheck YES'], 1, 11),
         (['add cache policy CB -rule "HTTP.REQ.BODY.CONTAINS(\\"x\\")" -action NOCACHE'], 1, 12),
         (["set cmp parameter -policyType CLASSIC"], 1, 13),
+        (['add cs policy CQ -rule "Q.URL.CONTAINS(\\"x\\")"', "bind cs vserver V -policyName CQ"], 1, 2),
+        (['add rewrite policy RS "S.STATUS.EQ(200)" NOOP'], 1, 2),
+        (['add policy expression NE_Q "Q.HEADER(\\"Host\\").EXISTS"'], 1, 2),
     ],
 )
-def test_classic_table_2_rest_forms_are_undecided_with_their_row(lines, line, row):
+def test_classic_table_2_rest_forms_block_with_their_row(lines, line, row):
+    """Ruling R3b: a form with its own row in CTX296948 table 2 blocks the
+    transition (set 1), with the row as its source."""
     findings = {f.line: f for f in classify(lines).findings}
-    assert findings[line].verzameling == SET_UNDECIDED
+    assert findings[line].verzameling == SET_BLOCKING
     assert findings[line].bron.startswith(f"CTX296948 tabel 2 rij {row} ")
 
 
@@ -666,9 +715,9 @@ def test_classic_http_req_body_with_argument_and_advanced_cmp_parameter_are_no_f
         ("bind filter global ns_filter_oud", 1),
     ],
 )
-def test_classic_builtin_classic_policy_only_on_a_bind_line_is_undecided(bind, row):
+def test_classic_builtin_classic_policy_only_on_a_bind_line_blocks(bind, row):
     finding = classify([bind]).findings
-    assert [f.verzameling for f in finding] == [SET_UNDECIDED]
+    assert [f.verzameling for f in finding] == [SET_BLOCKING]
     assert finding[0].bron.startswith(f"CTX296948 tabel 2 rij {row} ")
 
 
@@ -703,10 +752,12 @@ def test_classic_a_classic_lb_rule_without_a_bind_line_is_undecided():
 @pytest.mark.parametrize(
     "prefix", ["CLIENT.OS(win10) EXISTS", "CLIENT.APPLICATION.PROCESS(x) EXISTS", "CLIENT.SYSTEM.DOMAIN EQ x"]
 )
-def test_classic_client_security_expression_is_undecided(prefix):
-    """Review M-3: classic client-security (EPA) expressions also begin with
-    `CLIENT.` (CTX296948 table 3 row 18); such a head proves no form."""
-    assert _sets([f'add vpn sessionPolicy VE "{prefix}" VA']) == {1: SET_UNDECIDED}
+def test_classic_client_security_expression_is_classic(prefix):
+    """Review M-3 and ruling R3b: classic client-security (EPA) expressions
+    begin with `CLIENT.` too; CTX296948 table 3 row 18 says they keep working.
+    In a Gateway session policy that is set 3, never advanced, never blocking."""
+    findings = classify([f'add vpn sessionPolicy VE "{prefix}" VA']).findings
+    assert [f.verzameling for f in findings] == [SET_DEPRECATED]
 
 
 def test_classic_client_ip_is_still_advanced():

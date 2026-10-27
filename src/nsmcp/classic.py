@@ -168,7 +168,7 @@ _NS_TOKEN = re.compile(r"(?<![A-Za-z0-9_.])ns_([A-Za-z0-9_]*)")
 # start alone would call them classic. Such a token proves neither form.
 _NS_ADVANCED = "adv_"
 # Classic client-security (EPA) expressions begin with `CLIENT.` too
-# (CTX296948 table 3 row 18): such a head proves no form.
+# (CTX296948 table 3 row 18, they keep working): such a head is classic.
 _CLIENT_SECURITY = ("CLIENT.OS", "CLIENT.APPLICATION", "CLIENT.SYSTEM")
 # The advanced function that evaluates a classic expression (CTX296948 table 2
 # row 9): an expression that calls it is not proven advanced.
@@ -217,6 +217,23 @@ _FAMILIES: dict[tuple[str, str], _Family] = {
         "SureConnect (alleen classic)",
         "CTX296948 tabel 1 rij 1 (SureConnect)",
         classic_only=True,
+    ),
+    ("pq", "policy"): _Family(
+        "add pq policy",
+        _REMOVED,
+        "Priority Queuing (alleen classic)",
+        "CTX296948 tabel 1 rij 2 (Priority Queuing)",
+        classic_only=True,
+    ),
+    ("dos", "policy"): _Family(
+        "add dos policy",
+        _REMOVED,
+        "HTTP Denial of Service Protection (alleen classic)",
+        "CTX296948 tabel 1 rij 3 (HTTP Denial of Service Protection)",
+        classic_only=True,
+    ),
+    ("appqoe", "policy"): _Family(
+        "add appqoe policy", _REMOVED, "AppQoE classic policy", "CTX296948 tabel 1 rij 4 (AppQoE)"
     ),
     ("cr", "policy"): _Family(
         "add cr policy",
@@ -326,6 +343,18 @@ _FAMILIES: dict[tuple[str, str], _Family] = {
         "classic TM-sessie",
         "CTX296948 tabel 3 rij 13 (Classic Traffic Management Session policy)",
     ),
+    ("tunnel", "trafficpolicy"): _Family(
+        "add tunnel trafficPolicy",
+        _KEPT,
+        "classic tunnelverkeer",
+        "CTX296948 tabel 3 rij 14 (Classic Tunnel Traffic policy)",
+    ),
+    ("aaa", "preauthenticationpolicy"): _Family(
+        "add aaa preauthenticationpolicy",
+        _KEPT,
+        "classic AAA-pre-authenticatie",
+        "CTX296948 tabel 3 rij 4 (Classic AAA Pre-authentication policy)",
+    ),
     ("authorization", "policy"): _Family(
         "add authorization policy",
         _KEPT,
@@ -345,8 +374,12 @@ _NAMED_KIND = "add policy expression"
 _NAMED_BRON = "CTX296948 tabel 3 rij 1 (Classic Named (policy) expression); volgt de gebruikende feature"
 _UNKNOWN_KIND = "policyregel van een onbekende familie"
 
-# Forms of CTX296948 table 2 outside the class list of A.5.1. Not a class of
-# set 1 (that is a spec change): each is at least undecided, with its row.
+# Forms with their own row in CTX296948 table 2 outside the families above.
+# Ruling R3b: the vendor check refuses every command of a removed feature, so
+# each is set 1 (blocking the transition) with its row as the source.
+_ROW_2 = "CTX296948 tabel 2 rij 2 (Q and S prefixes in Advanced expressions)"
+# `Q.` / `S.` at the start of a token (not the tail of `REQ.` / `RES.`).
+_QS_PREFIX = re.compile(r"(?<![A-Za-z0-9_.])[QS]\.[A-Z]")
 _ROW_8 = "CTX296948 tabel 2 rij 8 (Pattern function in Rewrite action)"
 _ROW_9 = "CTX296948 tabel 2 rij 9 (SYS.EVAL_CLASSIC_EXPR Classic function)"
 _ROW_10 = "CTX296948 tabel 2 rij 10 (Patclass)"
@@ -428,8 +461,10 @@ def _bare_form(expression: str) -> str:
     """The form of an expression by its own text only (no named lookups)."""
     text = _STRING_LITERAL.sub(" ", expression)
     head = text.lstrip(" \t!(")
-    if head.startswith(_CLIENT_SECURITY) or _EVAL_CLASSIC.search(text):
+    if _EVAL_CLASSIC.search(text):
         return FORM_UNDECIDED
+    if head.startswith(_CLIENT_SECURITY):
+        return FORM_CLASSIC
     advanced = head.startswith(ADVANCED_PREFIXES) or bool(_ADVANCED_LITERAL.match(head))
     ns_tokens = [m.group(1) for m in _NS_TOKEN.finditer(text)]
     if any(rest.startswith(_NS_ADVANCED) for rest in ns_tokens):
@@ -647,7 +682,7 @@ def classify(lines: list[str]) -> Classification:
         rest = _rest_form(line, lines[line.number - 1], declared)
         if rest is None:
             continue
-        finding = ClassicFinding(line.number, rest[0], SET_UNDECIDED, rest[1], rest[2])
+        finding = ClassicFinding(line.number, rest[0], SET_BLOCKING, rest[1], rest[2])
         if line.number not in taken:
             findings.append(finding)
         elif (
@@ -678,6 +713,12 @@ def _rest_form(line: _Line, raw: str, declared: set[str]) -> tuple[str, str, str
         for index, token in enumerate(line.lowered):
             if token == "-policytype" and line.lowered[index + 1 : index + 2] == ["classic"]:
                 return "set cmp parameter -policyType", "classic policytype voor compressie", _ROW_13
+    if _is_policy_line(line) or (head[:1] == ("add",) and head[1:3] == _NAMED):
+        expression = (
+            line.tokens[4] if head[1:3] == _NAMED and len(line.tokens) > 4 else _expression(line, rule_flag_only=False)
+        )
+        if expression is not None and _QS_PREFIX.search(_STRING_LITERAL.sub(" ", expression)):
+            return "regel met een Q.- of S.-voorvoegsel", "Q./S.-voorvoegsel in een advanced expressie", _ROW_2
     if _BODY_WITHOUT_ARGUMENT.search(raw):
         return "regel met HTTP.REQ.BODY zonder argument", "HTTP.REQ.BODY zonder lengte", _ROW_12
     if line.lowered[:1] == ["bind"] and len(line.lowered) >= 3:
