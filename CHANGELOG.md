@@ -94,8 +94,17 @@ the knowledge package.
   `classify`, for the transition 13.1 -> 14.1: feature first, then the
   expression form; `ns_true`/`ns_false` prove only the form; four sets
   (removed and bound, removed and unbound, deprecated, undecided) with the
-  CTX296948 row per class; no catch-all. It and the transition form of check 2
-  are not reachable from any tool yet: no behaviour change within 14.1.
+  CTX296948 row per class; no catch-all. The transition form of check 2 reads
+  the running AND the saved configuration (classic of the removed features no
+  longer loads from 13.1 on, so it can only survive in the saved one, which
+  the vendor check reads); without the saved configuration in the export it
+  is `niet beoordeeld` ("opgeslagen configuratie niet in de export"). A removed
+  feature blocks the transition bound or not. The other classic forms of the
+  vendor list (`SYS.EVAL_CLASSIC_EXPR`, patclass, rewrite `-pattern` and
+  `-bypassSafetyCheck`, `HTTP.REQ.BODY` without a length, `set cmp parameter
+  -policyType CLASSIC`, a built-in classic policy only on a bind line) are at
+  least undecided, with their row. None of this is reachable from any tool
+  yet: no behaviour change within 14.1.
 
 ### Changed
 - `uv.lock` is the one source of the dependencies. `requirements-build.txt` is no

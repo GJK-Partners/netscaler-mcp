@@ -710,6 +710,15 @@ def test_the_handleiding_classic_paragraph_matches_the_classic_module():
     for label in classic.SET_LABELS.values():
         assert f"**{label}**" in paragraph, label
     assert "CTX296948" in paragraph and "`check_invalid_config`" in paragraph
+    # Herstelronde 1: both configurations, the fixed reason, from 13.1 on, and
+    # set 2 blocking the transition (rulings R1 and R2).
+    from nsmcp.preflight import SAVED_CONFIG_ABSENT_REASON
+
+    assert f'("{SAVED_CONFIG_ABSENT_REASON}")' in paragraph
+    assert "De toets leest daarom de draaiende EN de opgeslagen configuratie" in paragraph
+    assert "vanaf 13.1 verwijderd" in paragraph and "in 14.1 verwijderd" not in paragraph
+    assert "Elke classic-policyregel valt in een van vier verzamelingen" in paragraph
+    assert "Bij de overstap blokkeert dit net zo goed als verzameling 1" in paragraph
     assert "Binnen 14.1 blijft toets 2 van `status_update_preflight` precies wat hij was" in paragraph
     deprecated_classes = {f.klasse for f in classic._FAMILIES.values() if f.verzameling == classic.SET_DEPRECATED}
     assert deprecated_classes == {

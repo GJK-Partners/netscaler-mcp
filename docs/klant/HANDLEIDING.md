@@ -1781,29 +1781,39 @@ schakelen; wat hieronder staat, verandert niets aan een upgrade binnen 14.1.
 hij was: hij zoekt de tekstueel eenduidige markers (`add filter`, `add cr policy`, `ns_true`,
 `ns_false`) en zegt er eerlijk bij wat buiten die zoektocht valt. Voor de overstap van 13.1 naar
 14.1 kijkt het product preciezer, en wel eerst naar de FEATURE van een regel en pas daarna naar
-de vorm van de expressie. Elke regel valt in een van vier verzamelingen:
+de vorm van de expressie. De vendor heeft classic voor een reeks features vanaf 13.1 verwijderd:
+zulke commando's laden op een draaiende 13.1 niet meer en kunnen dan alleen nog in de opgeslagen
+configuratie staan, en juist die leest de vendorcheck. De toets leest daarom de draaiende EN de
+opgeslagen configuratie uit de export en noemt per bestand wat hij vond; staat de opgeslagen
+configuratie niet in de export, dan is de toets `niet beoordeeld` ("opgeslagen configuratie niet
+in de export"). Elke classic-policyregel valt in een van vier verzamelingen:
 
-1. **verwijderd en gebonden**: een regel van een feature waaruit classic verwijderd is (Filter,
-   SureConnect, classic Cache Redirection, Content Switching, Compression, Application Firewall,
-   SSL, een classic expressie in een LB-regel, en `add cs policy` met `-url` of `-domain`), met
-   een bewezen classic vorm, en gebonden. Dit blokkeert de overstap tot de regel naar advanced
-   is omgezet.
-2. **verwijderd, ongebonden**: dezelfde vormen zonder binding; een aandachtspunt.
+1. **verwijderd en gebonden**: een regel van een feature waaruit classic vanaf 13.1 verwijderd is
+   (Filter, SureConnect, classic Cache Redirection, Content Switching, Compression, Application
+   Firewall, SSL, een classic expressie in een LB-regel, en `add cs policy` met `-url` of
+   `-domain`), met een bewezen classic vorm, en gebonden.
+2. **verwijderd, ongebonden**: dezelfde vormen zonder binding. Bij de overstap blokkeert dit net
+   zo goed als verzameling 1: de vendorcheck keurt elk commando van zo'n feature af, gebonden of
+   niet. Beide blokkeren de overstap tot de regels naar advanced zijn omgezet.
 3. **deprecated, blokkeert niet**: classic vormen die op 14.1 blijven werken: classic
    Gateway-authenticatie, -sessie, -verkeer en -autorisatie, classic audit (SYSLOG en NSLOG) en
    de classic TM-sessie. Omzetten is een ontwerpkeuze, geen upgradevoorwaarde; het product zet
    dit nooit zwaarder neer dan een aandachtspunt.
-4. **onbeslist**: een regel waarvan de feature geen vendorrij in het product heeft, of waarvan
-   de expressie niet bewezen classic en niet bewezen advanced is. Een onbesliste regel is nooit
-   groen: de toets zegt dan `niet beoordeeld`.
+4. **onbeslist**: een regel waarvan de feature geen vendorrij in het product heeft, waarvan de
+   expressie niet bewezen classic en niet bewezen advanced is, of waarvan de binding niet vast te
+   stellen is; ook de overige classic vormen uit de vendorlijst (onder meer
+   `SYS.EVAL_CLASSIC_EXPR`, patclass, `-pattern` in een rewrite-actie, `HTTP.REQ.BODY` zonder
+   lengte, `set cmp parameter -policyType CLASSIC`) en een ingebouwde classic-policy die alleen
+   op een bindregel staat. Een onbesliste regel is nooit groen: de toets zegt dan
+   `niet beoordeeld`.
 
 `ns_true` en `ns_false` bewijzen alleen dat een expressie classic is, nooit dat een feature
 verwijderd is: dezelfde `ns_true` is in een classic CS-policy blokkerend en in een classic
 audit-policy alleen deprecated. Een named expression (`add policy expression`) volgt de feature
 die haar gebruikt. Elke klasse in verzameling 1 en 3 draagt de vendorrij waar ze op rust
-(CTX296948, tabel 1, 2 of 3). Het antwoord noemt per verzameling het aantal en de regelnummers,
-nooit de tekst van een regel, en zegt er altijd bij dat dit geen vendor-precheck is: de vendor
-beslist zelf met `check_invalid_config`.
+(CTX296948, tabel 1, 2 of 3). Het antwoord noemt per bestand en per verzameling het aantal en de
+regelnummers, nooit de tekst van een regel, en zegt er altijd bij dat dit geen vendor-precheck
+is: de vendor beslist zelf met `check_invalid_config`.
 
 ## Als er iets misgaat
 
