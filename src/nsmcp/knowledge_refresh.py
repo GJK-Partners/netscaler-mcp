@@ -94,6 +94,13 @@ class RefreshResult:
     kept: bool = True
 
 
+def _name_taken(path: Path) -> bool:
+    """Whether a sibling name is taken, by the walk (no stat by name). A
+    place the walk refuses raises (`PathRefused`, an OSError): the caller's
+    own failure route, never a guess and never a loop over ever new names."""
+    return localpath.exists_local(path) is not None
+
+
 def _sibling_path(current: Path, kind: str, moment: datetime) -> Path:
     """`<current>.<kind>-<UTC>.json`, built ENTIRELY from the caller-
     supplied `current` path and a timestamp this module generates itself -
@@ -105,7 +112,7 @@ def _sibling_path(current: Path, kind: str, moment: datetime) -> Path:
     stamp = moment.strftime("%Y%m%dT%H%M%SZ")
     candidate_path = current.with_name(f"{current.name}.{kind}-{stamp}.json")
     counter = 2
-    while candidate_path.exists():
+    while _name_taken(candidate_path):
         candidate_path = current.with_name(f"{current.name}.{kind}-{stamp}-{counter}.json")
         counter += 1
     return candidate_path
@@ -140,7 +147,17 @@ def _write_log_line(beheer_dir: Path, label: str, current: Path, reason: str) ->
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     line = f"{timestamp} {label} {current.name}: {reason}\n"
     try:
-        beheer_dir.mkdir(parents=True, exist_ok=True)
+        # The beheer map is made on the walk; a map that cannot be made
+        # because a file stands in its place is the same silent False as in
+        # 1.0.3; a refusal of another kind leaves its kind in the log.
+        localpath.mkdir_local(localpath.absolute_text(beheer_dir))
+    except localpath.PathRefused as exc:
+        if exc.soort != "geen_gewoon_bestand":
+            localpath.log_kind("kennisverversing: geen logregel", exc)
+        return False
+    except OSError:
+        return False
+    try:
         # 1.1 B: appended through `localpath` with the beheer map as the
         # root: a link or reparse point in the place of the log (or of the
         # map) is refused before a byte is written, and its kind goes to
@@ -224,7 +241,7 @@ def _install(candidate: Path, current: Path) -> None:
         if existing.over_cap:
             raise OSError("het huidige pakket is groter dan het plafond en wordt niet bewaard")
         localpath.create_local(_text(backup_path), existing.data, root=None)
-    current.parent.mkdir(parents=True, exist_ok=True)
+    localpath.mkdir_local(localpath.parent_text(_text(current)))
     localpath.replace_local(_text(current), _read_package_bytes(candidate), root=None)
 
 

@@ -104,8 +104,9 @@ def _manifest_snapshot(directory: Path) -> tuple[dict, str] | None:
     if not _plain_path(directory, directory=True) or not _plain_path(manifest, directory=False):
         return None
     try:
-        if manifest.resolve().parent != directory.resolve():
-            return None
+        # 1.1 B: no `resolve()` by name any more: the volume-root walk of
+        # `plain_path` and `_read_kept` already refuses every link on the way,
+        # which is what the resolved-parent comparison guarded against.
         data = _read_kept(manifest, MAX_MANIFEST_BYTES)
         if data is None:
             return None
@@ -153,8 +154,6 @@ def target_identity(directory: Path) -> str | None:
     if snapshot is None or not _plain_path(path, directory=False):
         return None
     try:
-        if path.resolve().parent != directory.resolve():
-            return None
         data = _read_kept(path, MAX_TARGET_BYTES)
         if data is None:
             return None
@@ -194,11 +193,6 @@ def _owned_manifest(candidate: Path, export_dir: Path) -> dict | None:
         return None
     if not _plain_path(export_dir.parent, directory=True) or not _plain_path(candidate, directory=True):
         return None
-    try:
-        if candidate.resolve().parent != export_dir.parent.resolve():
-            return None
-    except (OSError, ValueError):
-        return None
     return _read_manifest(candidate)
 
 
@@ -229,9 +223,9 @@ def keep(previous: Path, export_dir: Path, policy: Retention) -> Path | None:
     # Existing copies, even invalid ones, are never removed on a collision.
     # The per-export collector lock serializes this normal rename operation.
     try:
-        if target.exists() or target.is_symlink():
+        if _name_taken(target):
             target = target.with_name(target.name + "-" + uuid4().hex)
-        if target.exists() or target.is_symlink():
+        if _name_taken(target):
             raise FileExistsError()
         _rename_beside(previous, target.name)
         return target
@@ -249,13 +243,28 @@ def _rename_beside(path: Path, new_name: str) -> None:
     localpath.rename_local(text, new_name, root=_volume_root(text))
 
 
+def _name_taken(path: Path) -> bool:
+    """Whether a name beside the export map is taken, by the volume-root walk
+    (no stat by name): something there, or something the walk refuses (a
+    link counts as taken - it is never replaced)."""
+    try:
+        text = localpath.absolute_text(path)
+        return localpath.exists_local(text, root=_volume_root(text)) is not None
+    except OSError:
+        return True
+
+
 def kept_exports(export_dir: Path) -> tuple[Path, ...]:
     """Owned valid siblings, newest scan first; unknown times follow last."""
     if not _plain_path(export_dir.parent, directory=True):
         return ()
     try:
         found = []
-        for candidate in export_dir.parent.iterdir():
+        parent = localpath.absolute_text(export_dir.parent)
+        # 1.1 B: the names on the held map around the export, never an
+        # `iterdir()` by name; every candidate is walked again below.
+        for name in localpath.list_local(parent, root=_volume_root(parent)):
+            candidate = Path(localpath.under(parent, name))
             raw = _owned_manifest(candidate, export_dir)
             if raw is not None:
                 moment = _scan_moment(raw)

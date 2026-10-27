@@ -786,8 +786,12 @@ class _ProcessLock:
 
     def __enter__(self) -> _ProcessLock:
         try:
-            self._lock_path.parent.mkdir(parents=True, exist_ok=True)
             root = localpath.absolute_text(self._lock_path.parent)
+            localpath.mkdir_local(root)
+        except localpath.PathRefused as err:
+            if err.soort == "geen_gewoon_bestand":
+                raise self._cannot_open(err) from err
+            raise _table_refused("het slot naast de vertaaltabel", err) from err
         except OSError as err:
             raise self._cannot_open(err) from err
         target = localpath.under(root, self._lock_path.name)
@@ -1047,9 +1051,12 @@ def _atomic_write(path: Path, table: dict[str, str]) -> None:
     and flushed on its handle, and renamed by that handle onto the table; a
     table that is a link or reparse point is refused before anything is
     written. The line ends stay what the text-mode write gave them."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(table, indent=2, ensure_ascii=False).replace("\n", os.linesep)
     root = localpath.absolute_text(path.parent)
+    try:
+        localpath.mkdir_local(root)
+    except localpath.PathRefused as exc:
+        raise _table_refused("de vertaaltabel", exc) from exc
+    content = json.dumps(table, indent=2, ensure_ascii=False).replace("\n", os.linesep)
     try:
         localpath.replace_local(localpath.under(root, path.name), content.encode("utf-8"), root=root)
     except localpath.PathRefused as exc:

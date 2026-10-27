@@ -155,16 +155,21 @@ def check_script_pins(script: Path) -> None:
             " proces gestart"
         )
     to_check = [(name, script, expected)]
+    map_tekst = localpath.parent_text(localpath.absolute_text(script))
     try:
-        siblings = sorted(script.parent.iterdir(), key=lambda path: path.name.casefold())
+        # 1.1 B: the names on the held script directory, never `iterdir()`.
+        siblings = sorted(
+            (Path(localpath.under(map_tekst, naam)) for naam in localpath.list_local(map_tekst, root=map_tekst)),
+            key=lambda path: path.name.casefold(),
+        )
     except OSError as exc:
         raise ScriptPinMismatch(
             f"de map van het script {name} kon niet gelezen worden voor de pincontrole"
-            f" ({exc.__class__.__name__}); er wordt geen proces gestart"
+            f" ({localpath.describe(exc)}); er wordt geen proces gestart"
         ) from None
     for sibling in siblings:
         folded = sibling.name.casefold()
-        if folded == name.casefold() or not _is_script(sibling) or not sibling.is_file():
+        if folded == name.casefold() or not _is_script(sibling) or not localpath.is_local_file(sibling, root=map_tekst):
             continue
         pinned = pins.get(folded)
         if pinned is None:
@@ -233,7 +238,7 @@ def child_working_directory() -> Path:
             "de vaste werkmap voor kindprocessen is niet bruikbaar (het pad is niet absoluut);"
             " er wordt geen proces gestart"
         )
-    if not directory.is_dir():
+    if not localpath.is_local_dir(directory):
         raise ChildWorkingDirectoryUnusable(
             "de vaste werkmap voor kindprocessen is niet bruikbaar (de map bestaat niet); er wordt geen proces gestart"
         )
@@ -263,7 +268,7 @@ def start_powershell(arguments: list[str]) -> subprocess.Popen[str]:
     executable = powershell_path()
     if not executable.is_absolute():
         raise PowerShellMissing(f"Windows PowerShell-pad {executable} is niet absoluut; er wordt geen proces gestart")
-    if not executable.is_file():
+    if not localpath.is_local_file(executable):
         raise PowerShellMissing(f"Windows PowerShell niet gevonden op {executable}; er wordt geen proces gestart")
     return subprocess.Popen(
         [str(executable), *arguments],
@@ -288,13 +293,19 @@ def main(argv: list[str] | None = None) -> int:
     paths: list[Path] = []
     for name in arguments[1:]:
         path = Path(name)
-        if path.is_dir():
+        if localpath.is_local_dir(path):
             try:
+                map_tekst = localpath.absolute_text(path)
                 found = sorted(
-                    (p for p in path.iterdir() if _is_script(p) and p.is_file()), key=lambda p: p.name.casefold()
+                    (
+                        Path(localpath.under(map_tekst, naam))
+                        for naam in localpath.list_local(map_tekst, root=map_tekst)
+                        if _is_script(Path(naam)) and localpath.is_local_file(localpath.under(map_tekst, naam))
+                    ),
+                    key=lambda p: p.name.casefold(),
                 )
             except OSError as exc:
-                print(f"Fout: de map {path.name} kon niet gelezen worden ({exc.__class__.__name__})", file=sys.stderr)
+                print(f"Fout: de map {path.name} kon niet gelezen worden ({localpath.describe(exc)})", file=sys.stderr)
                 return 1
             paths.extend(found)
         else:

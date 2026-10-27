@@ -48,6 +48,9 @@ class Exempt:
     call: str
     number: int
     reason: str
+    # At run time only an open of a path ending in this text is exempt (the
+    # red review of part 2, F-4: not every open of the function).
+    path_suffix: str = ""
 
 
 PYTHON_EXCEPTIONS: tuple[Exempt, ...] = (
@@ -59,6 +62,7 @@ PYTHON_EXCEPTIONS: tuple[Exempt, ...] = (
         "`importlib.metadata` reads `direct_url.json` of this engine's own installed distribution: a file of the"
         " installed environment, not data a customer supplies; the installation place falls under the existing"
         " management boundary in SECURITY.md",
+        "direct_url.json",
     ),
 )
 
@@ -74,8 +78,76 @@ POWERSHELL_PART_3: dict[tuple[str, str], int] = {
 }
 POWERSHELL_PART_3_MARK = "deel 3"
 
+# Herstelronde 1 (I-1 of the red review): metadata questions and listings BY
+# NAME count too - they follow a link to a share before the walk refuses it
+# (measured: 21 s and an SMB contact per call). What remains outside
+# `localpath`, by (file, function, call) with its count and reason:
+_START_CHECK = (
+    "the start check of the configuration (no reading tool, before the server answers); its walk with the root"
+    " rule of every approved directory is M-3 of the red review of part 2, part 3"
+)
+METADATA_EXCEPTIONS: dict[tuple[str, str, str], tuple[int, str]] = {
+    ("knowledge_regression.py", "engine_identity", "Path(nsmcp.__file__).resolve"): (
+        1,
+        "exception 1: the place of this engine's own installed package (the regression runner compares it with"
+        " the recorded commit); the installed environment, no customer data",
+    ),
+    ("knowledge_regression.py", "engine_identity", "root / 'src'.resolve"): (
+        1,
+        "exception 1: the source directory of this engine's own checkout, beside the installed package",
+    ),
+    ("start.py", "_onderhoud_config", "runner.is_file"): (1, _START_CHECK),
+    ("start.py", "_onderhoud_config", "ledgermap.is_dir"): (1, _START_CHECK),
+    ("start.py", "_comparable", "path.resolve"): (1, _START_CHECK),
+    ("start.py", "_comparable", "Path(plain).resolve"): (1, _START_CHECK),
+    ("start.py", "_lies_within", "os.stat"): (2, _START_CHECK),
+    ("start.py", "_lies_within", "inner.resolve"): (1, _START_CHECK),
+    ("start.py", "_check_code_path", "path.is_dir"): (1, _START_CHECK),
+    ("start.py", "build_server_from_config", "path.resolve"): (3, _START_CHECK),
+    ("start.py", "build_server_from_config", "fixture_dir.is_dir"): (1, _START_CHECK),
+    ("start.py", "build_server_from_config", "export_dir.exists"): (1, _START_CHECK),
+    ("start.py", "build_server_from_config", "export_dir.is_dir"): (2, _START_CHECK),
+}
+
 _ANY_BASE = frozenset({"open", "read_text", "read_bytes", "write_text", "write_bytes", "fdopen", "rename"})
-_OS = frozenset({"open", "fdopen", "replace", "rename", "renames"})
+# Metadata and listings by name (herstelronde 1): any base.
+_METADATA = frozenset(
+    {"exists", "is_file", "is_dir", "is_symlink", "glob", "rglob", "iterdir", "resolve", "stat", "lstat", "mkdir"}
+)
+_OS = frozenset(
+    {
+        "open",
+        "fdopen",
+        "replace",
+        "rename",
+        "renames",
+        "scandir",
+        "listdir",
+        "stat",
+        "lstat",
+        "mkdir",
+        "makedirs",
+        "walk",
+    }
+)
+# The `os.path` functions that ask the file system (the others are text only:
+# `join`, `abspath`, `normcase`, `samestat` on two results already in hand).
+_OS_PATH = frozenset(
+    {
+        "exists",
+        "lexists",
+        "isfile",
+        "isdir",
+        "islink",
+        "ismount",
+        "getsize",
+        "getmtime",
+        "getatime",
+        "getctime",
+        "realpath",
+        "samefile",
+    }
+)
 _SHUTIL = re.compile(r"copy.*|move")
 
 
@@ -92,18 +164,23 @@ def _flagged(call: ast.Call, imported: dict[str, tuple[str, str]]) -> str | None
             return f"shutil.{name}"
         if origin == "json" and name == "load":
             return "json.load"
+        if origin == "os.path" and name in _OS_PATH:
+            return f"os.path.{name}"
         return None
     if not isinstance(function, ast.Attribute):
         return None
     base = ast.unparse(function.value)
     attribute = function.attr
-    if base in ("os", "io") and attribute in _OS | {"open"}:
-        return f"{base}.{attribute}"
-    if base == "shutil" and _SHUTIL.fullmatch(attribute):
+    module = imported.get(base, (base, base))[1] if base in imported else base
+    if module in ("os", "io") and attribute in _OS | {"open"}:
+        return f"{module}.{attribute}"
+    if module == "os.path" and attribute in _OS_PATH:
+        return f"os.path.{attribute}"
+    if module == "shutil" and _SHUTIL.fullmatch(attribute):
         return f"shutil.{attribute}"
-    if base == "json" and attribute == "load":
+    if module == "json" and attribute == "load":
         return "json.load"
-    if attribute in _ANY_BASE:
+    if attribute in _ANY_BASE or attribute in _METADATA:
         return f"{base}.{attribute}"
     if attribute == "replace" and len(call.args) == 1 and not call.keywords:
         return f"{base}.replace"
@@ -115,9 +192,14 @@ def scan_python(source: str) -> list[tuple[str, str, int]]:
     tree = ast.parse(source)
     imported: dict[str, tuple[str, str]] = {}
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module in ("os", "io", "shutil", "json"):
+        if isinstance(node, ast.ImportFrom) and node.module in ("os", "io", "shutil", "json", "os.path"):
             for alias in node.names:
                 imported[alias.asname or alias.name] = (node.module, alias.name)
+        if isinstance(node, ast.Import):
+            # `import os as x` (the red review: the first scanner missed that form)
+            for alias in node.names:
+                if alias.name in ("os", "io", "shutil", "json", "os.path") and alias.asname:
+                    imported[alias.asname] = (alias.name, alias.name)
     found: list[tuple[str, str, int]] = []
     stack: list[str] = []
 
@@ -209,7 +291,10 @@ def runtime_exception(module: str, function: str, path: str = "") -> bool:
 
     if path and os.path.normcase(path) == os.path.normcase(os.devnull):
         return True
-    return any(e.file == module and e.function == function for e in PYTHON_EXCEPTIONS)
+    return any(
+        e.file == module and e.function == function and (not e.path_suffix or path.endswith(e.path_suffix))
+        for e in PYTHON_EXCEPTIONS
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -217,8 +302,15 @@ def runtime_exception(module: str, function: str, path: str = "") -> bool:
 # ---------------------------------------------------------------------------
 
 
-def test_every_python_file_operation_is_in_localpath_or_a_pinned_exception():
+def _allowed() -> Counter:
     allowed = Counter({(e.file, e.function, e.call): 1 for e in PYTHON_EXCEPTIONS})
+    for key, (count, _reason) in METADATA_EXCEPTIONS.items():
+        allowed[key] += count
+    return allowed
+
+
+def test_every_python_file_operation_is_in_localpath_or_a_pinned_exception():
+    allowed = _allowed()
     found = python_findings()
     new = {key: count for key, count in found.items() if count > allowed.get(key, 0)}
     assert new == {}, (
@@ -233,6 +325,9 @@ def test_every_pinned_python_exception_is_still_there_and_names_its_reason():
         assert found[(exempt.file, exempt.function, exempt.call)] == 1, f"verouderde uitzondering: {exempt}"
         assert exempt.number in (1, 2, 3, 4), exempt
         assert len(exempt.reason) > 40, exempt
+    for key, (count, reason) in METADATA_EXCEPTIONS.items():
+        assert found[key] == count, f"verouderde of gewijzigde metadata-uitzondering: {key}"
+        assert len(reason) > 40, key
 
 
 def test_the_inventory_counts_the_reads_the_spec_names():
@@ -265,6 +360,33 @@ def test_the_inventory_counts_the_reads_the_spec_names():
     )
     calls = [call for _function, call, _line in scan_python(source)]
     assert len(calls) == 16, calls
+    metadata = (
+        "import os as besturing\n"
+        "import os.path\n"
+        "from os.path import isdir\n"
+        "def kijker(p, d):\n"
+        "    p.exists()\n"
+        "    p.is_file()\n"
+        "    p.is_dir()\n"
+        "    d.glob('*.jsonl')\n"
+        "    d.rglob('*')\n"
+        "    d.iterdir()\n"
+        "    p.resolve()\n"
+        "    p.stat()\n"
+        "    p.lstat()\n"
+        "    d.mkdir(parents=True, exist_ok=True)\n"
+        "    besturing.listdir(d)\n"
+        "    besturing.scandir(d)\n"
+        "    os.path.exists(p)\n"
+        "    isdir(d)\n"
+        "    besturing.open(p, 0)\n"
+        "    os.path.join(d, 'x')\n"
+        "    os.path.normcase(p)\n"
+    )
+    seen = [call for _function, call, _line in scan_python(metadata)]
+    assert len(seen) == 15, seen
+    assert "os.listdir" in seen and "os.open" in seen and "os.path.exists" in seen and "os.path.isdir" in seen
+    assert not any("join" in call or "normcase" in call for call in seen)
     assert "s.replace" not in calls and "moment.replace" not in calls and "json.loads" not in calls
 
 
@@ -278,7 +400,7 @@ def test_a_new_read_text_outside_localpath_is_a_new_finding(monkeypatch, tmp_pat
     with (copy / "export.py").open("a", encoding="utf-8") as stream:
         stream.write("\n\ndef _mutant(p):\n    return p.read_text()\n")
     monkeypatch.setattr(__import__(__name__), "PRODUCT", copy)
-    allowed = Counter({(e.file, e.function, e.call): 1 for e in PYTHON_EXCEPTIONS})
+    allowed = _allowed()
     new = {key for key, count in python_findings().items() if count > allowed.get(key, 0)}
     assert new == {("export.py", "_mutant", "p.read_text")}
 

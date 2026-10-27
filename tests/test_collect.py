@@ -1573,14 +1573,17 @@ def test_cleanup_permissionerror_on_iterdir_becomes_a_contextual_collect_error(t
     export_dir.mkdir()
     (export_dir / "export-manifest.json").write_text('{"resources":{}}', encoding="utf-8")
 
-    original_iterdir = Path.iterdir
+    # 1.1 B: the map around the export is listed on its held handle.
+    from nsmcp import localpath
 
-    def broken_iterdir(self, *a, **k):
-        if self == export_dir.parent:
+    original_list_local = localpath.list_local
+
+    def broken_iterdir(path, *a, **k):
+        if Path(path) == export_dir.parent:
             raise PermissionError(13, "toegang geweigerd tot de ouder-map")
-        return original_iterdir(self, *a, **k)
+        return original_list_local(path, *a, **k)
 
-    monkeypatch.setattr(Path, "iterdir", broken_iterdir)
+    monkeypatch.setattr(localpath, "list_local", broken_iterdir)
 
     with pytest.raises(CollectError) as err:
         collect(chain_target(), export_dir, script, run=lambda *a, **k: (0, ""))

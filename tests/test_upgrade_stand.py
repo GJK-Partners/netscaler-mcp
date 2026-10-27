@@ -431,14 +431,17 @@ def test_a_clean_ledger_carries_no_read_gap(tmp_path):
 
 def test_the_tool_refuses_when_the_ledger_directory_cannot_be_read(tmp_path, monkeypatch):
     server = _minimal_stand_server(tmp_path)
-    real_glob = pathlib.Path.glob
+    # 1.1 B: the ledger map is listed on its held handle (`localpath.list_local`).
+    from nsmcp import localpath
 
-    def unreadable(self, pattern, *a, **kw):
-        if self.name == "ledger":
+    real_list_local = localpath.list_local
+
+    def unreadable(path, *a, **kw):
+        if pathlib.Path(path).name == "ledger":
             raise PermissionError(13, "toegang geweigerd")
-        return real_glob(self, pattern, *a, **kw)
+        return real_list_local(path, *a, **kw)
 
-    monkeypatch.setattr(pathlib.Path, "glob", unreadable)
+    monkeypatch.setattr(localpath, "list_local", unreadable)
     r = _call(server, "onderhoud_upgrade_stand", {})
     assert r.isError, _text(r)
     assert "ledgermap kon niet gelezen worden" in _text(r)

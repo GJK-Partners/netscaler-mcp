@@ -85,6 +85,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from nsmcp import localpath
 from nsmcp.bridge_io import read_stdin_text
 from nsmcp.export import load_export
 from nsmcp.upgrade import (
@@ -231,7 +232,11 @@ def _load_export_or_none(pad):
     if not tekst:
         return None
     directory = Path(tekst)
-    if not directory.exists():
+    # 1.1 B: through the walk, no `exists()` by name.
+    try:
+        if localpath.exists_local(directory) is None:
+            return None
+    except OSError:
         return None
     try:
         return load_export(directory)

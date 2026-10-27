@@ -159,9 +159,16 @@ def _require_file(path: Path, what: str) -> None:
     (see test_all_reachable_line_forgeries_stay_one_line, which
     measures this end-to-end via run() and this fix
     closes)."""
-    if path.is_dir():
+    # 1.1 B: through the walk (`localpath.exists_local`, no root), never a
+    # stat by name: that followed a link to a share before anything refused
+    # it. A place the walk refuses is "not found", as an unreachable file was.
+    try:
+        found = localpath.exists_local(path)
+    except (OSError, ValueError):
+        found = None
+    if found == "dir":
         raise ConfigError(f"{what} is een map, geen bestand: {path!r}")
-    if not path.is_file():
+    if found != "file":
         raise ConfigError(f"{what} niet gevonden: {path!r}")
 
 

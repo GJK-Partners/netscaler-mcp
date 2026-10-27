@@ -913,7 +913,7 @@ def _write_action_register(
         objectnaam=objectnaam,
     )
     try:
-        Path(pad).parent.mkdir(parents=True, exist_ok=True)
+        localpath.mkdir_local(localpath.parent_text(localpath.absolute_text(pad)))
         append_line(Path(pad), row)
     except OSError as exc:
         # 1.1 B: `append_line` walks the register's map with `localpath`; a
@@ -1500,13 +1500,12 @@ def build_server(
         not_a_sibling = ToolError(
             "die exportmap staat niet naast de huidige export; vraag rapport_dekking welke gegevens er zijn"
         )
+        # 1.1 B: `plain_path` is the volume-root walk, which refuses every
+        # link or reparse point on the way - so the name, a single safe
+        # component, IS a sibling. The `resolve()` comparison by name that
+        # stood here followed a link in the place of the map to a share
+        # before anything refused it; it is gone.
         if not plain_path(candidate, directory=True):
-            raise not_a_sibling
-        try:
-            resolved_parent = candidate.resolve().parent
-        except OSError:
-            raise not_a_sibling from None
-        if resolved_parent != export_dir.parent.resolve():
             raise not_a_sibling
         return candidate
 
@@ -2003,7 +2002,7 @@ def build_server(
             1.0.2): a missing script, an invalid pin or a process that did
             not start is "niet gelezen", never "live gelezen"."""
             script = sibling_script(onderhoud, LIVE_MEASURE_SCRIPT)
-            if not script.is_file():
+            if not localpath.is_local_file(script):
                 return (
                     None,
                     ReadGap(
@@ -2131,7 +2130,7 @@ def build_server(
                     ),
                     None,  # no read ran, so no route to name (1.0.2)
                 )
-            if not Path(collect_script).is_file():
+            if not localpath.is_local_file(collect_script):
                 # 1.0.2: checked here as well as in read_single_resource,
                 # so a missing script is "niet gelezen" without a route.
                 return (
@@ -2315,7 +2314,7 @@ def build_server(
                 # which is what gets its reason named here. The reason then
                 # only ever describes knowledge-package content, the very thing
                 # this tool exists to hand out, so it needs no disclosure seam.
-                if knowledge.missing and knowledge_path.is_file():
+                if knowledge.missing and localpath.is_local_file(knowledge_path):
                     reason = knowledge.reason.strip() or "reden onbekend"
                     # kennis_uitleg is the one reading tool outside the
                     # Answer.to_text() seam (answer._safe / render()) that

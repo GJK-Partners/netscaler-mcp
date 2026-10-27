@@ -301,10 +301,19 @@ def _read_export_file(directory, path_text: str) -> localpath.LocalRead:
     `over_cap` (nothing read past the ceiling), a refusal `PathRefused`.
     The leaf is held without write sharing: an export file's bytes stay
     fixed while they are read."""
-    got = localpath.read_local(path_text, root=_root_text(directory), max_bytes=MAX_FILE_BYTES, allow_missing=True)
-    # A directory type may bring its own ceilings for the bytes read
-    # (`coverage._WatchPath`, the watch over a retained export): an OSError
-    # from it is this reader's own unreadable route.
+    # A directory type may bring its own, smaller ceiling per file
+    # (`coverage._WatchPath`, the watch over a retained export): it is the
+    # cap of THIS read, checked on the handle before a byte is read (red
+    # review of part 2, M-2); over it is that reader's unreadable route.
+    cap_for = getattr(directory, "cap_for", None)
+    limit = cap_for(path_text) if cap_for is not None else MAX_FILE_BYTES
+    got = localpath.read_local(
+        path_text, root=_root_text(directory), max_bytes=min(limit, MAX_FILE_BYTES), allow_missing=True
+    )
+    if limit < MAX_FILE_BYTES and got.over_cap:
+        raise OSError("bestand overschrijdt leesgrens")
+    # And its gate on the bytes read (the JSON depth of the watch): an
+    # OSError from it is this reader's own unreadable route.
     gate = getattr(directory, "gate_read", None)
     if gate is not None and got.exists and not got.over_cap:
         gate(path_text, got.data)
@@ -506,8 +515,12 @@ def export_identity(export_dir: Path) -> str:
     """Which export map a provenance record belongs to: the resolved path,
     case-folded the way Windows compares it. A record written for another
     export map - another server sharing the directory - never counts here."""
+    # 1.1 B: where the walk (no root) says the export map leads - a link
+    # above it followed only after its target passed the spelling and
+    # volume steps - never `resolve()` by name, which followed a link to a
+    # share first. Unreachable: its absolute text.
     try:
-        return os.path.normcase(str(Path(export_dir).resolve()))
+        return os.path.normcase(str(localpath.check_where_it_leads(localpath.absolute_text(export_dir), expect="any")))
     except (OSError, ValueError):
         return os.path.normcase(str(Path(export_dir).absolute()))
 
@@ -524,7 +537,7 @@ def record_provenance(provenance_dir: Path, target: str, manifest_hash: str, exp
     reparse point; `LocalHandle.write` flushes it to disk. Readers share
     writing (an append-only file, like the ledger). A refusal is an OSError
     for the caller, and its kind goes to the server log."""
-    provenance_dir.mkdir(parents=True, exist_ok=True)
+    localpath.mkdir_local(_root_text(provenance_dir))
     record = {
         "tijd": moment.astimezone(UTC).isoformat().replace("+00:00", "Z"),
         "doel": target,

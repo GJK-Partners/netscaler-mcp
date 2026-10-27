@@ -396,13 +396,18 @@ def ledger_path_for(ledgermap, run_name: str) -> Path:
     `run_id()` above raises on its own misuse; the caller turns that into
     whatever refusal shape its own surface uses.
     """
-    base = Path(ledgermap).resolve()
-    candidate = (base / f"{run_name}.jsonl").resolve()
-    try:
-        candidate.relative_to(base)
-    except ValueError:
-        raise ValueError("ledger_path_for: run_name resolves outside ledgermap") from None
-    return candidate
+    # 1.1 B: lexical, never `resolve()` by name (that followed a link in
+    # the place of the ledger map to a share before anything refused it).
+    # The ONE component the run name may become is checked as text; every
+    # read and append of the result walks it with the ledger map as root.
+    if (
+        not isinstance(run_name, str)
+        or not run_name
+        or run_name in (".", "..")
+        or any(separator in run_name for separator in ("/", "\\", ":", "\0"))
+    ):
+        raise ValueError("ledger_path_for: run_name resolves outside ledgermap")
+    return Path(localpath.under(localpath.absolute_text(ledgermap), f"{run_name}.jsonl"))
 
 
 def precheck_gate(json_text) -> Gate:

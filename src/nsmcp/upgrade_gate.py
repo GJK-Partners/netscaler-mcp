@@ -288,14 +288,25 @@ def _rows_for_target(ledger_pad, doel, *, strict: bool = False, skipped: list | 
     # too - exactly the same answer as a genuinely empty target. Checked
     # BEFORE the glob, so this never depends on which of the two silent-vs-
     # raising shapes the filesystem happens to choose for a missing path.
-    if strict and not ledgermap.is_dir():
-        raise LedgerUnreadable(f"de ledgermap {ledgermap} bestaat niet (meer) of is geen map")
+    #
+    # 1.1 B: the names are read on the HELD ledger map (`localpath.list_local`,
+    # the map itself is the root), never by a `glob`/`is_dir` on the name:
+    # those followed a link in the place of the map to a share before
+    # anything refused it (measured: 21 s and an SMB contact per call).
+    tekst = localpath.absolute_text(ledgermap)
     try:
-        bestanden = sorted(ledgermap.glob("*.jsonl"))
+        namen = localpath.list_local(tekst, root=tekst)
+    except localpath.PathRefused as exc:
+        if not strict:
+            return ()
+        if exc.soort == "geen_gewoon_bestand" or (exc.soort == "onleesbaar" and exc.detail == "afwezig"):
+            raise LedgerUnreadable(f"de ledgermap {ledgermap} bestaat niet (meer) of is geen map") from None
+        raise LedgerUnreadable(f"de ledgermap kon niet gelezen worden ({exc.reason})") from None
     except OSError as exc:
         if strict:
             raise LedgerUnreadable(f"de ledgermap kon niet gelezen worden ({type(exc).__name__})") from None
         return ()
+    bestanden = sorted(Path(localpath.under(tekst, naam)) for naam in namen if naam.lower().endswith(".jsonl"))
     regels: list[dict] = []
     for bestand in bestanden:
         for regel in _rows_from_file(bestand, strict=strict, skipped=skipped):

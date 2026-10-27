@@ -500,12 +500,12 @@ def _recover_interrupted_swap(export_dir: Path) -> bool:
     `_acquire_lock`).
     """
     previous = export_dir.parent / f"{export_dir.name}.vorig"
-    if export_dir.exists() or not previous.exists():
+    if _beside(export_dir, export_dir) or not _beside(previous, export_dir):
         return False
     try:
         _rename_beside(previous, export_dir.name, export_dir)
     except OSError as exc:
-        if export_dir.exists():
+        if _beside(export_dir, export_dir):
             # Another caller won the race between the check above and this
             # rename: the export is already in place, there is nothing left
             # to recover. See the docstring above.
@@ -528,6 +528,18 @@ def _rename_beside(path: Path, new_name: str, export_dir: Path) -> None:
     localpath.rename_local(localpath.under(root, path.name), new_name, root=root)
 
 
+def _beside(path: Path, export_dir: Path) -> bool:
+    """Whether something is at `path` beside the export map, by the walk
+    from the map around the export (1.1 B: no `exists()` by name). A
+    refusal (a link in that place) counts as "something is there": it is
+    never renamed onto or treated as free."""
+    root = localpath.absolute_text(export_dir.parent)
+    try:
+        return localpath.exists_local(localpath.under(root, path.name), root=root) is not None
+    except OSError:
+        return True
+
+
 def _preserve_as_failed(work_dir: Path, export_dir: Path) -> Path | None:
     """Sets a work directory that failed validation aside in a fixed place,
     instead of throwing it away.
@@ -540,7 +552,7 @@ def _preserve_as_failed(work_dir: Path, export_dir: Path) -> Path | None:
     that is no worse than the existing situation.
     """
     failed = export_dir.parent / f"{export_dir.name}.mislukt"
-    if failed.exists():
+    if _beside(failed, export_dir):
         shutil.rmtree(failed, ignore_errors=True)
     try:
         _rename_beside(work_dir, failed.name, export_dir)
@@ -580,9 +592,9 @@ def _swap(work_dir: Path, export_dir: Path, retention: Retention | None = None) 
     """
     previous = export_dir.parent / f"{export_dir.name}.vorig"
     try:
-        if previous.exists():
+        if _beside(previous, export_dir):
             shutil.rmtree(previous)
-        if export_dir.exists():
+        if _beside(export_dir, export_dir):
             _rename_beside(export_dir, previous.name, export_dir)
         _rename_beside(work_dir, export_dir.name, export_dir)
     except OSError as exc:
@@ -594,12 +606,12 @@ def _swap(work_dir: Path, export_dir: Path, retention: Retention | None = None) 
         # export directory) before this except branch runs. At that moment
         # .vorig no longer exists, and the message would send a person to
         # a file that is not there.
-        if previous.exists():
+        if _beside(previous, export_dir):
             state = (
                 "; de vorige export staat nog als .vorig naast de exportmap; de "
                 "eerstvolgende scan voor dit doel probeert die terug te zetten"
             )
-        elif export_dir.exists():
+        elif _beside(export_dir, export_dir):
             state = (
                 "; er staat alweer een export op de gebruikelijke plek (vermoedelijk "
                 "net teruggezet door een andere aanroeper); de gegevens van DEZE "
@@ -882,16 +894,24 @@ def _clean_stale_work_dirs(export_dir: Path) -> None:
     CollectError contract as a bare crash.
     """
     prefix = f"{export_dir.name}.nieuw-"
+    root = localpath.absolute_text(export_dir.parent)
     try:
-        candidates = list(export_dir.parent.iterdir())
+        # 1.1 B: the names on the held map around the export.
+        candidates = [Path(localpath.under(root, name)) for name in localpath.list_local(root, root=root)]
     except OSError as exc:
         # the bare NAME, never the path; never `{exc}`.
         raise CollectError(
             f"kon de oude werkmappen naast {export_dir.name} niet opsommen om op te ruimen ({_os_error_kind(exc)})"
         ) from exc
     for candidate in candidates:
+        if not candidate.name.startswith(prefix):
+            continue
         try:
-            is_directory = candidate.is_dir()
+            is_directory = localpath.exists_local(str(candidate), root=root) == "dir"
+        except localpath.PathRefused:
+            # A link or reparse point under a work-map name: never followed,
+            # never deleted through, and no reason to refuse the scan.
+            continue
         except OSError as exc:
             raise CollectError(
                 f"kon niet vaststellen of {candidate.name} een map is tijdens het opruimen ({_os_error_kind(exc)})"
@@ -935,7 +955,7 @@ def collect(
     shortcoming - making two simultaneous scans safe never succeeded
     without a new gap elsewhere, so this design no longer tries.
     """
-    if not script_path.exists():
+    if localpath.exists_local_or_none(script_path) is None:
         # the bare NAME, never the absolute path.
         raise CollectError(f"het verzamelscript is niet gevonden ({script_path.name})")
     if run is not None:
@@ -953,7 +973,7 @@ def collect(
     # this mkdtemp(dir=...) raises a bare OSError - the same contract
     # breach as elsewhere in this function, now on the very first scan.
     try:
-        export_dir.parent.mkdir(parents=True, exist_ok=True)
+        localpath.mkdir_local(localpath.absolute_text(export_dir.parent))
     except OSError as exc:
         # the bare NAME, never the path; never `{exc}`.
         raise CollectError(
@@ -1163,7 +1183,7 @@ def collect(
                     raise CollectError("de scan is afgebroken door de aanroeper; de vorige gegevens blijven gelden")
             return export_dir
         finally:
-            if not cleaned_up and work_dir.exists():
+            if not cleaned_up and localpath.exists_local_or_none(work_dir) is not None:
                 shutil.rmtree(work_dir, ignore_errors=True)
     finally:
         _release_lock(lock)
@@ -1826,7 +1846,7 @@ def read_single_resource(
     give False and a reason that starts with `NOT_STARTED`; the caller then
     names no route. A timeout, an exit code or an unusable result ran.
     """
-    if not script_path.exists():
+    if localpath.exists_local_or_none(script_path) is None:
         return (
             None,
             ReadGap(

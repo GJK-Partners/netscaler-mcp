@@ -67,6 +67,14 @@ class _WatchPath(type(Path())):
     `nsmcp.limits`, so there is still one source of truth for them.
     """
 
+    def cap_for(self, path_text: str) -> int:
+        """The watch's ceiling for one file, the cap of the read itself
+        (`export._read_export_file` asks it before a byte is read)."""
+        from nsmcp.export import TARGET_FILE
+        from nsmcp.retention import MAX_TARGET_BYTES
+
+        return MAX_TARGET_BYTES if Path(path_text).name == TARGET_FILE else MAX_WATCH_BYTES
+
     def gate_read(self, path_text: str, data: bytes) -> bytes:
         from nsmcp.export import TARGET_FILE
         from nsmcp.retention import MAX_TARGET_BYTES
@@ -639,7 +647,7 @@ def _state_for(export, resource: str) -> SourceState:
     # `<segment>/<segment>[?query]` with lower-case identifier segments, so
     # the split below yields a bare name and can no longer yield a path.
     name = key.split("/")[-1].split("?", 1)[0]
-    if not (export.directory / "objects" / f"{name}.json").exists():
+    if not _object_file_present(export, name):
         return SourceState(
             resource=resource,
             subject=subject,
@@ -768,6 +776,22 @@ def _binding_files(export) -> BindingFiles:
         names=tuple(sorted(names)),
         refused=tuple(refused[shape] for shape in sorted(refused)),
     )
+
+
+def _object_file_present(export, name: str) -> bool:
+    """Whether `objects/<name>.json` is there, by the walk from the export
+    map (1.1 B: no `exists()` by name). A refusal is "not there" for this
+    count; the read of the file names the refusal itself."""
+    from nsmcp import localpath
+    from nsmcp.export import _root_text, _within
+
+    path = _within(export.directory, "objects", f"{name}.json")
+    if path is None:
+        return False
+    try:
+        return localpath.exists_local(path, root=_root_text(export.directory)) is not None
+    except OSError:
+        return False
 
 
 def _log_lines(export) -> int | None:

@@ -1066,14 +1066,17 @@ def test_an_unreadable_ledger_directory_raises_in_strict_mode(tmp_path, monkeypa
 
     ledgermap = tmp_path / "ledger"
     ledgermap.mkdir()
-    real_glob = _pathlib.Path.glob
+    # 1.1 B: the ledger map is listed on its held handle (`localpath.list_local`).
+    from nsmcp import localpath
 
-    def unreadable(self, pattern, *a, **kw):
-        if self.name == "ledger":
+    real_list_local = localpath.list_local
+
+    def unreadable(path, *a, **kw):
+        if _pathlib.Path(path).name == "ledger":
             raise PermissionError(13, "toegang geweigerd")
-        return real_glob(self, pattern, *a, **kw)
+        return real_list_local(path, *a, **kw)
 
-    monkeypatch.setattr(_pathlib.Path, "glob", unreadable)
+    monkeypatch.setattr(localpath, "list_local", unreadable)
     assert _rows_for_target(ledgermap / "_.jsonl", "lab-02") == ()
     with pytest.raises(LedgerUnreadable):
         _rows_for_target(ledgermap / "_.jsonl", "lab-02", strict=True)

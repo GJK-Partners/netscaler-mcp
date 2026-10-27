@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from nsmcp import collect as collect_module, handelen as handelen_module
+from nsmcp import collect as collect_module, handelen as handelen_module, localpath
 from nsmcp.powershell import PowerShellMissing, powershell_path, start_powershell
 
 
@@ -43,7 +43,7 @@ def test_a_relative_system_root_starts_nothing(monkeypatch, system_root):
     is forced to True: the refusal must be because the path is relative,
     not because nothing happens to sit there."""
     monkeypatch.setenv("SystemRoot", system_root)
-    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(localpath, "is_local_file", lambda path, **kw: True)  # 1.1 B: via de wandeling
 
     def never(*args, **kwargs):
         raise AssertionError("no process may be started for a relative path")
@@ -57,7 +57,7 @@ def test_a_relative_system_root_starts_nothing(monkeypatch, system_root):
 
 
 def test_a_missing_powershell_fails_closed(monkeypatch):
-    monkeypatch.setattr(Path, "is_file", lambda self: False)
+    monkeypatch.setattr(localpath, "is_local_file", lambda path, **kw: False)  # 1.1 B: via de wandeling
 
     def never(*args, **kwargs):
         raise AssertionError("no process may be started when PowerShell is absent")
@@ -81,7 +81,7 @@ def test_the_starter_never_hands_a_bare_program_name_to_the_operating_system(mon
     import subprocess
 
     monkeypatch.setattr(subprocess, "Popen", Spy)
-    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(localpath, "is_local_file", lambda path, **kw: True)  # 1.1 B: via de wandeling
     start_powershell(["-NoProfile"])
     assert seen["argv"][0].lower().endswith(r"\system32\windowspowershell\v1.0\powershell.exe")
     assert seen["argv"][0] != "powershell.exe"
@@ -114,7 +114,7 @@ def test_both_call_sites_use_the_same_starter_and_the_same_encoding(monkeypatch)
             return "", ""
 
     monkeypatch.setattr(subprocess, "Popen", Spy)
-    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(localpath, "is_local_file", lambda path, **kw: True)  # 1.1 B: via de wandeling
     start_powershell(["-NoProfile"])
     assert seen[-1]["encoding"] == "utf-8"
     assert seen[-1]["errors"] == "replace"
@@ -150,7 +150,7 @@ def test_a_timed_out_write_reports_the_command_line_that_really_ran(monkeypatch)
             return None
 
     monkeypatch.setattr(subprocess, "Popen", SpyProcess)
-    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(localpath, "is_local_file", lambda path, **kw: True)  # 1.1 B: via de wandeling
     with pytest.raises(subprocess.TimeoutExpired) as exc:
         handelen_module.default_runner(["-NoProfile"], 1)
     assert exc.value.cmd[0] != "powershell.exe"
@@ -220,7 +220,7 @@ def test_the_timeout_label_names_the_same_absolute_path(monkeypatch, tmp_path):
             return 0
 
     monkeypatch.setattr(subprocess, "Popen", Hanging)
-    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    monkeypatch.setattr(localpath, "is_local_file", lambda path, **kw: True)  # 1.1 B: via de wandeling
     with pytest.raises(subprocess.TimeoutExpired) as exc:
         handelen_module.default_runner(["-NoProfile"], timeout_s=1)
     label = " ".join(str(part) for part in exc.value.cmd)
@@ -376,14 +376,15 @@ def test_rh1_an_unreadable_script_directory_refuses_the_start(tmp_path, monkeypa
 
     main, sibling = _scripts(tmp_path)
     set_script_policy(ScriptPolicy(pins={"verzamel.ps1": _sha(main), "transport.ps1": _sha(sibling)}))
-    real_iterdir = Path.iterdir
+    # 1.1 B: the script directory is listed on its held handle.
+    real_list_local = localpath.list_local
 
-    def unreadable(self):
-        if self == main.parent:
+    def unreadable(path, *a, **kw):
+        if Path(path) == main.parent:
             raise PermissionError("geen leesrecht op de map")
-        return real_iterdir(self)
+        return real_list_local(path, *a, **kw)
 
-    monkeypatch.setattr(Path, "iterdir", unreadable)
+    monkeypatch.setattr(localpath, "list_local", unreadable)
     started = _spy_popen(monkeypatch)
     for start in (
         lambda: start_powershell(["-NoProfile", "-File", str(main)]),

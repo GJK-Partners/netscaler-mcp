@@ -1124,8 +1124,17 @@ def firmware_target_build(firmwaremap: Path) -> FirmwareBundle:
     ones - a firmware directory can legitimately be prepared after the
     server started) - `ActionError`, the same contract the earlier
     placeholder used to give this whole tool."""
+    # 1.1 B: the names are read on the HELD firmware directory
+    # (`localpath.list_local`, the directory itself the root), never by an
+    # `iterdir()` on the name, which followed a link to a share first.
     try:
-        kandidaten = sorted(p.name for p in Path(firmwaremap).iterdir() if _FIRMWARE_BUNDLE_RE.match(p.name))
+        kaart = localpath.absolute_text(firmwaremap)
+        kandidaten = sorted(naam for naam in localpath.list_local(kaart, root=kaart) if _FIRMWARE_BUNDLE_RE.match(naam))
+    except localpath.PathRefused as exc:
+        raise FirmwareBundleError(
+            f"onderhoud.firmwaremap is geweigerd: {exc.reason}: {firmwaremap}",
+            f"onderhoud.firmwaremap is geweigerd: {exc.reason}",
+        ) from None
     except OSError as exc:
         raise ActionError(f"onderhoud.firmwaremap is niet leesbaar: {exc}") from None
     if not kandidaten:
@@ -1390,7 +1399,7 @@ def upgrade_command(runner: Path, script_arguments: list[str]) -> list[str]:
         # variable on the module path of the child.
         return [interpreter, "-I", str(runner), *script_arguments]
     exe = powershell_path()
-    if not exe.is_file():
+    if not localpath.is_local_file(exe):
         raise PowerShellMissing(f"Windows PowerShell niet gevonden op {exe}; er wordt geen proces gestart")
     return [
         str(exe),
@@ -1593,7 +1602,7 @@ def perform_save(
     (`backup.save_readback_ok`), in the caller."""
     validate(SAVE_TOOL, {}, target=target.name, allowlist=allowlist)
     script = sibling_script(onderhoud, SAVE_SCRIPT)
-    if not script.is_file():
+    if not localpath.is_local_file(script):
         raise ActionError(f"het opslagscript {SAVE_SCRIPT} staat niet naast de faserunner; er is niets gestart")
     actie_id = "" if preview else _SAVE_ACTION_PREFIX + datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     command = script_command(

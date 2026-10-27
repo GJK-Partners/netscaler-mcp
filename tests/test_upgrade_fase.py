@@ -1877,14 +1877,17 @@ def test_the_cross_tool_gate_refuses_when_the_ledger_directory_cannot_be_read(
     import pathlib
 
     server = _two_target_write_server(tmp_path, open_target=TARGET_NAME)
-    real_glob = pathlib.Path.glob
+    # 1.1 B: the ledger map is listed on its held handle (`localpath.list_local`).
+    from nsmcp import localpath
 
-    def unreadable(self, pattern, *a, **kw):
-        if self.name == "ledger":
+    real_list_local = localpath.list_local
+
+    def unreadable(path, *a, **kw):
+        if pathlib.Path(path).name == "ledger":
             raise PermissionError(13, "toegang geweigerd")
-        return real_glob(self, pattern, *a, **kw)
+        return real_list_local(path, *a, **kw)
 
-    monkeypatch.setattr(pathlib.Path, "glob", unreadable)
+    monkeypatch.setattr(localpath, "list_local", unreadable)
     r = _call(server, "onderhoud_backup_maken", {"doel": SECOND_TARGET_NAME})
     assert r.isError, _text(r)
     assert "ledger" in _text(r).lower()
@@ -1929,14 +1932,17 @@ def test_the_phase_path_refuses_when_the_ledger_directory_cannot_be_read(
     import pathlib
 
     server = _server(tmp_path)
-    real_glob = pathlib.Path.glob
+    # 1.1 B: the ledger map is listed on its held handle (`localpath.list_local`).
+    from nsmcp import localpath
 
-    def unreadable(self, pattern, *a, **kw):
-        if self.name == "ledger":
+    real_list_local = localpath.list_local
+
+    def unreadable(path, *a, **kw):
+        if pathlib.Path(path).name == "ledger":
             raise PermissionError(13, "toegang geweigerd")
-        return real_glob(self, pattern, *a, **kw)
+        return real_list_local(path, *a, **kw)
 
-    monkeypatch.setattr(pathlib.Path, "glob", unreadable)
+    monkeypatch.setattr(localpath, "list_local", unreadable)
     r = _call(
         server,
         "onderhoud_upgrade_fase",
