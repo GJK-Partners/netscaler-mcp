@@ -729,7 +729,11 @@ def test_the_handleiding_classic_paragraph_matches_the_classic_module():
         "classic audit SYSLOG",
         "classic audit NSLOG",
         "classic TM-sessie",
+        "classic tunnelverkeer",
+        "classic AAA-pre-authenticatie",
     }
+    assert "classic tunnelverkeer en de classic AAA-pre-authenticatie" in paragraph
+    assert "elke andere vorm met een eigen rij in tabel 1 of 2" in paragraph
     for word in (
         "Gateway-authenticatie, -sessie, -verkeer en -autorisatie",
         "classic audit (SYSLOG en NSLOG)",
