@@ -1000,6 +1000,31 @@ class LocalHandle:
             raise PathRefused("onleesbaar", path=self.path, status=status or None, detail="genormaliseerde naam")
         return name
 
+    def directory_names(self) -> list[str]:
+        """The NAMES in the held directory (`directory_handle`), never a
+        content. The directory is opened a second time RELATIVE to its own
+        held handle with an empty name - the same object, now with the list
+        right - so no path text is resolved again: a link above the root that
+        the walk followed cannot be swapped between the walk and the listing."""
+        directory = self.directory_handle
+        native = self._native
+        if self.closed or directory is None or not isinstance(native, _Native):
+            raise PathRefused("onleesbaar", path=self.path, detail="geen maphandle")
+        status, listing = native.NtCreateFile(
+            directory,
+            "",
+            FILE_LIST_DIRECTORY | SYNCHRONIZE,
+            DIR_SHARE,
+            FILE_OPEN,
+            FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
+        )
+        if status != STATUS_SUCCESS or listing is None:
+            raise PathRefused("onleesbaar", path=self.path, status=status, detail="map opnieuw openen")
+        try:
+            return _names_on(native, listing, self.path)
+        finally:
+            native.NtClose(listing)
+
     def flush_directory(self) -> bool:
         """Best effort: flushes the directory entry of the leaf (a new file)
         to disk. The held parent carries the traverse right only, and
@@ -1609,6 +1634,26 @@ def exists_local(path, *, root=None, expect: str = "any") -> str | None:
     handle = _open(absolute_text(path), root=root, expect=expect, mode="check", allow_missing=True, shared_writers=True)
     try:
         return handle.found if handle.exists else None
+    finally:
+        handle.close()
+
+
+def leaf_name(path, *, root) -> str | None:
+    """The stored long name of the file at `path` (its last component as the
+    file system keeps it: an 8.3 spelling or another case gives the same
+    text), read on the handle of the same walk; None when it does not exist.
+    Attributes only, nothing read. Windows only."""
+    handle = _open(path, root=root, expect="file", mode="check", allow_missing=True, shared_writers=True)
+    try:
+        if not handle.exists:
+            return None
+        native = handle._native
+        if handle._leaf is None or not isinstance(native, _Native):
+            raise PathRefused("onleesbaar", path=handle.path, detail="geen bladhandle")
+        status, name = native.query_normalized_name(handle._leaf)
+        if status != STATUS_SUCCESS or "\\" not in name:
+            raise PathRefused("onleesbaar", path=handle.path, status=status or None, detail="genormaliseerde naam")
+        return name.rsplit("\\", 1)[1]
     finally:
         handle.close()
 

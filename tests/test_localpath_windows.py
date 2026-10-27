@@ -862,3 +862,32 @@ def test_rename_local_renames_by_handle_in_the_held_parent_without_replace(tmp_p
     held_dirs = {record["handle"] for record in seam.opens if record["name"] == "w"}
     assert len(calls) == 1 and calls[0][0] in held_dirs and calls[0][1:] == ("b", False)
     _audit(seam)
+
+
+def test_directory_names_reopen_the_held_directory_relative_with_an_empty_name(tmp_path, seam):
+    root = tmp_path / "w"
+    root.mkdir()
+    for name in ("a.txt", "b.json.v1-x"):
+        (root / name).write_bytes(b"")
+    with localpath.open_local_for_append(str(root / "x.lock"), root=str(root)) as handle:
+        seam.opens.clear()
+        names = handle.directory_names()
+        reopen = [record for record in seam.opens if record["name"] == ""]
+        assert len(reopen) == 1 and reopen[0]["parent"] == handle.directory_handle
+        assert reopen[0]["access"] & localpath.FILE_LIST_DIRECTORY
+        assert not reopen[0]["share"] & localpath.FILE_SHARE_DELETE
+        assert len(seam.opens) == 1, "geen open op een padtekst of op een onderdeel"
+    assert sorted(names) == ["a.txt", "b.json.v1-x", "x.lock"]
+
+
+def test_leaf_name_is_the_stored_long_name_and_none_when_missing(tmp_path, seam):
+    root = tmp_path / "Beheer Map"
+    root.mkdir()
+    (root / "Openheid-Vertaaltabel.json").write_bytes(b"{}")
+    short = _short_name(root / "Openheid-Vertaaltabel.json")
+    short_root = short.rsplit("\\", 1)[0]
+    assert localpath.leaf_name(short, root=short_root) == "Openheid-Vertaaltabel.json"
+    assert localpath.leaf_name(str(root / "OPENHEID-VERTAALTABEL.JSON"), root=str(root)) == "Openheid-Vertaaltabel.json"
+    assert localpath.leaf_name(str(root / "ontbreekt.json"), root=str(root)) is None
+    assert seam.calls["ReadFile"] == 0
+    _audit(seam)
