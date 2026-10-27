@@ -194,6 +194,11 @@ seamteller telt geen pakketten; de opname blijft daarom open tot ze gedraaid is.
 | 96 | runner: de firmwaremap als wortel (1.1) | `Invoke-GjkUpgradeFase.ps1`, `_GjkOpenLokaal`: `-Wortel` vervangen door `-ZonderWortel` | `test_a_bundle_that_is_a_junction_is_refused_with_exit_4_before_the_session[R1]` (de junction op de plek van de bundel werd gevolgd; de weigering noemde een map in plaats van een koppeling) | uitgevoerd 27-10-2026, teruggedraaid |
 | 97 | runner: stderr van de bruggen door een pijp (1.1) | `_GjkAanroepPython`: terug naar een tijdelijk bestand op naam onder `Stop` | `test_the_stderr_of_a_bridge_reaches_the_fout_line_through_a_pipe_not_a_file` (de stderr-regel werd een afbrekende fout; exitcode 1 in plaats van 2) | uitgevoerd 27-10-2026, teruggedraaid |
 | 98 | runner: de bundel vastgehouden tot na de upload (1.1, race d) | STAP 3b: de stroom direct na hash en sidecar gesloten | `test_race_d_the_bundle_cannot_be_swapped_between_the_local_hash_and_the_upload` (de firmwaremap kon tussen hash en upload hernoemd worden) | uitgevoerd 27-10-2026, teruggedraaid |
+| 99 | runner: de firmwaremap opsommen op de vastgehouden handle (1.1) | `Invoke-GjkUpgradeFase.ps1`, `_GjkBundelKandidaten`: terug naar `Get-ChildItem` op naam | `test_a_firmware_map_below_a_link_to_a_share_is_refused_before_any_listing[run]` (geen weigering: de opsomming op naam volgde de koppeling naar de share, vond niets, en de fase startte en opende een sessie) | uitgevoerd 27-10-2026, teruggedraaid |
+| 100 | PowerShell-wandeling: hardlink binnen de wortel (1.1) | `GjkUpgrade-LokaalPad.ps1`, `Wandeling.Loop`: de toets op meer dan een naam vervangen door `if (false)` | `test_a_hardlink_inside_the_root_is_refused_and_read_without_a_root` (het bestand van buiten de wortel werd gelezen) | uitgevoerd 27-10-2026, teruggedraaid |
+| 101 | opslagscript: stderr van de brug door een pijp (1.1) | `Invoke-GjkConfigOpslaan.ps1`, `_GjkAanroepPython`: terug naar een tijdelijk bestand op naam onder `Stop` | `test_a_warning_of_the_judging_half_on_stderr_does_not_block_the_save` (een waarschuwing van de brug: "onverwachte fout", niets opgeslagen, exitcode 3) | uitgevoerd 27-10-2026, teruggedraaid |
+| 102 | PowerShell-inventaris hoofdletterongevoelig (1.1) | `tests/test_read_inventory.py`: `_I = re.IGNORECASE` vervangen door `0` | `test_the_powershell_scanner_skips_comments_and_counts_the_operations` (`get-content` en `[io.file]::` niet geteld) | uitgevoerd 27-10-2026, teruggedraaid |
+| 103 | PowerShell: opsommen alleen op de vastgehouden handle (1.1) | `Get-GjkLokaleNamen`: `Wandeling.Namen` vervangen door `Get-ChildItem` op naam | `test_listing_below_a_link_to_a_share_never_contacts_the_network` (geen weigering: de opsomming op naam liep via de koppeling naar de share) | uitgevoerd 27-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -249,6 +254,10 @@ race (d): met een blad dat verwijderdeling toestaat (79) lukten hernoemen, overs
 verwijderen van de bundel, maar het hernoemen van de firmwaremap bleef geweigerd, omdat de keten van
 mappen nog vastgehouden werd; met de stroom gesloten voor de upload (84) lukte het hernoemen van de
 firmwaremap (de pogingen op de bundel faalden daarna alleen omdat het pad niet meer bestond).
+
+De vijf proeven 85-89 (versie 1.1) op dezelfde manier. 85 en 89 samen tonen dat de firmwaremap nooit
+meer op naam opgesomd wordt: met een opsomming op naam (in de runner, of in `Get-GjkLokaleNamen` zelf)
+volgde de opsomming een koppeling naar een share voordat er iets weigerde.
 
 ## Gemeten: het oude-lijnharnas op de tags v1.0.1, v1.0.2 en v1.0.3 (26-10-2026)
 
