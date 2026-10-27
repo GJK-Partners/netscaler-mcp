@@ -298,3 +298,46 @@ def test_a_control_character_in_doel_or_adres_is_refused_before_any_transport_ca
     assert "[TARGET]" not in proc.stdout
     assert "vals" not in proc.stdout
     assert _untouched(markers)
+
+
+def _brug_met_stderr(tmp_path: Path, *, exitcode: int | None = None) -> str:
+    """A judging half that writes one warning line on stderr. Without an exit
+    code it then runs the real bridge (same arguments, same stdin); with one
+    it ends with that code."""
+    brug = tmp_path / "brug-met-waarschuwing.cmd"
+    regels = ["@echo off", "echo DeprecationWarning: dit is alleen een waarschuwing 1>&2"]
+    regels.append(f"exit /b {exitcode}" if exitcode is not None else f'"{sys.executable}" %*')
+    brug.write_text("\r\n".join(regels) + "\r\n", encoding="ascii")
+    return str(brug)
+
+
+def test_a_warning_of_the_judging_half_on_stderr_does_not_block_the_save(tmp_path):
+    """Under 'Stop' Windows PowerShell 5.1 turned the first stderr line of the
+    bridge into a terminating error: an innocent warning made the script say
+    "onverwachte fout" and save nothing (exit code 3). Through a pipe the
+    warning is only text; the role judgement on stdout decides."""
+    proc, markers = _run(
+        tmp_path,
+        gate_python=_brug_met_stderr(tmp_path),
+        responses=_responses(ha="show-ha-node-standalone-primary.txt"),
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _commands(markers) == ["show ha node", "save ns config", "show ns config"]
+    assert "onverwachte fout" not in proc.stdout
+
+
+def test_a_failing_judging_half_names_its_stderr_and_saves_nothing(tmp_path):
+    proc, markers = _run(
+        tmp_path,
+        gate_python=_brug_met_stderr(tmp_path, exitcode=7),
+        responses=_responses(ha="show-ha-node-standalone-primary.txt"),
+    )
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert "upgrade_measure (vorm) gaf exitcode 7: DeprecationWarning: dit is alleen een waarschuwing" in proc.stdout
+    assert "save ns config" not in _commands(markers)
+
+
+def test_the_save_script_opens_no_temporary_file():
+    code = SCRIPT.read_text(encoding="ascii")
+    assert "GetTempFileName" not in code and "2>$" not in code
+    assert "2>&1" in code

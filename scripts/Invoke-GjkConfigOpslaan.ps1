@@ -200,15 +200,18 @@ if (-not [string]::IsNullOrWhiteSpace($Transport)) {
 
 function _GjkAanroepPython {
     param([Parameter(Mandatory = $true)] [string] $Module, [Parameter(Mandatory = $true)] [string] $JsonIn)
-    $foutBestand = [System.IO.Path]::GetTempFileName()
-    try {
-        $stdout = $JsonIn | & $GatePython -I -m $Module 2>$foutBestand
-        $code = $LASTEXITCODE
-        return [pscustomobject]@{ Stdout = ($stdout -join [Environment]::NewLine); ExitCode = $code }
-    }
-    finally {
-        Remove-Item -LiteralPath $foutBestand -ErrorAction SilentlyContinue
-    }
+    # 1.1: stderr door een pijp (2>&1), niet via een tijdelijk bestand op
+    # naam, en 'Continue' alleen binnen deze functie: onder 'Stop' maakt
+    # Windows PowerShell 5.1 van de eerste stderr-regel van een native kind
+    # een afbrekende fout (gemeten) - een onschuldige waarschuwing van de brug
+    # blokkeerde zo de opslag met "onverwachte fout". Dezelfde functie als de
+    # faserunner.
+    $ErrorActionPreference = 'Continue'
+    $alles = @($JsonIn | & $GatePython -I -m $Module 2>&1)
+    $code = $LASTEXITCODE
+    $uit = @($alles | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { [string]$_ })
+    $fout = @($alles | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() })
+    return [pscustomobject]@{ Stdout = ($uit -join [Environment]::NewLine); Stderr = ($fout -join [Environment]::NewLine); ExitCode = $code }
 }
 
 $sessie = $null
@@ -232,7 +235,7 @@ try {
     }
     $vormJson = (@{ actie = 'vorm'; verzoeken = @($verzoek) } | ConvertTo-Json -Depth 6 -Compress)
     $vormUit = _GjkAanroepPython -Module 'nsmcp.upgrade_measure' -JsonIn $vormJson
-    if ($vormUit.ExitCode -ne 0) { throw ('upgrade_measure (vorm) gaf exitcode ' + $vormUit.ExitCode) }
+    if ($vormUit.ExitCode -ne 0) { throw ('upgrade_measure (vorm) gaf exitcode ' + $vormUit.ExitCode + ': ' + $vormUit.Stderr) }
     $poorten = @(($vormUit.Stdout | ConvertFrom-Json).poort)
     if ($poorten.Count -ne 1) { throw 'upgrade_measure gaf niet precies een rolpoort terug' }
     $rol = $poorten[0]
