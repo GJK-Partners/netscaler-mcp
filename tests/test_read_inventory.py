@@ -73,7 +73,7 @@ class PsFinding:
     script: str
     operation: str
     count: int
-    kind: str  # "uitzondering 3" (B.3) or "op naam onder vastgehouden keten" (B.2, no exception)
+    kind: str  # "uitzondering 3" (B.3), "op naam onder vastgehouden keten" (B.2) or "geen bestandsbewerking"
     reason: str
 
 
@@ -108,6 +108,47 @@ POWERSHELL_PINNED: tuple[PsFinding, ...] = (
         " closed stream, and Set-SFTPItem opens by name only while the chain (no FILE_SHARE_DELETE) and the leaf"
         " (FILE_SHARE_READ only) are held, on the place the walk reached; firmware-hash then binds the box to the"
         " sidecar AND the hash on the held stream",
+    ),
+    PsFinding(
+        "Get-GjkPoshSshManifest.ps1",
+        "Get-ChildItem",
+        1,
+        "uitzondering 3",
+        "the recursive listing of the Posh-SSH module directory for its content manifest: the module path that"
+        " Import-Module reads on its own authority (Get-Module -ListAvailable or -Pad of the administrator), no"
+        " data of a customer; what lies behind a directory junction is left out of the manifest by design",
+    ),
+    PsFinding(
+        "Get-GjkPoshSshManifest.ps1",
+        "Test-Path",
+        1,
+        "uitzondering 3",
+        "whether the module directory given with -Pad exists before its manifest is computed: the module path"
+        " Import-Module reads on its own authority; a stand-alone check script, not started by the server",
+    ),
+    PsFinding(
+        "Get-GjkPoshSshManifest.ps1",
+        "[System.IO.Path]::",
+        1,
+        "geen bestandsbewerking",
+        "Path.GetFullPath on the text of the module directory: text only, nothing is opened or listed; it makes"
+        " the relative names of the manifest, the listing itself is the Get-ChildItem finding above",
+    ),
+    PsFinding(
+        "GjkUpgrade-Ssh.ps1",
+        "Get-ChildItem",
+        1,
+        "uitzondering 3",
+        "the same recursive listing of the Posh-SSH module directory (ModuleBase of Get-Module) for the content"
+        " manifest the transport checks before Import-Module loads that module on its own authority",
+    ),
+    PsFinding(
+        "GjkUpgrade-Ssh.ps1",
+        "[System.IO.Path]::",
+        1,
+        "geen bestandsbewerking",
+        "Path.GetFullPath on the text of the module directory: text only, nothing is opened or listed; it makes"
+        " the relative names of the content manifest",
     ),
 )
 
@@ -293,25 +334,52 @@ def python_findings() -> Counter:
     return counted
 
 
+_I = re.IGNORECASE
+# Cmdlets and type names are case-insensitive in PowerShell: so is every pattern.
 _PS_OPERATIONS = (
-    ("Get-Content", re.compile(r"\bGet-Content\b")),
-    ("Get-FileHash", re.compile(r"\bGet-FileHash\b")),
-    ("Set-Content", re.compile(r"\bSet-Content\b")),
-    ("Add-Content", re.compile(r"\bAdd-Content\b")),
-    ("Out-File", re.compile(r"\bOut-File\b")),
-    ("[System.IO.File]::", re.compile(r"\[System\.IO\.File\]::", re.IGNORECASE)),
-    ("[System.IO.FileStream]", re.compile(r"\[System\.IO\.FileStream\]", re.IGNORECASE)),
-    ("Import-Csv", re.compile(r"\bImport-Csv\b")),
-    ("Get-Item", re.compile(r"\bGet-Item\b(?!Property)")),
-    ("Set-SFTPItem -Path", re.compile(r"\bSet-SFTPItem\b.*\s-Path\b")),
+    ("Get-Content", re.compile(r"\bGet-Content\b", _I)),
+    ("Get-FileHash", re.compile(r"\bGet-FileHash\b", _I)),
+    ("Set-Content", re.compile(r"\bSet-Content\b", _I)),
+    ("Add-Content", re.compile(r"\bAdd-Content\b", _I)),
+    ("Out-File", re.compile(r"\bOut-File\b", _I)),
+    ("Export-Csv", re.compile(r"\bExport-Csv\b", _I)),
+    ("Import-Csv", re.compile(r"\bImport-Csv\b", _I)),
+    ("Start-Transcript", re.compile(r"\bStart-Transcript\b", _I)),
+    ("Get-Item", re.compile(r"\bGet-Item\b(?!Property)", _I)),
+    ("Get-ChildItem", re.compile(r"\bGet-ChildItem\b", _I)),
+    ("Test-Path", re.compile(r"\bTest-Path\b", _I)),
+    ("Resolve-Path", re.compile(r"\bResolve-Path\b", _I)),
+    ("New-Item", re.compile(r"\bNew-Item\b(?!Property)", _I)),
+    ("Copy-Item", re.compile(r"\bCopy-Item\b(?!Property)", _I)),
+    ("[System.IO.File]::", re.compile(r"\[(?:System\.)?IO\.File\]::", _I)),
+    ("[System.IO.FileStream]", re.compile(r"\[(?:System\.)?IO\.(?:FileStream|StreamReader|StreamWriter)\]", _I)),
+    ("[System.IO.Path]::", re.compile(r"\[(?:System\.)?IO\.Path\]::(?!GetTempFileName)", _I)),
+    ("GetTempFileName", re.compile(r"\bGetTempFileName\b", _I)),
+    ("Set-SFTPItem -Path", re.compile(r"\bSet-SFTPItem\b.*\s-Path\b", _I)),
 )
+# A redirection to a file (`>`, `>>`, `2>`, `*>`), not to a stream (`2>&1`)
+# and not to `$null`; searched in the code with its string literals removed.
+_PS_REDIRECT = re.compile(r"(?:^|[\s)])[1-6*]?>>?(?!&)\s*(?!\$null\b)[^\s>&|;)]", _I)
+_PS_STRING = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"`]|`.)*\"")
 
 
 def scan_powershell(text: str) -> Counter:
+    """Every counted operation in the code of a script: comments (line and
+    block) skipped; inside a here-string (the embedded C#) the operation
+    patterns still count, the redirection does not (C# has `>` in generics
+    and comparisons)."""
     counted: Counter = Counter()
     in_block = False
+    in_here = False
     for line in text.splitlines():
         stripped = line.strip()
+        if in_here:
+            if stripped.startswith(("'@", '"@')):
+                in_here = False
+                continue
+            for name, pattern in _PS_OPERATIONS:
+                counted[name] += len(pattern.findall(line))
+            continue
         if in_block:
             in_block = "#>" not in stripped
             continue
@@ -322,6 +390,10 @@ def scan_powershell(text: str) -> Counter:
             continue
         for name, pattern in _PS_OPERATIONS:
             counted[name] += len(pattern.findall(line))
+        code = _PS_STRING.sub("''", line.split(" #", 1)[0])
+        counted["> bestand"] += len(_PS_REDIRECT.findall(code))
+        if stripped.endswith(("@'", '@"')):
+            in_here = True
     return +counted
 
 
@@ -482,7 +554,7 @@ def test_every_powershell_file_operation_goes_through_the_walk_or_is_pinned_with
         " in de vastgepinde lijst"
     )
     for finding in POWERSHELL_PINNED:
-        assert finding.kind in ("uitzondering 3", "op naam onder vastgehouden keten"), finding
+        assert finding.kind in ("uitzondering 3", "op naam onder vastgehouden keten", "geen bestandsbewerking"), finding
         assert len(finding.reason) > 80, finding
 
 
@@ -520,9 +592,30 @@ def test_the_powershell_scanner_skips_comments_and_counts_the_operations():
         "Set-SFTPItem -SFTPSession $s -Path $p -Destination $d\n"
         "$i = Get-ItemProperty -LiteralPath $p\n"
         "[System.IO.File]::ReadAllBytes($p)\n"
+        "$b = get-content -LiteralPath $p\n"
+        "[io.file]::Open($p)\n"
+        "$t = [System.IO.Path]::GetTempFileName()\n"
+        "$o = & $py -I -m x 2>$t\n"
+        "$o = & $py -I -m x 2>&1\n"
+        "& $py > $null\n"
+        "Write-Host 'build-<tak>-<build>.tgz > geen omleiding'\n"
+        "$k = Get-ChildItem -LiteralPath $p; Test-Path $p; Resolve-Path $p\n"
+        "$x = @'\n"
+        "List<string> a; if (b > c) { }\n"
+        "'@\n"
     )
     assert scan_powershell(text) == Counter(
-        {"Get-Content": 1, "Get-FileHash": 1, "Set-SFTPItem -Path": 1, "[System.IO.File]::": 1}
+        {
+            "Get-Content": 2,
+            "Get-FileHash": 1,
+            "Set-SFTPItem -Path": 1,
+            "[System.IO.File]::": 2,
+            "GetTempFileName": 1,
+            "> bestand": 1,
+            "Get-ChildItem": 1,
+            "Test-Path": 1,
+            "Resolve-Path": 1,
+        }
     )
 
 
