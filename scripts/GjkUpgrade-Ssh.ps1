@@ -411,16 +411,26 @@ function Copy-GjkFile {
         New-GjkSshSession, nooit een automatisch vertrouwde nieuwe sleutel - en sluit hem weer in een
         finally-blok. $Sessie is het object dat New-GjkSshSession teruggeeft: het
         draagt genoeg (Adres/Gebruiker/CredentialTarget/Vingerafdruk) om een eigen
-        SFTP-sessie te openen zonder de aanroeper opnieuw te laten kiezen. #>
+        SFTP-sessie te openen zonder de aanroeper opnieuw te laten kiezen.
+
+        1.1 (B.2): de bron is GEEN pad maar het vastgehouden lokale bestand
+        van Open-GjkLokaalBestand (scripts\GjkUpgrade-LokaalPad.ps1). Set-SFTPItem
+        opent op naam - dat mag alleen terwijl de keten van mappen (zonder
+        FILE_SHARE_DELETE) en het blad (alleen FILE_SHARE_READ) vastgehouden
+        worden, en op de plek waar de wandeling uitkwam. Een string of een
+        gesloten stroom wordt geweigerd voordat er een credential gelezen of
+        een sessie geopend wordt. Na de upload vergelijkt de runner de hash op
+        de doos met de sidecar EN met de hash op de vastgehouden stroom. #>
     param(
         [Parameter(Mandatory = $true)] $Sessie,
-        [Parameter(Mandatory = $true)] [string] $Bron,
+        [Parameter(Mandatory = $true)] $Lokaal,
         [Parameter(Mandatory = $true)] [string] $Doel,
         [int] $TimeoutSec = 600
     )
-    if (-not (Test-Path -LiteralPath $Bron -PathType Leaf)) {
-        throw ('Copy-GjkFile: bronbestand niet gevonden: ' + $Bron)
+    if ($null -eq $Lokaal -or $Lokaal.GetType().FullName -ne 'GjkLokaalPad.LokaalStroom' -or $Lokaal.Gesloten) {
+        throw 'Copy-GjkFile: de bron is geen vastgehouden lokaal bestand; er wordt niets op naam geopend'
     }
+    $Bron = [string]$Lokaal.Pad
     $cred = Get-GjkCredential -Target $Sessie.CredentialTarget
     $sftpCred = New-Object System.Management.Automation.PSCredential($Sessie.Gebruiker, $cred.Password)
     $opslag = _GjkPinHostsleutel -Adres $Sessie.Adres -Vingerafdruk $Sessie.Vingerafdruk
@@ -437,6 +447,7 @@ function Copy-GjkFile {
         $t0 = Get-Date
         Set-SFTPItem -SFTPSession $sftp -Path $Bron -Destination $Doel -Force -ErrorAction Stop
         $t1 = Get-Date
+        if ($Lokaal.Gesloten) { throw 'Copy-GjkFile: het lokale bestand werd tijdens de upload losgelaten' }
         return [pscustomobject]@{ bron = $Bron; doel = $Doel; gestart = $t0; geeindigd = $t1; duurSec = [math]::Round(($t1 - $t0).TotalSeconds, 1) }
     }
     finally {

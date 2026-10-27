@@ -15,9 +15,10 @@ through `nsmcp.localpath`, mechanically proven instead of promised.
    the lines that are not comments): `Get-Content`, `Get-FileHash`,
    `Set-Content`, `Add-Content`, `Out-File`, `[System.IO.File]::`,
    `[System.IO.FileStream]`, `Import-Csv`, `Get-Item` and `Set-SFTPItem ...
-   -Path`. The PowerShell route (`Open-GjkLokaalBestand`) is part 3 of this
-   batch: the findings of today are pinned here by count and marked
-   `deel 3`; part 3 takes them out.
+   -Path`. Every finding goes through `Open-GjkLokaalBestand`
+   (scripts/GjkUpgrade-LokaalPad.ps1) or is pinned in `POWERSHELL_PINNED`
+   with its reason: exception 3 of B.3, or the one upload by name that B.2
+   allows only while the chain and the leaf are held.
 3. The runtime seam check is the `open_audit` fixture in tests/conftest.py;
    `runtime_exception` below is the one list it consults.
 
@@ -66,17 +67,49 @@ PYTHON_EXCEPTIONS: tuple[Exempt, ...] = (
     ),
 )
 
-# scripts/*.ps1: (script, operation) -> count. All of them are the PowerShell
-# route of part 3 (`Open-GjkLokaalBestand`, B.2); none is a pinned exception.
-POWERSHELL_PART_3: dict[tuple[str, str], int] = {
-    ("Get-GjkPoshSshManifest.ps1", "[System.IO.File]::"): 1,
-    ("GjkUpgrade-Ssh.ps1", "[System.IO.File]::"): 1,
-    ("GjkUpgrade-Ssh.ps1", "Set-SFTPItem -Path"): 1,
-    ("Invoke-GjkUpgradeFase.ps1", "Get-Content"): 2,
-    ("Invoke-GjkUpgradeFase.ps1", "Get-FileHash"): 1,
-    ("Invoke-GjkUpgradeFase.ps1", "Get-Item"): 1,
-}
-POWERSHELL_PART_3_MARK = "deel 3"
+
+@dataclass(frozen=True)
+class PsFinding:
+    script: str
+    operation: str
+    count: int
+    kind: str  # "uitzondering 3" (B.3) or "op naam onder vastgehouden keten" (B.2, no exception)
+    reason: str
+
+
+# scripts/*.ps1: every PowerShell file operation the regular expression finds
+# that does NOT go through `Open-GjkLokaalBestand`. Everything else of B.3
+# runs through that function (scripts/GjkUpgrade-LokaalPad.ps1): the bundle
+# hash on the held stream, the sidecar, the runner's own stderr through a pipe.
+POWERSHELL_PINNED: tuple[PsFinding, ...] = (
+    PsFinding(
+        "Get-GjkPoshSshManifest.ps1",
+        "[System.IO.File]::",
+        1,
+        "uitzondering 3",
+        "the content manifest of the Posh-SSH module itself: files PowerShell's Import-Module reads on its own"
+        " authority from the module path; the hash proves equality of the hashed bytes at hashing time, like the"
+        " script pin, not which bytes the module loader executes (exception 2 for the execution)",
+    ),
+    PsFinding(
+        "GjkUpgrade-Ssh.ps1",
+        "[System.IO.File]::",
+        1,
+        "uitzondering 3",
+        "the same Posh-SSH content manifest, computed by the transport before the module is imported: the module"
+        " files are read by Import-Module on its own authority; the product does not choose that path for data",
+    ),
+    PsFinding(
+        "GjkUpgrade-Ssh.ps1",
+        "Set-SFTPItem -Path",
+        1,
+        "op naam onder vastgehouden keten",
+        "NO exception (B.3): Copy-GjkFile takes the held stream of Open-GjkLokaalBestand, refuses a string or a"
+        " closed stream, and Set-SFTPItem opens by name only while the chain (no FILE_SHARE_DELETE) and the leaf"
+        " (FILE_SHARE_READ only) are held, on the place the walk reached; firmware-hash then binds the box to the"
+        " sidecar AND the hash on the held stream",
+    ),
+)
 
 # Herstelronde 1 (I-1 of the red review): metadata questions and listings BY
 # NAME count too - they follow a link to a share before the walk refuses it
@@ -442,12 +475,38 @@ def test_a_new_read_text_outside_localpath_is_a_new_finding(monkeypatch, tmp_pat
     assert new == {("export.py", "_mutant", "p.read_text")}
 
 
-def test_every_powershell_file_operation_is_counted_and_marked_for_part_3():
-    assert powershell_findings() == POWERSHELL_PART_3, (
-        "de PowerShell-inventaris wijkt af: een nieuwe vondst gaat door Open-GjkLokaalBestand (deel 3) of"
-        " staat met reden in de uitzonderingslijst"
+def test_every_powershell_file_operation_goes_through_the_walk_or_is_pinned_with_its_reason():
+    pinned = {(f.script, f.operation): f.count for f in POWERSHELL_PINNED}
+    assert powershell_findings() == pinned, (
+        "de PowerShell-inventaris wijkt af: een nieuwe vondst gaat door Open-GjkLokaalBestand of staat met reden"
+        " in de vastgepinde lijst"
     )
-    assert POWERSHELL_PART_3_MARK == "deel 3"
+    for finding in POWERSHELL_PINNED:
+        assert finding.kind in ("uitzondering 3", "op naam onder vastgehouden keten"), finding
+        assert len(finding.reason) > 80, finding
+
+
+def test_the_upload_by_name_happens_only_behind_the_check_of_a_held_stream():
+    """The one name-open that is no exception: inside Copy-GjkFile, after
+    the refusal of anything that is not an open `GjkLokaalPad.LokaalStroom`,
+    with the path the walk reached, never a parameter path."""
+    text = (SCRIPTS / "GjkUpgrade-Ssh.ps1").read_text(encoding="ascii")
+    body = text[text.index("function Copy-GjkFile {") : text.index("function Wait-GjkTerug {")]
+    guard = body.index("$Lokaal.GetType().FullName -ne 'GjkLokaalPad.LokaalStroom' -or $Lokaal.Gesloten")
+    source = body.index("$Bron = [string]$Lokaal.Pad")
+    upload = body.index("Set-SFTPItem -SFTPSession $sftp -Path $Bron")
+    assert guard < source < upload
+    assert "[string] $Bron" not in body and "Test-Path" not in body
+    assert text.count("Set-SFTPItem -SFTPSession") == 1
+
+
+def test_the_part_3_findings_of_part_2_are_gone():
+    """The seven findings part 2 marked `deel 3`: four ran through the walk
+    now (Get-Content twice, Get-FileHash, Get-Item in the runner) and three
+    are pinned above with their reason."""
+    found = powershell_findings()
+    for operation in ("Get-Content", "Get-FileHash", "Get-Item"):
+        assert ("Invoke-GjkUpgradeFase.ps1", operation) not in found
 
 
 def test_the_powershell_scanner_skips_comments_and_counts_the_operations():

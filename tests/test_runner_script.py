@@ -909,8 +909,10 @@ def test_the_preview_refuses_a_bundle_name_outside_the_bundle_form_too(tmp_path)
 
 def test_a_bundle_name_that_changes_after_the_first_check_is_refused_where_it_is_used(tmp_path):
     """The first check runs before the session; the name is checked again
-    where the bundle is chosen, so a file renamed in between (here: during
-    R1's free-space reading) never reaches a command either."""
+    where the bundle is chosen, so a file renamed in between (here: while
+    R2's session opens) never reaches a command either. R2 holds nothing
+    across the session (it only uses the name); R1 holds the bundle and the
+    rename fails there (`test_a_held_bundle_cannot_be_renamed_while_r1_measures`)."""
     markers = tmp_path / "markers"
     firmwaremap = _firmwaremap(tmp_path)
     goed = firmwaremap / "build-14.1-72.57_nc_64.tgz"
@@ -918,19 +920,19 @@ def test_a_bundle_name_that_changes_after_the_first_check_is_refused_where_it_is
     nieuwe_naam = _KWAADAARDIGE_BUNDELNAAM.replace("'", "''")
     transport.write_text(
         f". '{TRANSPORT_NEP}'\n"
-        "$script:GjkTestEchteDf = ${function:Get-GjkVrijeRuimteVar}\n"
-        "function Get-GjkVrijeRuimteVar {\n"
-        "    param($Sessie)\n"
+        "$script:GjkTestEchteSessie = ${function:New-GjkSshSession}\n"
+        "function New-GjkSshSession {\n"
+        "    param($Adres, $Gebruiker, $CredentialTarget, $Vingerafdruk, $TimeoutSec)\n"
         f"    Rename-Item -LiteralPath '{goed}' -NewName '{nieuwe_naam}'\n"
-        "    & $script:GjkTestEchteDf -Sessie $Sessie\n"
+        "    & $script:GjkTestEchteSessie -Adres $Adres -Gebruiker $Gebruiker -CredentialTarget $CredentialTarget"
+        " -Vingerafdruk $Vingerafdruk -TimeoutSec $TimeoutSec\n"
         "}\n",
         encoding="ascii",
     )
     proc = _run(
         tmp_path,
-        "R1",
+        "R2",
         seed_previous=True,
-        extra_args=["-DriftGeaccepteerd"],
         doelbuild="72.57",
         firmwaremap=firmwaremap,
         markerdir=markers,
@@ -2085,3 +2087,283 @@ def test_r3_keeps_the_deciding_end_time_fragment_as_evidence():
     assert "-match 'END_TIME' } | Select-Object -Last 1" in tekst
     assert "bewijs = ('installns -Y -n; gemeten markerfragment: ' + $markerBewijs)" in tekst
     assert "bewijs_kant = 'kop'" in tekst
+
+
+# ---------------------------------------------------------------------------
+# 1.1 B.2/B.3: every local file of the runner goes through
+# Open-GjkLokaalBestand (scripts/GjkUpgrade-LokaalPad.ps1). The bundle hash
+# is computed on the held stream, the sidecar is read through the same walk,
+# the upload opens the bundle by name only while the chain and the leaf are
+# held, and the box is compared with the sidecar AND the local hash.
+# ---------------------------------------------------------------------------
+
+LOKAAL_PAD = REPO / "scripts" / "GjkUpgrade-LokaalPad.ps1"
+KOPPELING_ZIN = (
+    "het bestand ligt niet als gewoon lokaal bestand op de goedgekeurde plek (er zit een koppeling in het pad);"
+    " dit product volgt binnen een goedgekeurde map geen koppelingen"
+)
+
+
+def _code_regels(pad: Path) -> list[str]:
+    """The lines of a script that are not comments (line or block)."""
+    regels, in_blok = [], False
+    for regel in pad.read_text(encoding="ascii").splitlines():
+        kaal = regel.strip()
+        if in_blok:
+            in_blok = "#>" not in kaal
+            continue
+        if kaal.startswith("<#"):
+            in_blok = "#>" not in kaal
+            continue
+        if not kaal.startswith("#"):
+            regels.append(regel)
+    return regels
+
+
+def _junction(link: Path, target: Path) -> None:
+    import _winapi
+
+    _winapi.CreateJunction(str(target), str(link))
+
+
+def _fout_regels(proc: subprocess.CompletedProcess) -> list[str]:
+    return [regel for regel in proc.stdout.splitlines() if regel.startswith("[FOUT]")]
+
+
+def test_the_runner_opens_no_local_file_by_name():
+    """No Get-FileHash, Get-Content, Get-Item or temporary file in the
+    runner: the bundle hash is computed on the held stream, the sidecar is
+    read through the walk and the stderr of the Python bridges comes through
+    a pipe."""
+    code = "\n".join(_code_regels(SCRIPT))
+    for verboden in ("Get-FileHash", "Get-Content", "Get-Item ", "GetTempFileName", "[System.IO.File]::", "2>$"):
+        assert verboden not in code, verboden
+    assert "Open-GjkLokaalBestand" in code and "Get-GjkLokaleSha256" in code
+    assert "Join-Path $eigenMap 'GjkUpgrade-LokaalPad.ps1'" in code
+
+
+@pytest.mark.parametrize("fase", ["R1", "R2", "R3"])
+def test_a_bundle_that_is_a_junction_is_refused_with_exit_4_before_the_session(tmp_path, fase):
+    markers = tmp_path / "markers"
+    ledger = tmp_path / "ledger.jsonl"
+    firmwaremap = tmp_path / "firmware"
+    firmwaremap.mkdir()
+    elders = tmp_path / "elders"
+    elders.mkdir()
+    _junction(firmwaremap / "build-14.1-72.57_nc_64.tgz", elders)
+    (firmwaremap / "build-14.1-72.57_nc_64.tgz.sha256").write_text(NEP_DOOS_SHA + "\n", encoding="ascii")
+    proc = _run(
+        tmp_path,
+        fase,
+        seed_previous=True,
+        doelbuild="14.1-72.57",
+        firmwaremap=firmwaremap,
+        markerdir=markers,
+        ledger=ledger,
+    )
+    assert proc.returncode == 4, proc.stdout + proc.stderr
+    fouten = _fout_regels(proc)
+    assert fouten == ["[FOUT] de firmwarebundel is geweigerd: " + KOPPELING_ZIN], proc.stdout
+    assert "[GEWEIGERD]" in proc.stdout and "[EINDSTATUS]" not in proc.stdout
+    assert str(tmp_path) not in proc.stdout, "geen pad in de uitvoer"
+    assert not (markers / "ssh-sessie-geopend.txt").exists()
+    assert not (markers / "commands.txt").exists()
+    regels = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert [r for r in regels if r["fase"] == fase] == [], "geen fase_gestart: geweigerd voor de oordeelshelft"
+
+
+def test_a_firmware_map_that_is_itself_a_junction_is_refused(tmp_path):
+    markers = tmp_path / "markers"
+    echte_map = _firmwaremap(tmp_path)
+    gekoppeld = tmp_path / "firmware-koppeling"
+    _junction(gekoppeld, echte_map)
+    proc = _run(tmp_path, "R1", seed_previous=True, firmwaremap=gekoppeld, markerdir=markers)
+    assert proc.returncode == 4, proc.stdout + proc.stderr
+    assert _fout_regels(proc) == ["[FOUT] de firmwarebundel is geweigerd: " + KOPPELING_ZIN]
+    assert not (markers / "ssh-sessie-geopend.txt").exists()
+
+
+def test_a_sidecar_that_is_a_junction_is_refused(tmp_path):
+    markers = tmp_path / "markers"
+    firmwaremap = tmp_path / "firmware"
+    firmwaremap.mkdir()
+    (firmwaremap / "build-14.1-72.57_nc_64.tgz").write_bytes(b"nep-bundel-inhoud")
+    elders = tmp_path / "elders"
+    elders.mkdir()
+    _junction(firmwaremap / "build-14.1-72.57_nc_64.tgz.sha256", elders)
+    proc = _run(tmp_path, "R1", seed_previous=True, firmwaremap=firmwaremap, markerdir=markers)
+    assert proc.returncode == 4, proc.stdout + proc.stderr
+    assert _fout_regels(proc) == ["[FOUT] de sidecar van de firmwarebundel is geweigerd: " + KOPPELING_ZIN]
+    assert not (markers / "ssh-sessie-geopend.txt").exists()
+
+
+def test_r5_with_a_bare_target_build_refuses_a_bundle_that_is_a_junction(tmp_path):
+    firmwaremap = tmp_path / "firmware"
+    firmwaremap.mkdir()
+    elders = tmp_path / "elders"
+    elders.mkdir()
+    _junction(firmwaremap / "build-14.1-72.57_nc_64.tgz", elders)
+    proc = _run(tmp_path, "R5", seed_previous=True, doelbuild="72.57", firmwaremap=firmwaremap)
+    assert proc.returncode == 4, proc.stdout + proc.stderr
+    assert _fout_regels(proc) == ["[FOUT] de firmwarebundel is geweigerd: " + KOPPELING_ZIN]
+
+
+def test_race_d_the_bundle_cannot_be_swapped_between_the_local_hash_and_the_upload(tmp_path):
+    """Race (d) of B.5, with the NEP transport: inside Copy-GjkFile - after
+    the local hash, before the bytes are read for the upload - a second
+    actor tries to rename the firmware map, rename, overwrite and delete the
+    bundle. Every attempt fails because the chain and the leaf are held; the
+    upload then reads the bundle by name (as Set-SFTPItem does) and the box
+    reports the hash of exactly those bytes. The firmware-hash gate opens
+    only because box, sidecar and local stream agree."""
+    import hashlib
+
+    markers = tmp_path / "markers"
+    ledger = tmp_path / "ledger.jsonl"
+    firmwaremap = _firmwaremap(tmp_path)
+    proc = _run(
+        tmp_path,
+        "R1",
+        seed_previous=True,
+        extra_args=["-DriftGeaccepteerd"],
+        ledger=ledger,
+        firmwaremap=firmwaremap,
+        markerdir=markers,
+        extra_env={"GJK_TEST_WISSEL": "1", "GJK_TEST_DOOS_SHA_VAN_UPLOAD": "1"},
+    )
+    assert ledger.exists(), proc.stdout + proc.stderr
+    pogingen = json.loads((markers / "wissel-pogingen.json").read_text(encoding="ascii"))
+    assert pogingen == {
+        "hernoem firmwaremap": "geweigerd",
+        "hernoem bundel": "geweigerd",
+        "overschrijf bundel": "geweigerd",
+        "verwijder bundel": "geweigerd",
+        "vastgehouden": "ja",
+    }, pogingen
+    geupload = (markers / "sftp-geupload-sha.txt").read_text(encoding="ascii").strip()
+    assert geupload == hashlib.sha256(b"nep-bundel-inhoud").hexdigest() == NEP_DOOS_SHA
+    assert (firmwaremap / "build-14.1-72.57_nc_64.tgz").read_bytes() == b"nep-bundel-inhoud"
+    assert (markers / "sftp-upload-bron.txt").read_text(encoding="ascii").strip() == str(
+        firmwaremap / "build-14.1-72.57_nc_64.tgz"
+    )
+    regels = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
+    hash_poort = next(p for p in regels[-1]["poort"] if p["naam"] == "firmware-hash")
+    assert hash_poort["uitkomst"] == "open", hash_poort
+    assert "lokaal vastgehouden bundel" in hash_poort["bewijs"]
+
+
+def test_the_real_copy_refuses_a_source_that_is_not_a_held_local_file(tmp_path):
+    """Copy-GjkFile of the real transport takes the held stream, never a
+    path: a string or a closed stream is refused before a credential is read
+    or a session opens."""
+    bestand = tmp_path / "bundel.tgz"
+    bestand.write_bytes(b"x")
+    body = (
+        f". '{TRANSPORT_ECHT}'\n"
+        f". '{LOKAAL_PAD}'\n"
+        "$script:gelezen = 0\n"
+        "function Get-GjkCredential { param($Target) $script:gelezen++; throw 'mag niet' }\n"
+        "$sessie = [pscustomobject]@{ Adres = '127.0.0.1'; Gebruiker = 'x'; CredentialTarget = 'GJK/Test/x'; Vingerafdruk = 'x' }\n"
+        "$uit = @()\n"
+        f"try {{ Copy-GjkFile -Sessie $sessie -Lokaal '{bestand}' -Doel '/var/tmp' }} catch {{ $uit += $_.Exception.Message }}\n"
+        f"$s = Open-GjkLokaalBestand -Pad '{bestand}' -Wortel '{tmp_path}' -Klasse bundel\n"
+        "Close-GjkLokaalBestand $s\n"
+        "try { Copy-GjkFile -Sessie $sessie -Lokaal $s -Doel '/var/tmp' } catch { $uit += $_.Exception.Message }\n"
+        "$uit | ForEach-Object { Write-Output ('UIT:' + $_) }\n"
+        "Write-Output ('GELEZEN:' + $script:gelezen)\n"
+    )
+    proc = _transport_command(body)
+    uit = [regel[4:] for regel in proc.stdout.splitlines() if regel.startswith("UIT:")]
+    assert len(uit) == 2, proc.stdout + proc.stderr
+    assert all("geen vastgehouden lokaal bestand" in regel for regel in uit), uit
+    assert "GELEZEN:0" in proc.stdout
+
+
+def test_the_stderr_of_a_bridge_reaches_the_fout_line_through_a_pipe_not_a_file(tmp_path):
+    """The Python bridges' stderr came through a temporary file opened by
+    name, and under 'Stop' Windows PowerShell 5.1 turned the first stderr
+    line of the child into a terminating error: the runner then died with
+    exit code 1 - the word for a judged refusal - instead of saying why.
+    Through a pipe the reason reaches the [FOUT] line and the exit code is
+    the one the runner chose."""
+    nep_python = tmp_path / "nep-python.cmd"
+    nep_python.write_text("@echo off\r\necho brug-kapot-op-stderr 1>&2\r\nexit /b 7\r\n", encoding="ascii")
+    argumenten = [
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(SCRIPT),
+        "-Doel",
+        "lab-02-test",
+        "-Adres",
+        "127.0.0.1",
+        "-Fase",
+        "R0",
+        "-Run",
+        "test-run-1",
+        "-Gebruiker",
+        "x",
+        "-CredentialTarget",
+        "GJK/Test/upgrade-runner",
+        "-HostsleutelVingerafdruk",
+        GOEDE_VINGERAFDRUK,
+        "-Doelbuild",
+        "72.57",
+        "-Firmwaremap",
+        str(_firmwaremap(tmp_path)),
+        "-Ledger",
+        str(tmp_path / "ledger.jsonl"),
+        "-GatePython",
+        str(nep_python),
+        "-Actieid",
+        "upgrade-R0-20260907-000000",
+        "-Transport",
+        str(TRANSPORT_NEP),
+    ]
+    proc = subprocess.run(argumenten, capture_output=True, text=True, timeout=60, cwd=str(REPO))
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "[FOUT] kon fase_gestart niet laten vastleggen: brug-kapot-op-stderr" in proc.stdout, proc.stdout
+
+
+def test_a_held_bundle_cannot_be_renamed_while_r1_measures(tmp_path):
+    """The rename that a bare target build used to catch only where the
+    bundle was used now fails outright in R1: from the walk before the
+    session to the end of the phase the bundle is held without delete
+    sharing. (R2 holds nothing across the session; there the name is still
+    checked again where it is used.)"""
+    markers = tmp_path / "markers"
+    firmwaremap = _firmwaremap(tmp_path)
+    goed = firmwaremap / "build-14.1-72.57_nc_64.tgz"
+    transport = tmp_path / "rename-midway.ps1"
+    nieuwe_naam = _KWAADAARDIGE_BUNDELNAAM.replace("'", "''")
+    transport.write_text(
+        f". '{TRANSPORT_NEP}'\n"
+        "$script:GjkTestEchteDf = ${function:Get-GjkVrijeRuimteVar}\n"
+        "function Get-GjkVrijeRuimteVar {\n"
+        "    param($Sessie)\n"
+        f"    try {{ Rename-Item -LiteralPath '{goed}' -NewName '{nieuwe_naam}'; _NepMarkeer 'hernoemd.txt' }}\n"
+        "    catch { _NepMarkeer 'hernoemen-geweigerd.txt' }\n"
+        "    & $script:GjkTestEchteDf -Sessie $Sessie\n"
+        "}\n",
+        encoding="ascii",
+    )
+    proc = _run(
+        tmp_path,
+        "R1",
+        seed_previous=True,
+        extra_args=["-DriftGeaccepteerd"],
+        doelbuild="72.57",
+        firmwaremap=firmwaremap,
+        markerdir=markers,
+        transport=transport,
+    )
+    assert (markers / "hernoemen-geweigerd.txt").exists(), proc.stdout + proc.stderr
+    assert not (markers / "hernoemd.txt").exists()
+    assert goed.exists() and not (firmwaremap / _KWAADAARDIGE_BUNDELNAAM).exists()
+    assert "[EINDSTATUS]" in proc.stdout, proc.stdout + proc.stderr
+    assert "reboot" not in proc.stdout + proc.stderr
+    commandos = markers / "commands.txt"
+    assert "reboot" not in commandos.read_text(encoding="ascii")

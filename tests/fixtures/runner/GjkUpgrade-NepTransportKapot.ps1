@@ -89,7 +89,7 @@ function Invoke-GjkSsh {
 function Copy-GjkFile {
     param(
         [Parameter(Mandatory = $true)] $Sessie,
-        [Parameter(Mandatory = $true)] [string] $Bron,
+        [Parameter(Mandatory = $true)] $Lokaal,
         [Parameter(Mandatory = $true)] [string] $Doel,
         [int] $TimeoutSec = 600
     )

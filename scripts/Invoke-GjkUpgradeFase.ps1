@@ -75,7 +75,13 @@
       - een bundelnaam die via het patroon (geen tak in -Doelbuild) gevonden
         wordt, moet de bundelvorm build-<tak>-<build>_nc_64.tgz hebben voordat
         hij in een remote shell-commando mag; anders exitcode 4, zie
-        _GjkBundelnaamGeldig.
+        _GjkBundelnaamGeldig;
+      - 1.1: elk lokaal bestand gaat door Open-GjkLokaalBestand
+        (GjkUpgrade-LokaalPad.ps1, STAP 3b): de bundel en de sidecar door de
+        wandeling per onderdeel, de lokale sha256 op de vastgehouden stroom,
+        de bundel in R1 vastgehouden tot na de upload; een weigering is
+        exitcode 4 met de vaste zin zonder pad. De stderr van de Python-
+        bruggen komt door een pijp, niet meer via een tijdelijk bestand.
 .NOTES
     GJK Partners. ASCII-only, Windows PowerShell 5.1.
 #>
@@ -243,13 +249,14 @@ Set-StrictMode -Version Latest
 # but the encoding is pinned here anyway so the bytes do not depend on the
 # console's code page: UTF-8, no mark.
 $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-# Get-FileHash (the local sha256 of the bundle) is a FUNCTION in
-# Microsoft.PowerShell.Utility that Windows PowerShell 5.1 loads on demand
-# by module name. A PSModulePath inherited from a PowerShell 7 parent lists
-# PowerShell 7's own copy of that module first; 5.1 cannot load that copy
-# and answers 'Get-FileHash is not recognized' (measured on a hosted Windows
-# runner whose job shell is PowerShell 7). Loading the host's own copy by
-# path makes the measurement independent of whatever started this process.
+# Microsoft.PowerShell.Utility (ConvertTo-Json, ConvertFrom-Json, Get-Date)
+# is loaded by Windows PowerShell 5.1 on demand by module name. A
+# PSModulePath inherited from a PowerShell 7 parent lists PowerShell 7's own
+# copy of that module first; 5.1 cannot load that copy (measured on a hosted
+# Windows runner whose job shell is PowerShell 7, when the local bundle hash
+# still came from that module's Get-FileHash; since 1.1 it is computed on the
+# held stream of Open-GjkLokaalBestand). Loading the host's own copy by path
+# keeps the rest of the module independent of whatever started this process.
 Import-Module -Name (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Utility') -ErrorAction Stop
 
 function Log { param([string]$Niveau, [string]$Boodschap) Write-Host ("[{0}] {1}" -f $Niveau, $Boodschap) }
@@ -508,29 +515,107 @@ function _GjkWeigerBundelnaam {
     exit 4
 }
 
+# ---------------------------------------------------------------------------
+# 1.1 (B.2/B.3): elk lokaal bestand van deze runner gaat door
+# Open-GjkLokaalBestand (scripts\GjkUpgrade-LokaalPad.ps1): de wandeling per
+# onderdeel, relatief aan vastgehouden handles, die geen koppeling volgt.
+# STAP 3b hieronder kiest de bundelnaam en wandelt erheen VOOR fase_gestart,
+# het transport en de sessie; in R1 blijft de bundel daarna vastgehouden tot
+# het einde van de fase (de lokale sha256 op de vastgehouden stroom, de
+# upload op naam binnen die greep, de vergelijking op de doos met sidecar EN
+# lokale hash). Een weigering: [FOUT] <vaste zin zonder pad>, [GEWEIGERD]
+# en exitcode 4 - geen fase gestart, niets naar de appliance.
+# ---------------------------------------------------------------------------
+$script:GjkSidecarMax = 65536
+
+function _GjkKiesBundelnaam {
+    <#  De naam die STAP 3b vastpakt: de verwachte naam bij een tak in
+        -Doelbuild, anders de ene kandidaat van het patroon (geen of meer dan
+        een: $null, en de plek van gebruik meldt het zoals voorheen). Zonder
+        -File: een koppeling met een bundelnaam is een kandidaat en wordt
+        door de wandeling geweigerd, niet stil overgeslagen. #>
+    param([Parameter(Mandatory = $true)] [string] $Firmwaremap)
+    $verwacht = _GjkVerwachteBundelnaam
+    if ($null -ne $verwacht) { return $verwacht }
+    $kandidaten = @(Get-ChildItem -LiteralPath $Firmwaremap -Filter (_GjkBundelpatroon) -ErrorAction SilentlyContinue)
+    if ($kandidaten.Count -ne 1) { return $null }
+    if (-not (_GjkBundelnaamGeldig -Naam $kandidaten[0].Name)) { _GjkWeigerBundelnaam }
+    return $kandidaten[0].Name
+}
+
+function _GjkWeigerLokaalPad {
+    param([string] $Omschrijving, [string] $Soort)
+    Log 'FOUT' ($Omschrijving + ' is geweigerd: ' + (Get-GjkLokaalPadReden -Soort $Soort))
+    Log 'GEWEIGERD' 'geen fase gestart en niets naar de appliance gestuurd; leg de firmwaremap aan als gewone lokale map met gewone bestanden, zonder koppelingen'
+    exit 4
+}
+
+function _GjkOpenLokaal {
+    <#  Open-GjkLokaalBestand op <map>\<naam> met de map als wortel (wortel en
+        pad uit dezelfde tekst). Een weigering eindigt hier: [FOUT] met de
+        vaste zin van de soort, zonder pad, en exitcode 4. #>
+    param(
+        [Parameter(Mandatory = $true)] [string] $Map,
+        [Parameter(Mandatory = $true)] [string] $Naam,
+        [Parameter(Mandatory = $true)] [string] $Klasse,
+        [Parameter(Mandatory = $true)] [string] $Omschrijving,
+        [switch] $MagOntbreken
+    )
+    try {
+        $plek = Join-GjkLokaalPad -Map $Map -Naam $Naam
+        return (Open-GjkLokaalBestand -Pad $plek.Pad -Wortel $plek.Wortel -Klasse $Klasse -MagOntbreken:$MagOntbreken)
+    }
+    catch {
+        $soort = Get-GjkLokaalPadSoort -Fout $_
+        if ($soort) { _GjkWeigerLokaalPad -Omschrijving $Omschrijving -Soort $soort }
+        throw
+    }
+}
+
+function _GjkLeesSidecar {
+    <#  De vendorwaarde uit <bundelnaam>.sha256, gelezen door de wandeling
+        (alleen FILE_SHARE_READ) en direct weer gesloten: het eerste veld van
+        de eerste regel. Ontbreekt het bestand of is het groter dan het
+        plafond, dan is er geen vendorwaarde ('') en sluiten de hashpoorten. #>
+    param([Parameter(Mandatory = $true)] [string] $Firmwaremap, [Parameter(Mandatory = $true)] [string] $Naam)
+    $stroom = _GjkOpenLokaal -Map $Firmwaremap -Naam ($Naam + '.sha256') -Klasse 'sidecar' -Omschrijving 'de sidecar van de firmwarebundel' -MagOntbreken
+    if ($null -eq $stroom) { return '' }
+    try { $bytes = Read-GjkLokaleBytes -Stroom $stroom -Max $script:GjkSidecarMax }
+    finally { Close-GjkLokaalBestand $stroom }
+    if ($bytes.Length -gt $script:GjkSidecarMax) { return '' }
+    $tekst = (New-Object System.Text.UTF8Encoding($false)).GetString($bytes).TrimStart([char]0xFEFF)
+    $eersteRegel = @($tekst -split "`r?`n")[0]
+    $velden = @($eersteRegel -split '\s+' | Where-Object { $_ -ne '' })
+    if ($velden.Count -eq 0) { return '' }
+    return [string]$velden[0]
+}
+
 function _GjkVindBundel {
+    <#  De bundelnaam op de plek van gebruik: de naam die STAP 3b vastpakte.
+        Zonder tak wordt de map opnieuw gelezen; een naam buiten de bundelvorm
+        is exitcode 4, een andere naam dan in STAP 3b een meetfout. #>
     param([Parameter(Mandatory = $true)] [string] $Firmwaremap)
     $verwacht = _GjkVerwachteBundelnaam
     if ($null -ne $verwacht) {
-        $pad = Join-Path $Firmwaremap $verwacht
-        if (-not (Test-Path -LiteralPath $pad -PathType Leaf)) {
+        if ($script:GjkBundelNaam -cne $verwacht) {
             throw ('geen firmwarebundel gevonden: verwacht ' + $verwacht + ' in ' + $Firmwaremap)
         }
-        $gekozen = Get-Item -LiteralPath $pad
+        return $verwacht
     }
-    else {
-        $patroon = _GjkBundelpatroon
-        $kandidaten = @(Get-ChildItem -LiteralPath $Firmwaremap -Filter $patroon -File -ErrorAction SilentlyContinue)
-        if ($kandidaten.Count -eq 0) {
-            throw ('geen firmwarebundel gevonden die voldoet aan ' + $patroon + ' in ' + $Firmwaremap)
-        }
-        if ($kandidaten.Count -gt 1) {
-            throw ('meer dan een firmwarebundel voldoet aan ' + $patroon + ' in ' + $Firmwaremap + ': geen eenduidige doelbuild')
-        }
-        $gekozen = $kandidaten[0]
+    $patroon = _GjkBundelpatroon
+    $kandidaten = @(Get-ChildItem -LiteralPath $Firmwaremap -Filter $patroon -ErrorAction SilentlyContinue)
+    if ($kandidaten.Count -eq 0) {
+        throw ('geen firmwarebundel gevonden die voldoet aan ' + $patroon + ' in ' + $Firmwaremap)
     }
-    if (-not (_GjkBundelnaamGeldig -Naam $gekozen.Name)) { _GjkWeigerBundelnaam }
-    return $gekozen
+    if ($kandidaten.Count -gt 1) {
+        throw ('meer dan een firmwarebundel voldoet aan ' + $patroon + ' in ' + $Firmwaremap + ': geen eenduidige doelbuild')
+    }
+    $naam = $kandidaten[0].Name
+    if (-not (_GjkBundelnaamGeldig -Naam $naam)) { _GjkWeigerBundelnaam }
+    if ($script:GjkBundelNaam -cne $naam) {
+        throw 'de firmwarebundel op de plek van gebruik is niet de bundel die voor de sessie door de lokale wandeling ging'
+    }
+    return $naam
 }
 
 # De eerste toets: voor het transport, de sessie en fase_gestart, alleen waar
@@ -594,6 +679,56 @@ if ($WatIs) {
 }
 
 # ---------------------------------------------------------------------------
+# STAP 3b: de lokale bestanden van deze fase, door Open-GjkLokaalBestand,
+# VOOR fase_gestart, het transport en de sessie. R1 houdt de bundel vast tot
+# het einde van de fase en berekent de lokale sha256 op die vastgehouden
+# stroom (geen Get-FileHash op naam); de sidecar gaat door dezelfde wandeling.
+# R2/R3 (en R5 zonder tak) gebruiken alleen de naam: de wandeling bewijst
+# dat het een gewoon lokaal bestand in de firmwaremap is. Een bundel die
+# ontbreekt of niet eenduidig is, meldt de plek van gebruik zoals voorheen.
+# ---------------------------------------------------------------------------
+$script:GjkBundelStroom = $null
+$script:GjkBundelNaam = $null
+$script:GjkLokaleSha = ''
+$script:GjkVendorSha = ''
+$lokaalNodig = ($Fase -in @('R1', 'R2', 'R3')) -or ($Fase -eq 'R5' -and [string]::IsNullOrEmpty($script:GjkDoelbuildTak))
+if ($lokaalNodig) {
+    try {
+        . (Join-Path $eigenMap 'GjkUpgrade-LokaalPad.ps1')
+    }
+    catch {
+        Log 'FOUT' 'de lokale-padregel (GjkUpgrade-LokaalPad.ps1) kon niet geladen worden'
+        Log 'GEWEIGERD' 'geen fase gestart: zonder de lokale-padregel leest deze runner geen firmwarebundel'
+        exit 3
+    }
+    try {
+        $kandidaat = _GjkKiesBundelnaam -Firmwaremap $Firmwaremap
+        if ($null -ne $kandidaat) {
+            $stroom = _GjkOpenLokaal -Map $Firmwaremap -Naam $kandidaat -Klasse 'bundel' -Omschrijving 'de firmwarebundel' -MagOntbreken
+            if ($null -ne $stroom) {
+                $script:GjkBundelNaam = $kandidaat
+                if ($Fase -eq 'R1') {
+                    $script:GjkBundelStroom = $stroom
+                    $script:GjkLokaleSha = Get-GjkLokaleSha256 -Stroom $stroom
+                    $script:GjkVendorSha = _GjkLeesSidecar -Firmwaremap $Firmwaremap -Naam $kandidaat
+                }
+                else {
+                    Close-GjkLokaalBestand $stroom
+                }
+            }
+        }
+    }
+    catch {
+        # Geen weigering (die eindigt in _GjkOpenLokaal met exitcode 4) maar
+        # een onverwachte fout bij het lezen: nooit exitcode 1, en alleen de
+        # klassenaam (een .NET-melding draagt het pad).
+        Log 'FOUT' ('de firmwaremap kon niet gelezen worden: ' + $_.Exception.GetType().Name)
+        Log 'GEWEIGERD' 'geen fase gestart en niets naar de appliance gestuurd'
+        exit 3
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Python-bruggen. TWEE, en niet meer: 'upgrade_measure' (vormt poorten uit
 # ruwe metingen, en schrijft de ENE fase_gestart-markeerregel) en
 # 'upgrade_gate' (het oordeel, EXACT een keer per fase-aanroep). Dit script
@@ -603,17 +738,18 @@ if ($WatIs) {
 # ---------------------------------------------------------------------------
 function _GjkAanroepPython {
     param([Parameter(Mandatory = $true)] [string] $Module, [Parameter(Mandatory = $true)] [string] $JsonIn)
-    $foutBestand = [System.IO.Path]::GetTempFileName()
-    try {
-        $stdout = $JsonIn | & $GatePython -I -m $Module 2>$foutBestand
-        $code = $LASTEXITCODE
-        $stderrTekst = ''
-        if (Test-Path -LiteralPath $foutBestand) { $stderrTekst = Get-Content -LiteralPath $foutBestand -Raw -ErrorAction SilentlyContinue }
-        return [pscustomobject]@{ Stdout = ($stdout -join [Environment]::NewLine); Stderr = $stderrTekst; ExitCode = $code }
-    }
-    finally {
-        Remove-Item -LiteralPath $foutBestand -ErrorAction SilentlyContinue
-    }
+    # 1.1 (B.3): stderr door een pijp (2>&1), niet meer via een tijdelijk
+    # bestand dat op naam aangemaakt, beschreven en teruggelezen werd. En
+    # 'Continue' alleen binnen deze functie: onder 'Stop' maakt Windows
+    # PowerShell 5.1 van de eerste stderr-regel van een native kind een
+    # afbrekende fout (gemeten), en de runner stierf dan met exitcode 1 - het
+    # woord voor een GEOORDEELDE weigering - in plaats van de reden te tonen.
+    $ErrorActionPreference = 'Continue'
+    $alles = @($JsonIn | & $GatePython -I -m $Module 2>&1)
+    $code = $LASTEXITCODE
+    $uit = @($alles | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { [string]$_ })
+    $fout = @($alles | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() })
+    return [pscustomobject]@{ Stdout = ($uit -join [Environment]::NewLine); Stderr = ($fout -join [Environment]::NewLine); ExitCode = $code }
 }
 
 function _GjkVormPoorten {
@@ -781,19 +917,18 @@ try {
                     $df = Get-GjkVrijeRuimteVar -Sessie $sessie
                     $vrijMb = $df.vrijMb
 
-                    $bundelBestand = _GjkVindBundel -Firmwaremap $Firmwaremap
-                    $buildDir = _GjkBuildPad -BundelNaam $bundelBestand.Name
+                    $bundelNaam = _GjkVindBundel -Firmwaremap $Firmwaremap
+                    $buildDir = _GjkBuildPad -BundelNaam $bundelNaam
 
                     # Voor upload vergelijkt Python de lokale hash met de vendor-sidecar.
-                    # Na upload blijft firmware-hash een afzonderlijke SHA256-meting OP DE DOOS.
-                    $lokaleSha = (Get-FileHash -LiteralPath $bundelBestand.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-                    $vendorSha = ''
-                    $shaBestand = $bundelBestand.FullName + '.sha256'
-                    if (Test-Path -LiteralPath $shaBestand) {
-                        $eersteRegel = Get-Content -LiteralPath $shaBestand -TotalCount 1 -ErrorAction SilentlyContinue
-                        if ($eersteRegel) { $vendorSha = (@($eersteRegel -split '\s+' | Where-Object { $_ -ne '' }))[0] }
-                    }
-                    $bundelMb = [math]::Round($bundelBestand.Length / 1MB)
+                    # Na upload vergelijkt firmware-hash de SHA256 OP DE DOOS met de
+                    # sidecar EN met de lokale hash. Beide lokale waarden komen uit
+                    # STAP 3b: de hash op de vastgehouden stroom, de sidecar door de
+                    # wandeling; de grootte op de handle van het vastgehouden blad.
+                    $lokaleSha = $script:GjkLokaleSha
+                    $vendorSha = $script:GjkVendorSha
+                    $bundelLengte = [int64]$script:GjkBundelStroom.Grootte
+                    $bundelMb = [math]::Round($bundelLengte / 1MB)
 
                     # Gemeten: een hertest van R1 uploadde de
                     # bundel altijd opnieuw, ook als een vorige poging hem al met de
@@ -806,20 +941,20 @@ try {
                     # respons-override hier gewoon "afwezig" leest en de bestaande
                     # upload ongewijzigd blijft.
                     $aanwezigheid = Invoke-GjkSsh -Sessie $sessie -Commando (
-                        'shell sh -c ''test -f ' + $buildDir + '/' + $bundelBestand.Name +
+                        'shell sh -c ''test -f ' + $buildDir + '/' + $bundelNaam +
                         ' && echo AANWEZIG || echo AFWEZIG'''
                     ) -TimeoutSec 60
                     $bundelAlOpDoos = ($aanwezigheid.exitcode -eq 0 -and $aanwezigheid.stdout -match 'AANWEZIG')
                     $doosShaVooraf = ''
                     if ($bundelAlOpDoos) {
-                        $shaVooraf = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sha256 -q ' + $buildDir + '/' + $bundelBestand.Name) -TimeoutSec 120
+                        $shaVooraf = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sha256 -q ' + $buildDir + '/' + $bundelNaam) -TimeoutSec 120
                         if ($shaVooraf.exitcode -eq 0) {
                             $shaVoorafMatch = [regex]::Match($shaVooraf.stdout, '(?<hash>[0-9a-fA-F]{64})')
                             if ($shaVoorafMatch.Success) { $doosShaVooraf = $shaVoorafMatch.Groups['hash'].Value.ToLowerInvariant() }
                         }
                     }
                     $uploadOverslaan = (
-                        $bundelAlOpDoos -and $vendorSha -ne '' -and $doosShaVooraf -ne '' -and $doosShaVooraf -eq $vendorSha
+                        $bundelAlOpDoos -and $vendorSha -ne '' -and $doosShaVooraf -ne '' -and $doosShaVooraf -eq $vendorSha -and $doosShaVooraf -eq $lokaleSha
                     )
 
                     # bundel_mb blijft de ECHTE gemeten
@@ -868,10 +1003,10 @@ try {
                         if ($uploadOverslaan) {
                             $upload = [pscustomobject]@{ duurSec = 0 }
                         } else {
-                            $upload = Copy-GjkFile -Sessie $sessie -Bron $bundelBestand.FullName -Doel $buildDir -TimeoutSec 3000
+                            $upload = Copy-GjkFile -Sessie $sessie -Lokaal $script:GjkBundelStroom -Doel $buildDir -TimeoutSec 3000
                         }
                         $ls = Invoke-GjkSsh -Sessie $sessie -Commando ('shell ls -la ' + $buildDir) -TimeoutSec 60
-                        $shaOpDeDoos = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sha256 -q ' + $buildDir + '/' + $bundelBestand.Name) -TimeoutSec 120
+                        $shaOpDeDoos = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sha256 -q ' + $buildDir + '/' + $bundelNaam) -TimeoutSec 120
 
                         $doosSha = ''
                         if ($shaOpDeDoos.exitcode -eq 0) {
@@ -885,7 +1020,7 @@ try {
                         # ook echt allemaal aankwamen (een afgebroken transfer
                         # kan dezelfde naam met een kortere lengte achterlaten).
                         $doosGrootteBytes = $null
-                        $regelMetBestand = @($ls.stdout -split "`r?`n") | Where-Object { $_ -match [regex]::Escape($bundelBestand.Name) } | Select-Object -First 1
+                        $regelMetBestand = @($ls.stdout -split "`r?`n") | Where-Object { $_ -match [regex]::Escape($bundelNaam) } | Select-Object -First 1
                         if ($regelMetBestand) {
                             $velden = @($regelMetBestand -split '\s+' | Where-Object { $_ -ne '' })
                             if ($velden.Count -ge 5) {
@@ -893,7 +1028,7 @@ try {
                                 if ([int64]::TryParse($velden[4], [ref]$mogelijkeGrootte)) { $doosGrootteBytes = $mogelijkeGrootte }
                             }
                         }
-                        $grootteKomtOvereen = ($null -ne $doosGrootteBytes -and $doosGrootteBytes -eq $bundelBestand.Length)
+                        $grootteKomtOvereen = ($null -ne $doosGrootteBytes -and $doosGrootteBytes -eq $bundelLengte)
 
                         $ruweMetingen['mkdir_exitcode'] = $mk.exitcode
                         $ruweMetingen['buildboom'] = $buildDir
@@ -903,7 +1038,7 @@ try {
                         $verzoeken += @{
                             soort = 'aanwezig'; naam = 'lokale bundel-sha256 (informatief)'; poorttype = 'bewijs'
                             aanwezig = $true
-                            bewijs = ('lokaal sha256 ' + $lokaleSha + '; bestand ' + $bundelBestand.FullName)
+                            bewijs = ('lokaal sha256 ' + $lokaleSha + '; bestand ' + $script:GjkBundelStroom.Pad)
                             reden_dicht = ''
                         }
                         if ($uploadOverslaan) {
@@ -918,17 +1053,17 @@ try {
                         }
                         $verzoeken += @{
                             soort = 'aanwezig'; naam = 'buildboom staat er nog'; poorttype = 'bewijs'
-                            aanwezig = ($ls.exitcode -eq 0 -and $ls.stdout -match [regex]::Escape($bundelBestand.Name) -and $grootteKomtOvereen)
+                            aanwezig = ($ls.exitcode -eq 0 -and $ls.stdout -match [regex]::Escape($bundelNaam) -and $grootteKomtOvereen)
                             bewijs = (
-                                'ls ' + $buildDir + ': ' + $ls.stdout + '; lokale grootte ' + $bundelBestand.Length +
+                                'ls ' + $buildDir + ': ' + $ls.stdout + '; lokale grootte ' + $bundelLengte +
                                 ' bytes, op de doos ' + $(if ($null -ne $doosGrootteBytes) { [string]$doosGrootteBytes + ' bytes' } else { 'onbekend' })
                             )
                             reden_dicht = 'de overgezette bundel staat niet (meer) in de buildboom, of de grootte op de doos wijkt af van de lokale bundel'
                         }
                     }
                     'R2' {
-                        $bundelBestand = _GjkVindBundel -Firmwaremap $Firmwaremap
-                        $buildDir = _GjkBuildPad -BundelNaam $bundelBestand.Name
+                        $bundelNaam = _GjkVindBundel -Firmwaremap $Firmwaremap
+                        $buildDir = _GjkBuildPad -BundelNaam $bundelNaam
 
                         # A later fix removed the wildcard from
                         # every OTHER selection site in this file (the exact bundle
@@ -937,7 +1072,7 @@ try {
                         # ANY leftover .tgz in the build directory from a previous,
                         # unrelated upgrade run, not necessarily the bundle this run
                         # just uploaded.
-                        $uitpakken = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sh -c ''cd ' + $buildDir + ' && tar -xvzf ' + $bundelBestand.Name + '''') -TimeoutSec 600
+                        $uitpakken = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sh -c ''cd ' + $buildDir + ' && tar -xvzf ' + $bundelNaam + '''') -TimeoutSec 600
                         $ondersteund = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sh -c ''test -f ' + $buildDir + '/.pre-check-supported && echo JA || echo NEE''') -TimeoutSec 60
                         # Gemeten op lab-02: de doos zet voor elke shell-uitvoer een waarschuwingsbanner
                         # (RPC default passwords); het antwoord is dus een HELE REGEL 'JA', niet de hele uitvoer.
@@ -965,8 +1100,8 @@ try {
                         }
                     }
                     'R3' {
-                        $bundelBestand = _GjkVindBundel -Firmwaremap $Firmwaremap
-                        $buildDir = _GjkBuildPad -BundelNaam $bundelBestand.Name
+                        $bundelNaam = _GjkVindBundel -Firmwaremap $Firmwaremap
+                        $buildDir = _GjkBuildPad -BundelNaam $bundelNaam
                         $inst = Invoke-GjkSsh -Sessie $sessie -Commando ('shell sh -c ''cd ' + $buildDir + ' && ./installns -Y -n''') -TimeoutSec 1700
 
                         $ruweMetingen['installns_exitcode'] = $inst.exitcode
@@ -1053,7 +1188,7 @@ try {
                             $bevestigdeBuild = ''
                             try {
                                 $doelBundel = _GjkVindBundel -Firmwaremap $Firmwaremap
-                                if ($doelBundel.Name -match '^build-(\d+\.\d+-\d+\.\d+)_') { $bevestigdeBuild = $Matches[1] }
+                                if ($doelBundel -match '^build-(\d+\.\d+-\d+\.\d+)_') { $bevestigdeBuild = $Matches[1] }
                             } catch { $bevestigdeBuild = '' }
                         }
                         $verzoeken += @{
@@ -1153,5 +1288,12 @@ catch {
     exit 3
 }
 finally {
-    Close-GjkSshSession $sessie
+    try {
+        Close-GjkSshSession $sessie
+    }
+    finally {
+        # De bundel (R1) pas los na de upload en de meting op de doos: het
+        # blad, daarna de keten, elke handle precies een keer.
+        if ($null -ne $script:GjkBundelStroom) { $script:GjkBundelStroom.Dispose() }
+    }
 }

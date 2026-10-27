@@ -35,6 +35,8 @@ $script:NepWachtwoord = 'TOPSECRET-MOET-NOOIT-LEKKEN-9f8e7d6c3b2a'
 # Moet letterlijk gelijk zijn aan NEP_DOOS_SHA in tests/test_runner_script.py
 # (de vendorwaarde die _firmwaremap() daar in het .sha256-bestand schrijft).
 $script:NepDoosSha = '1997e2585c3ea0e412f90b343c4e9d90f1f96d02f54cdbe9a024fb5c89e4fb22'
+# Met $env:GJK_TEST_DOOS_SHA_VAN_UPLOAD: de hash van de bytes die Copy-GjkFile echt las.
+$script:NepGeuploadeSha = ''
 
 function _NepMarkeer {
     param([string] $Naam, [string] $Waarde = 'x')
@@ -131,7 +133,7 @@ function Invoke-SSHCommand {
     elseif ($Commando -like '*show system backup*') { $uit = 'Filename: backup_lab-02_20260906.tgz Level: full' }
     elseif ($Commando -like '*ls -1 /var/nsinstall*') { $uit = "14.1`n" }
     elseif ($Commando -like '*sha256*') {
-        $waarde = if (-not [string]::IsNullOrWhiteSpace($env:GJK_TEST_DOOS_SHA)) { $env:GJK_TEST_DOOS_SHA } else { $script:NepDoosSha }
+        $waarde = if (-not [string]::IsNullOrWhiteSpace($env:GJK_TEST_DOOS_SHA)) { $env:GJK_TEST_DOOS_SHA } elseif ($script:NepGeuploadeSha) { $script:NepGeuploadeSha } else { $script:NepDoosSha }
         $uit = $waarde + "`n"
     }
     elseif ($Commando -like '*.pre-check-supported*') { $uit = 'JA' }
@@ -157,15 +159,47 @@ function Invoke-SSHCommand {
 }
 
 function Copy-GjkFile {
+    # Zelfde parameters als het echte transport (1.1): -Lokaal is de
+    # vastgehouden stroom van Open-GjkLokaalBestand, nooit een pad.
+    #
+    # Race (d) van B.5, als $env:GJK_TEST_WISSEL gezet is: tussen de lokale
+    # hash (STAP 3b van de runner) en het lezen van de bytes voor de upload
+    # probeert een tweede actor de firmwaremap te hernoemen en de bundel te
+    # hernoemen, te overschrijven en te verwijderen; elke uitkomst gaat naar
+    # wissel-pogingen.json. Daarna "uploadt" deze functie zoals Set-SFTPItem:
+    # op naam, en met $env:GJK_TEST_DOOS_SHA_VAN_UPLOAD meldt 'sha256 -q' op
+    # de doos de hash van PRECIES die geuploade bytes.
     param(
         [Parameter(Mandatory = $true)] $Sessie,
-        [Parameter(Mandatory = $true)] [string] $Bron,
+        [Parameter(Mandatory = $true)] $Lokaal,
         [Parameter(Mandatory = $true)] [string] $Doel,
         [int] $TimeoutSec = 600
     )
+    $Bron = [string]$Lokaal.Pad
     _NepMarkeer 'sftp-upload.txt'
     if ($env:GJK_TEST_MARKERDIR) { Add-Content -LiteralPath (Join-Path $env:GJK_TEST_MARKERDIR 'writes.txt') -Value 'SFTP upload' -Encoding ASCII }
     _NepMarkeer -Naam 'sftp-upload-bron.txt' -Waarde $Bron
+    if ($env:GJK_TEST_WISSEL) {
+        $map = Split-Path -Parent $Bron
+        $pogingen = [ordered]@{}
+        try { Rename-Item -LiteralPath $map -NewName ((Split-Path -Leaf $map) + '-weg'); $pogingen['hernoem firmwaremap'] = 'gelukt' }
+        catch { $pogingen['hernoem firmwaremap'] = 'geweigerd' }
+        try { Rename-Item -LiteralPath $Bron -NewName 'andere-bundel.tgz'; $pogingen['hernoem bundel'] = 'gelukt' }
+        catch { $pogingen['hernoem bundel'] = 'geweigerd' }
+        try { [System.IO.File]::WriteAllBytes($Bron, [byte[]](1, 2, 3)); $pogingen['overschrijf bundel'] = 'gelukt' }
+        catch { $pogingen['overschrijf bundel'] = 'geweigerd' }
+        try { [System.IO.File]::Delete($Bron); $pogingen['verwijder bundel'] = 'gelukt' }
+        catch { $pogingen['verwijder bundel'] = 'geweigerd' }
+        $pogingen['vastgehouden'] = $(if ($Lokaal.Gesloten) { 'nee' } else { 'ja' })
+        _NepMarkeer -Naam 'wissel-pogingen.json' -Waarde ($pogingen | ConvertTo-Json -Compress)
+    }
+    if ($env:GJK_TEST_DOOS_SHA_VAN_UPLOAD) {
+        $stroom = [System.IO.File]::Open($Bron, 'Open', 'Read', 'Read')
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try { $digest = $sha.ComputeHash($stroom) } finally { $stroom.Dispose(); $sha.Dispose() }
+        $script:NepGeuploadeSha = ([System.BitConverter]::ToString($digest) -replace '-', '').ToLowerInvariant()
+        _NepMarkeer -Naam 'sftp-geupload-sha.txt' -Waarde $script:NepGeuploadeSha
+    }
     return [pscustomobject]@{ bron = $Bron; doel = $Doel; gestart = (Get-Date); geeindigd = (Get-Date); duurSec = 0.1 }
 }
 
