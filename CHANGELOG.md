@@ -284,6 +284,49 @@ the knowledge package.
   parent-swap proof per reader family (tests/test_reader_parent_swap.py,
   real junctions through the seam, with the needle test at `beperkt` and
   `minimaal`), and the sentences pinned in tests/test_product_surface.py.
+- A file inside an approved directory with more than one name on the disk (a
+  hardlink, `NumberOfLinks > 1` on the held leaf) is refused for reading and
+  appending, before a byte is read or written, with the new kind `hardlink`:
+  "het bestand heeft meer dan een naam op de schijf (hardlink); dit product
+  leest binnen de map alleen bestanden met een naam". A hardlink is no reparse
+  point, so without this a file from outside the approved tree could be read
+  through a second name inside it. A configured path without a root (the
+  configuration file, the targets file, the knowledge package) keeps no such
+  rule. Put such a file in place as a plain copy.
+- Metadata questions and listings go through the same walk: whether a file
+  or directory is there (`localpath.exists_local`), the names in a directory
+  (`localpath.list_local`, read on the held directory handle with
+  `NtQueryDirectoryFile`), and the creation of missing directories
+  (`localpath.mkdir_local`, each relative to the held parent). 1.0.3 asked
+  these by name (`exists`, `is_dir`, `is_file`, `glob`, `iterdir`, `resolve`,
+  `mkdir(parents=True)`), which followed a link in the place of a directory to
+  a share before anything refused it - measured: 21 s and a network contact
+  per call, from reading tools such as `onderhoud_upgrade_stand`,
+  `onderhoud_upgrade_plan`, `rapport_vergelijk`, `rapport_dekking` and every
+  `beperkt` answer (the directory of the pseudonym table). Now such a place
+  is refused at the spelling step in well under 100 ms without any contact.
+  The ledger map, the firmware directory, the map around the export, the
+  script directory and the knowledge refresh are listed this way; the
+  directories of the pseudonym table, the provenance map, the action
+  register, the beheer map and the knowledge package are created this way;
+  `retention` and `rapport_vergelijk` no longer compare `resolve()` results
+  (the volume-root walk refuses every link on the way). A run name becomes a
+  ledger path as text (`upgrade.ledger_path_for`), no longer through
+  `resolve()`. The identity of an export map in a provenance record is where
+  the walk says it leads (no `resolve()` by name): for a path with an 8.3
+  short name in it, a record of 1.0.3 no longer matches until the next scan.
+  The start check of the configuration keeps its own metadata checks (part 3).
+- The flush of the directory entry of a new ledger, register or provenance
+  file now happens: the held directory is opened once more relative to
+  itself (an empty name) with the write right and flushed; no open by name.
+- The pseudonym table's lock is proven from both sides: while the product
+  holds it, another process can neither write nor replace the lock file;
+  once free, it can.
+- The watch over a retained export reads a file with the watch's own ceiling
+  as the cap of the read (the target file 1 KiB), checked on the handle before
+  a byte is read, instead of reading up to 32 MiB first.
+- An existing name met by an exclusive create (the scan lock) that cannot be
+  opened as itself is `onleesbaar`, no longer "a scan is running".
 
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is

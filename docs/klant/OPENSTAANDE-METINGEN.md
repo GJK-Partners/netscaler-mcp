@@ -51,6 +51,20 @@ en dat de wijziging is teruggedraaid. Een mutatieproef die alleen op een Windows
 bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poort in
 `src/nsmcp/upgrade.py` staat en niet in de PowerShell-kant van de runner.
 
+## Openstaande meting: de netwerkproef van het lokale pad (1.1, B.5)
+
+**Open.** De proef vraagt een pakketopname (`pktmon`) en daarvoor verhoogde rechten: een symbolische
+link op de plek van een voorouder naar het documentatieadres `\\192.0.2.10\x`, de lezing via
+`nsmcp.localpath`, en tijdens de lezing nul pakketten naar dat adres op poort 445 en 139. De test
+`tests/test_localpath_windows.py::test_the_network_provider_sees_no_packet` doet precies dat, maar
+draait alleen met `NSMCP_NETWERKPROEF=1` in een verhoogde sessie; zonder dat is hij een benoemde skip
+met deze reden. Wat er zonder opname wel bewezen is: de seamteller van `localpath` (geen enkele
+open op de share, het doel van de koppeling komt niet voorbij de spellingstap) en de duur (onder
+100 ms, waar een echt netwerkcontact met dat adres 21 s kost, gemeten in de rode review van deel 2
+van B) - voor de wandeling zelf (`tests/test_localpath_windows.py`) en voor elke plek die een
+bestaan, een mapinhoud of een nieuwe map vraagt (`tests/test_metadata_no_network.py`). Een
+seamteller telt geen pakketten; de opname blijft daarom open tot ze gedraaid is.
+
 ## Mutatieproeven van de runner
 
 | # | poort | uitgezet in | test die omviel | status |
@@ -116,6 +130,14 @@ bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poo
 | 66 | lezer scriptpin (1.1) | `powershell.file_sha256`: `root=localpath.parent_text(text)` vervangen door `root=None` | `test_scriptpin_a_script_directory_swapped_mid_walk_starts_no_process` (DID NOT RAISE: het script van buiten werd gehasht en paste op de pin) | uitgevoerd 26-10-2026, teruggedraaid |
 | 67 | lezer runnerlog (1.1) | `handelen.start_detached`: het logbestand zonder wortel (`root=None`) | `test_runner_log_a_ledger_map_swapped_mid_walk_starts_nothing` (de start ging door tot na `Popen`) | uitgevoerd 26-10-2026, teruggedraaid |
 | 68 | vaste zinnen per soort (1.1, B.4) | `localpath.REASONS["buiten_wortel"]` ingekort | `test_1_1_the_refusal_sentence_of_every_kind_is_pinned` | uitgevoerd 26-10-2026, teruggedraaid |
+| 69 | inventaris: metadata op naam (1.1) | `coverage._object_file_present`: de wandeling vervangen door `(export.directory / "objects" / ...).exists()` | `test_every_python_file_operation_is_in_localpath_or_a_pinned_exception` (meldde precies `coverage.py:_object_file_present: ... .exists`) | uitgevoerd 27-10-2026, teruggedraaid |
+| 70 | ledgermap opsommen op de vastgehouden handle (1.1) | `upgrade_gate._rows_for_target`: `list_local` vervangen door `Path(...).glob("*.jsonl")` | `tests/test_metadata_no_network.py::test_the_ledger_map_listing` (21,06 s: een echt netwerkcontact met het documentatieadres) | uitgevoerd 27-10-2026, teruggedraaid |
+| 71 | lokaal pad: hardlink binnen de wortel (1.1, B.2 stap 6) | `localpath._walk_windows`: `if links > 1:` vervangen door `if False:` | `test_a_hardlink_inside_the_root_is_refused` (DID NOT RAISE: het bestand van buiten werd via de tweede naam gelezen) | uitgevoerd 27-10-2026, teruggedraaid |
+| 72 | tabelslot sluit een tweede proces uit (1.1) | `disclosure._ProcessLock`: het slotbestand met `shared_writers=True` (mutatie R2 van de rode review van deel 2, die tegen de vorige test groen bleef) | `test_table_the_lock_keeps_another_process_out_and_lets_it_in_once_free` (het tweede proces schreef in het vastgehouden slot) | uitgevoerd 27-10-2026, teruggedraaid |
+| 73 | mapflush via een heropening van de vastgehouden map (1.1) | `LocalHandle.flush_directory`: terug naar `FlushFileBuffers` op de vastgehouden ouder met alleen traverseerrecht | `test_the_directory_flush_uses_the_held_parent_and_opens_nothing_by_name` (`False`: er werd niets geflusht) | uitgevoerd 27-10-2026, teruggedraaid |
+| 74 | bewaking: plafond voor de lezing (1.1) | `export._read_export_file`: `cap_for` van de map genegeerd (alleen het algemene plafond) | `test_watch_target_file_ceiling_holds_before_the_read` (2 `ReadFile` op een doelbestand boven de 1 KiB) | uitgevoerd 27-10-2026, teruggedraaid |
+| 75 | herkomstmap aanmaken op de wandeling (1.1) | `export.record_provenance`: `mkdir_local` terug naar `provenance_dir.mkdir(parents=True, exist_ok=True)` | `test_the_provenance_map_and_the_export_identity` (geen weigering van zijn soort; de duur bleef kort omdat de redirector het documentatieadres van mutatie 70 nog als onbereikbaar in zijn cache had) | uitgevoerd 27-10-2026, teruggedraaid |
+| 76 | bestaand blad dat niet als zichzelf te openen is (1.1) | `localpath._existing_leaf`: weer `FileExistsError` als de heropening faalt | `test_an_existing_leaf_that_cannot_be_opened_as_itself_is_unreadable_not_already_there` | uitgevoerd 27-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
