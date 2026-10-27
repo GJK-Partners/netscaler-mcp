@@ -301,6 +301,7 @@ STATUS_NO_MORE_FILES = 0x80000006
 STATUS_NO_SUCH_FILE = 0xC000000F
 STATUS_REPARSE = 0x00000104
 STATUS_STOPPED_ON_SYMLINK = 0x8000002D
+STATUS_BUFFER_OVERFLOW = 0x80000005
 STATUS_ACCESS_DENIED = 0xC0000022
 STATUS_OBJECT_NAME_INVALID = 0xC0000033
 STATUS_OBJECT_NAME_NOT_FOUND = 0xC0000034
@@ -406,6 +407,8 @@ FileAttributeTagInformation = 35
 FileNamesInformation = 12
 FileFsDeviceInformation = 4
 FileFsFullSizeInformation = 7
+FileFsVolumeInformation = 1
+FileNormalizedNameInformation = 48
 
 # A directory on the way is held with the traverse right only: a relative open
 # needs no access on the parent handle, and a directory that may be traversed
@@ -720,6 +723,47 @@ class _Native:
         )
         return status, info.DeviceType, info.Characteristics
 
+    def query_volume_serial(self, handle: int) -> tuple[int, int]:
+        """`NtQueryVolumeInformationFile(FileFsVolumeInformation)` on a held
+        handle: (status, volume serial number). The label after the fixed part
+        is not needed; a buffer too small for it still carries the serial
+        (`STATUS_BUFFER_OVERFLOW` counts as success here)."""
+        self.calls["NtQueryVolumeInformationFile"] += 1
+        ctypes = self._ct
+        buffer = ctypes.create_string_buffer(512)
+        iosb = self._IOSB()
+        status = (
+            self._ntdll.NtQueryVolumeInformationFile(
+                handle, ctypes.byref(iosb), buffer, len(buffer), FileFsVolumeInformation
+            )
+            & 0xFFFFFFFF
+        )
+        if status == STATUS_BUFFER_OVERFLOW:
+            status = STATUS_SUCCESS
+        # FILE_FS_VOLUME_INFORMATION: LARGE_INTEGER creation time, then the ULONG serial.
+        return status, int.from_bytes(buffer.raw[8:12], "little")
+
+    def query_normalized_name(self, handle: int) -> tuple[int, str]:
+        """`NtQueryInformationFile(FileNormalizedNameInformation)` on a held
+        handle: (status, the volume-relative name with every component in its
+        long form and its stored case)."""
+        self.calls["NtQueryInformationFile"] += 1
+        ctypes = self._ct
+        buffer = ctypes.create_string_buffer(65536)
+        iosb = self._IOSB()
+        status = (
+            self._ntdll.NtQueryInformationFile(
+                handle, ctypes.byref(iosb), buffer, len(buffer), FileNormalizedNameInformation
+            )
+            & 0xFFFFFFFF
+        )
+        if status != STATUS_SUCCESS:
+            return status, ""
+        length = int.from_bytes(buffer.raw[:4], "little")
+        if length > len(buffer) - 4 or length % 2:
+            return STATUS_BUFFER_OVERFLOW, ""
+        return status, buffer.raw[4 : 4 + length].decode("utf-16-le")
+
     def set_rename(self, handle: int, parent: int, name: str, *, replace: bool = True) -> int:
         """`NtSetInformationFile(FileRenameInformation)`, the target named
         relative to the held `parent`; `ReplaceIfExists` only with `replace`."""
@@ -930,6 +974,31 @@ class LocalHandle:
                 raise PathRefused("geen_gewoon_bestand", path=self.path)
             return int(size)
         return os.fstat(self._leaf).st_size
+
+    def volume_serial(self) -> int:
+        """The serial number of the volume this chain lies on, read on the
+        held volume root handle (the first handle of the walk), never on a
+        path. Windows only: the place identity of the pseudonym table."""
+        root = self._chain[0] if self._chain else self._leaf
+        if self.closed or root is None or not isinstance(self._native, _Native):
+            raise PathRefused("onleesbaar", path=self.path, detail="geen volumehandle")
+        status, serial = self._native.query_volume_serial(root)
+        if status != STATUS_SUCCESS:
+            raise PathRefused("onleesbaar", path=self.path, status=status, detail="volumeserienummer")
+        return serial
+
+    def directory_name(self) -> str:
+        """The normalized name (long components, stored case, relative to the
+        volume) of the held directory (`directory_handle`), read on that
+        handle, never on a path: the same place spelled with a short name or
+        another case gives the same text."""
+        directory = self.directory_handle
+        if self.closed or directory is None or not isinstance(self._native, _Native):
+            raise PathRefused("onleesbaar", path=self.path, detail="geen maphandle")
+        status, name = self._native.query_normalized_name(directory)
+        if status != STATUS_SUCCESS or not name.startswith("\\"):
+            raise PathRefused("onleesbaar", path=self.path, status=status or None, detail="genormaliseerde naam")
+        return name
 
     def flush_directory(self) -> bool:
         """Best effort: flushes the directory entry of the leaf (a new file)

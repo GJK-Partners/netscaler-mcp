@@ -771,3 +771,94 @@ def test_the_network_provider_sees_no_packet(tmp_path, seam):
     assert elapsed < 0.1
     assert all("192.0.2.10" not in record["name"] for record in seam.opens)
     assert "All counters are zero" in counters or "Alle tellers zijn nul" in counters, counters
+
+
+# ---------------------------------------------------------------------------
+# 1.1 C: the place identity of the pseudonym table, read on held handles
+# ---------------------------------------------------------------------------
+
+
+def _volume_serial_by_api(drive: str) -> int:
+    import ctypes
+
+    serial = ctypes.c_ulong(0)
+    assert ctypes.windll.kernel32.GetVolumeInformationW(drive, None, 0, ctypes.byref(serial), None, None, None, 0)
+    return serial.value
+
+
+def _short_name(path: Path) -> str:
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(1024)
+    assert ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, 1024)
+    return buffer.value
+
+
+def test_the_volume_serial_is_read_on_the_held_volume_root_and_opens_nothing(tmp_path, seam):
+    root = tmp_path / "Beheer Map"
+    root.mkdir()
+    target = str(root / "x.lock")
+    with localpath.open_local_for_append(target, root=str(root)) as handle:
+        opens = seam.calls["NtCreateFile"]
+        serial = handle.volume_serial()
+        assert seam.calls["NtCreateFile"] == opens, "geen open op naam voor het serienummer"
+        assert seam.calls["NtQueryVolumeInformationFile"] >= 2
+    assert serial == _volume_serial_by_api(str(tmp_path)[:3])
+    _audit(seam)
+
+
+def test_the_directory_name_is_the_same_for_a_short_name_and_another_case(tmp_path, seam):
+    root = tmp_path / "Beheer Map"
+    root.mkdir()
+    names = []
+    for spelling in (str(root), _short_name(root), str(root).upper()):
+        with localpath.open_local_for_append(spelling + "\\x.lock", root=spelling) as handle:
+            opens = seam.calls["NtCreateFile"]
+            names.append(handle.directory_name())
+            assert seam.calls["NtCreateFile"] == opens, "geen open op naam voor de naam"
+    assert names[0] == names[1] == names[2]
+    assert names[0].endswith("\\Beheer Map") and names[0].startswith("\\") and ":" not in names[0]
+    _audit(seam)
+
+
+def test_a_failed_place_query_is_unreadable_and_never_a_guess(tmp_path, seam, monkeypatch):
+    root = tmp_path / "w"
+    root.mkdir()
+    monkeypatch.setattr(seam, "query_normalized_name", lambda handle: (localpath.STATUS_ACCESS_DENIED, ""))
+    monkeypatch.setattr(seam, "query_volume_serial", lambda handle: (localpath.STATUS_ACCESS_DENIED, 0))
+    with localpath.open_local_for_append(str(root / "x.lock"), root=str(root)) as handle:
+        with pytest.raises(PathRefused) as name_refused:
+            handle.directory_name()
+        with pytest.raises(PathRefused) as serial_refused:
+            handle.volume_serial()
+    assert name_refused.value.soort == serial_refused.value.soort == "onleesbaar"
+
+
+def test_create_local_opens_relative_to_the_held_parent_with_create_and_no_follow(tmp_path, seam):
+    root = tmp_path / "w"
+    root.mkdir()
+    localpath.create_local(str(root / "nieuw"), b"1", root=str(root))
+    leaf = [record for record in seam.opens if record["name"] == "nieuw"]
+    assert len(leaf) == 1 and leaf[0]["disposition"] == localpath.FILE_CREATE
+    assert leaf[0]["options"] & localpath.FILE_OPEN_REPARSE_POINT and leaf[0]["parent"] is not None
+    assert not leaf[0]["share"] & localpath.FILE_SHARE_DELETE
+    _audit(seam)
+
+
+def test_rename_local_renames_by_handle_in_the_held_parent_without_replace(tmp_path, seam, monkeypatch):
+    root = tmp_path / "w"
+    root.mkdir()
+    (root / "a").write_bytes(b"x")
+    calls = []
+    real = seam.set_rename
+
+    def recording(handle, parent, name, *, replace=True):
+        calls.append((parent, name, replace))
+        return real(handle, parent, name, replace=replace)
+
+    monkeypatch.setattr(seam, "set_rename", recording)
+    localpath.rename_local(str(root / "a"), "b", root=str(root))
+    assert (root / "b").read_bytes() == b"x"
+    held_dirs = {record["handle"] for record in seam.opens if record["name"] == "w"}
+    assert len(calls) == 1 and calls[0][0] in held_dirs and calls[0][1:] == ("b", False)
+    _audit(seam)
