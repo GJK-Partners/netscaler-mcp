@@ -701,3 +701,88 @@ def test_exactly_one_of_root_or_no_root_is_required(tmp_path):
     run = run_ps(tmp_path, body)
     assert run["geen"] == "ArgumentException" and run["beide"] == "ArgumentException"
     assert run.calls("NtCreateFile") == 0
+
+
+# ---------------------------------------------------------------------------
+# A second name on the disk, and listing a directory on its held handle
+# ---------------------------------------------------------------------------
+
+
+def test_a_hardlink_inside_the_root_is_refused_and_read_without_a_root(tmp_path):
+    """B.2 step 6 (revision 3), as `localpath`: a file outside the root with a
+    second name inside it is refused before a byte is read; the same file
+    without a root (a configured path) is read."""
+    root = tmp_path / "wortel"
+    root.mkdir()
+    outside = tmp_path / "buiten"
+    outside.mkdir()
+    (outside / "geheim.txt").write_bytes(b"GEHEIM")
+    os.link(outside / "geheim.txt", root / "tweede-naam.txt")
+    run = run_ps(
+        tmp_path,
+        _open("binnen", root / "tweede-naam.txt", root=root) + _open("zonder", root / "tweede-naam.txt"),
+    )
+    assert run["binnen"]["soort"] == "hardlink"
+    assert run["binnen"]["reden"] == localpath.REASONS["hardlink"]
+    assert run["binnen"]["data"] is None
+    assert run["zonder"]["data"] == "GEHEIM"
+    audit(run)
+
+
+def _names(name: str, path, extra: str = "") -> str:
+    return (
+        "$sw = [System.Diagnostics.Stopwatch]::StartNew()\n"
+        f"try {{ $n = @(Get-GjkLokaleNamen -Map {ps_text(path)} {extra}); "
+        f"Notitie {ps_text(name)} ([ordered]@{{ namen = @($n); soort = $null; ms = $sw.Elapsed.TotalMilliseconds }}) }}\n"
+        "catch { if ($_.Exception -isnot [GjkLokaalPad.PadGeweigerd]) { throw }; "
+        f"Notitie {ps_text(name)} ([ordered]@{{ namen = $null; soort = $_.Exception.Soort; ms = $sw.Elapsed.TotalMilliseconds }}) }}\n"
+    )
+
+
+def test_a_directory_is_listed_on_its_held_handle_and_nothing_in_it_is_opened(tmp_path):
+    root, _ = _tree(tmp_path)
+    (root / "P" / "een.tgz").write_bytes(b"1")
+    (root / "P" / "twee.tgz").write_bytes(b"2")
+    run = run_ps(tmp_path, _names("lijst", root / "P"))
+    assert sorted(run["lijst"]["namen"]) == ["C", "een.tgz", "twee.tgz"]
+    assert run.calls("NtQueryDirectoryFile") >= 1
+    names = audit(run)
+    assert names[-1] == "P", "alleen de map zelf is geopend, niets erin"
+    listed = [record for record in run.opens if record["naam"] == "P"][0]
+    assert listed["toegang"] == DIR_ACCESS | 0x0001, "lijstrecht alleen op de gevraagde map"
+
+
+def test_a_missing_directory_lists_nothing_only_when_absence_is_allowed(tmp_path):
+    root, _ = _tree(tmp_path)
+    run = run_ps(tmp_path, _names("mag", root / "weg", "-MagOntbreken") + _names("streng", root / "weg"))
+    assert run["mag"]["namen"] == [] and run["mag"]["soort"] is None
+    assert run["streng"]["soort"] == "onleesbaar"
+    audit(run)
+
+
+def test_a_directory_that_is_itself_a_junction_is_refused_without_listing(tmp_path):
+    _, outside = _tree(tmp_path)
+    gekoppeld = tmp_path / "map-koppeling"
+    _junction(gekoppeld, outside)
+    run = run_ps(tmp_path, _names("weg", gekoppeld))
+    assert run["weg"]["soort"] == "koppeling"
+    assert run.calls("NtQueryDirectoryFile") == 0
+    audit(run)
+
+
+def test_listing_below_a_link_to_a_share_never_contacts_the_network(tmp_path):
+    """I-1 of the red review of this part, the PowerShell side of the
+    measurement of part 2: `Get-ChildItem` on a map below a symbolic link to
+    `\\\\192.0.2.10\\x` let the redirector go to that host before anything
+    refused. The listing on the walk refuses at the spelling step of the link
+    target: `netwerkpad`, no open naming the share, no listing, well under the
+    100 ms a network contact never makes."""
+    above = tmp_path / "gedeeld"
+    _symlink(above, r"\\192.0.2.10\x", directory=True)
+    run = run_ps(tmp_path, _names("weg", above / "firmware", "-MagOntbreken"))
+    assert run["weg"]["soort"] == "netwerkpad"
+    assert run.calls("NtQueryDirectoryFile") == 0
+    assert run.calls("GetDriveTypeW") == 1, "het doel kwam niet verder dan de spellingstap"
+    names = audit(run)
+    assert not any("192.0.2.10" in name or "mup" in name.lower() for name in names)
+    assert run["weg"]["ms"] < 100, run["weg"]["ms"]

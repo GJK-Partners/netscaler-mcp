@@ -287,7 +287,7 @@ namespace GjkLokaalPad
             }
         }
 
-        internal static uint Standaard(IntPtr handle, out long grootte, out bool map)
+        internal static uint Standaard(IntPtr handle, out long grootte, out bool map, out uint namen)
         {
             Naad.Tel("NtQueryInformationFile");
             IntPtr info = Marshal.AllocHGlobal(24);
@@ -296,6 +296,7 @@ namespace GjkLokaalPad
                 IO_STATUS_BLOCK io;
                 uint status = unchecked((uint)NtQueryInformationFile(handle, out io, info, 24, 5));
                 grootte = Marshal.ReadInt64(info, 8);
+                namen = unchecked((uint)Marshal.ReadInt32(info, 16));
                 map = Marshal.ReadByte(info, 21) != 0;
                 return status;
             }
@@ -303,6 +304,28 @@ namespace GjkLokaalPad
             {
                 Marshal.FreeHGlobal(info);
             }
+        }
+
+        [DllImport("ntdll.dll")]
+        private static extern int NtQueryDirectoryFile(IntPtr handle, IntPtr evt, IntPtr apcRoutine, IntPtr apcContext, out IO_STATUS_BLOCK ioStatus, [Out] byte[] buffer, uint length, int informationClass, byte returnSingleEntry, IntPtr fileName, byte restartScan);
+
+        // NtQueryDirectoryFile(FileNamesInformation = 12) op een vastgehouden
+        // maphandle: alleen namen, niets geopend.
+        internal static uint MapInhoud(IntPtr handle, bool opnieuw, out byte[] ruw)
+        {
+            Naad.Tel("NtQueryDirectoryFile");
+            byte[] buffer = new byte[64 * 1024];
+            IO_STATUS_BLOCK io;
+            uint status = unchecked((uint)NtQueryDirectoryFile(handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, out io, buffer, (uint)buffer.Length, 12, 0, IntPtr.Zero, (byte)(opnieuw ? 1 : 0)));
+            if (status != 0)
+            {
+                ruw = new byte[0];
+                return status;
+            }
+            int lengte = (int)io.Information.ToInt64();
+            ruw = new byte[lengte];
+            Array.Copy(buffer, ruw, lengte);
+            return status;
         }
 
         internal static uint Apparaatinfo(IntPtr handle, out uint apparaatType, out uint kenmerken)
@@ -456,6 +479,11 @@ namespace GjkLokaalPad
         public const uint DIR_ACCESS = FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE;
         public const uint DIR_SHARE = FILE_SHARE_READ | FILE_SHARE_WRITE;
         public const uint LEAF_ACCESS = FILE_READ_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE;
+        // Een map die zelf gevraagd wordt (opsommen): lijstrecht erbij.
+        public const uint FILE_LIST_DIRECTORY = 0x0001;
+        public const uint DIR_LIST_ACCESS = FILE_LIST_DIRECTORY | DIR_ACCESS;
+        public const uint STATUS_NO_MORE_FILES = 0x80000006;
+        public const uint STATUS_NO_SUCH_FILE = 0xC000000F;
 
         public const uint STATUS_OBJECT_NAME_INVALID = 0xC0000033;
         public const uint STATUS_OBJECT_NAME_NOT_FOUND = 0xC0000034;
@@ -478,7 +506,7 @@ namespace GjkLokaalPad
 
         private static readonly string[] soorten = new string[] {
             "netwerkpad", "apparaatpad", "stroom", "netwerkstation", "koppeling", "herparseerpunt",
-            "buiten_wortel", "geen_gewoon_bestand", "te_veel_koppelingen", "onleesbaar"
+            "buiten_wortel", "geen_gewoon_bestand", "te_veel_koppelingen", "onleesbaar", "hardlink"
         };
 
         // Een vaste zin per soort, nooit een pad, nooit een status, nooit een
@@ -494,7 +522,8 @@ namespace GjkLokaalPad
             "het pad ligt buiten de goedgekeurde map",
             "op deze plek staat geen gewoon bestand of geen gewone map van de verwachte soort",
             "het pad loopt via meer dan " + 32 + " koppelingen; zo'n pad wordt niet gevolgd",
-            "het pad kan niet als gewoon lokaal bestand of als gewone lokale map gelezen of vastgesteld worden"
+            "het pad kan niet als gewoon lokaal bestand of als gewone lokale map gelezen of vastgesteld worden",
+            "het bestand heeft meer dan een naam op de schijf (hardlink); dit product leest binnen de map alleen bestanden met een naam"
         };
 
         private static readonly Regex lokaalApparaatStation = new Regex(@"^\\\\[?.]\\[A-Za-z]:(\\|$)");
@@ -525,7 +554,7 @@ namespace GjkLokaalPad
         public static string Reden(string soort)
         {
             int index = Array.IndexOf(soorten, soort);
-            return zinnen[index >= 0 ? index : soorten.Length - 1];
+            return zinnen[index >= 0 ? index : Array.IndexOf(soorten, "onleesbaar")];
         }
 
         private static bool AsciiLetter(char teken)
@@ -779,7 +808,80 @@ namespace GjkLokaalPad
 
         // ---- stap 3 tot 6
 
-        private static LokaalStroom Loop(string pad, string sleutel, List<string> delen, int wortelTelling, bool deelSchrijvers, bool magOntbreken)
+        private sealed class Greep
+        {
+            public List<IntPtr> Keten;
+            public IntPtr Blad;
+            public long Grootte;
+            public string Pad;
+        }
+
+        private static LokaalStroom AlsStroom(Greep greep)
+        {
+            if (greep == null) { return null; }
+            bool overgedragen = false;
+            try
+            {
+                LokaalStroom stroom = new LokaalStroom(greep.Blad, greep.Keten, greep.Pad, greep.Grootte);
+                overgedragen = true;
+                return stroom;
+            }
+            finally
+            {
+                if (!overgedragen)
+                {
+                    List<IntPtr> alles = new List<IntPtr>(greep.Keten);
+                    alles.Add(greep.Blad);
+                    SluitAlles(alles);
+                }
+            }
+        }
+
+        private static string[] Opsommen(Greep greep)
+        {
+            if (greep == null) { return null; }
+            List<IntPtr> alles = new List<IntPtr>(greep.Keten);
+            alles.Add(greep.Blad);
+            try
+            {
+                List<string> namen = new List<string>();
+                bool opnieuw = true;
+                while (true)
+                {
+                    byte[] ruw;
+                    uint status = Inheems.MapInhoud(greep.Blad, opnieuw, out ruw);
+                    opnieuw = false;
+                    if (status == STATUS_NO_MORE_FILES || status == STATUS_NO_SUCH_FILE) { break; }
+                    if (status != 0)
+                    {
+                        PadGeweigerd mislukt = new PadGeweigerd("onleesbaar", greep.Pad, "map opsommen");
+                        mislukt.Status = status;
+                        throw mislukt;
+                    }
+                    int positie = 0;
+                    while (true)
+                    {
+                        if (positie + 12 > ruw.Length) { throw Onleesbaar(greep.Pad, "mapgegevens"); }
+                        uint volgende = BitConverter.ToUInt32(ruw, positie);
+                        int lengte = (int)BitConverter.ToUInt32(ruw, positie + 8);
+                        if (positie + 12 + lengte > ruw.Length || lengte % 2 != 0) { throw Onleesbaar(greep.Pad, "mapgegevens"); }
+                        string naam;
+                        try { naam = striktUtf16.GetString(ruw, positie + 12, lengte); }
+                        catch (ArgumentException) { throw Onleesbaar(greep.Pad, "mapgegevens"); }
+                        if (naam != "." && naam != "..") { namen.Add(naam); }
+                        if (volgende == 0) { break; }
+                        positie += (int)volgende;
+                    }
+                }
+                return namen.ToArray();
+            }
+            finally
+            {
+                SluitAlles(alles);
+            }
+        }
+
+        private static Greep Loop(string pad, string sleutel, List<string> delen, int wortelTelling, bool deelSchrijvers, bool magOntbreken, bool alsMap)
         {
             List<IntPtr> vast = new List<IntPtr>();
             bool overgedragen = false;
@@ -800,7 +902,7 @@ namespace GjkLokaalPad
                     if (status != 0) { geenSchijf.Status = status; }
                     throw geenSchijf;
                 }
-                if (delen.Count == 0) { throw new PadGeweigerd("geen_gewoon_bestand", pad, "volumewortel"); }
+                if (delen.Count == 0) { throw new PadGeweigerd(alsMap ? "onleesbaar" : "geen_gewoon_bestand", pad, "volumewortel"); }
                 int laatste = delen.Count - 1;
                 for (int index = 0; index < delen.Count; index++)
                 {
@@ -810,7 +912,12 @@ namespace GjkLokaalPad
                     uint toegang = DIR_ACCESS;
                     uint deling = DIR_SHARE;
                     uint opties = FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT;
-                    if (isBlad)
+                    if (isBlad && alsMap)
+                    {
+                        // Een map die zelf gevraagd wordt (om op te sommen): lijstrecht erbij.
+                        toegang = DIR_LIST_ACCESS;
+                    }
+                    else if (isBlad)
                     {
                         toegang = LEAF_ACCESS;
                         deling = FILE_SHARE_READ | (deelSchrijvers ? FILE_SHARE_WRITE : 0);
@@ -844,23 +951,34 @@ namespace GjkLokaalPad
                         throw new Volg(Koppelingsdoel(gegevens, sleutel, delen.GetRange(0, index), delen.GetRange(index + 1, delen.Count - index - 1), pad));
                     }
                     bool isMap = (attributen & FILE_ATTRIBUTE_DIRECTORY) != 0;
-                    if (isMap != !isBlad) { throw new PadGeweigerd("geen_gewoon_bestand", pad, "onderdeel " + index); }
+                    if (isMap != (!isBlad || alsMap)) { throw new PadGeweigerd("geen_gewoon_bestand", pad, "onderdeel " + index); }
                 }
-                IntPtr blad = vast[vast.Count - 1];
-                long grootte;
-                bool map;
-                status = Inheems.Standaard(blad, out grootte, out map);
-                if (status != 0)
+                Greep greep = new Greep();
+                greep.Pad = pad;
+                greep.Blad = vast[vast.Count - 1];
+                if (!alsMap)
                 {
-                    PadGeweigerd geenInfo = new PadGeweigerd("onleesbaar", pad, "standaardinformatie");
-                    geenInfo.Status = status;
-                    throw geenInfo;
+                    long grootte;
+                    bool map;
+                    uint namen;
+                    status = Inheems.Standaard(greep.Blad, out grootte, out map, out namen);
+                    if (status != 0)
+                    {
+                        PadGeweigerd geenInfo = new PadGeweigerd("onleesbaar", pad, "standaardinformatie");
+                        geenInfo.Status = status;
+                        throw geenInfo;
+                    }
+                    if (map) { throw new PadGeweigerd("geen_gewoon_bestand", pad, "blad is een map"); }
+                    // B.2 stap 6 (revisie 3): een bestand binnen de wortel met een
+                    // tweede naam op de schijf kan een bestand van buiten de
+                    // goedgekeurde boom zijn; geweigerd op het vastgehouden blad
+                    // voordat er een byte gelezen wordt. Zonder wortel geen regel.
+                    if (wortelTelling >= 0 && namen > 1) { throw new PadGeweigerd("hardlink", pad, namen + " namen"); }
+                    greep.Grootte = grootte;
                 }
-                if (map) { throw new PadGeweigerd("geen_gewoon_bestand", pad, "blad is een map"); }
-                List<IntPtr> keten = vast.GetRange(0, vast.Count - 1);
-                LokaalStroom stroom = new LokaalStroom(blad, keten, pad, grootte);
+                greep.Keten = vast.GetRange(0, vast.Count - 1);
                 overgedragen = true;
-                return stroom;
+                return greep;
             }
             finally
             {
@@ -868,7 +986,7 @@ namespace GjkLokaalPad
             }
         }
 
-        private static LokaalStroom Wandel(string pad, string wortel, bool deelSchrijvers, bool magOntbreken)
+        private static Greep Wandel(string pad, string wortel, bool deelSchrijvers, bool magOntbreken, bool alsMap)
         {
             if (pad == null) { throw new PadGeweigerd("onleesbaar", null, "geen tekst"); }
             string huidig = pad;
@@ -888,7 +1006,7 @@ namespace GjkLokaalPad
                     }
                     try
                     {
-                        return Loop(huidig, sleutel, delen, wortelTelling, deelSchrijvers, magOntbreken);
+                        return Loop(huidig, sleutel, delen, wortelTelling, deelSchrijvers, magOntbreken, alsMap);
                     }
                     catch (Volg volg)
                     {
@@ -916,12 +1034,28 @@ namespace GjkLokaalPad
         public static LokaalStroom Open(string pad, string wortel, bool deelSchrijvers, bool magOntbreken)
         {
             if (string.IsNullOrEmpty(wortel)) { throw new ArgumentException("wortel ontbreekt; gebruik OpenZonderWortel"); }
-            return Wandel(pad, wortel, deelSchrijvers, magOntbreken);
+            return AlsStroom(Wandel(pad, wortel, deelSchrijvers, magOntbreken, false));
         }
 
         public static LokaalStroom OpenZonderWortel(string pad, bool deelSchrijvers, bool magOntbreken)
         {
-            return Wandel(pad, null, deelSchrijvers, magOntbreken);
+            return AlsStroom(Wandel(pad, null, deelSchrijvers, magOntbreken, false));
+        }
+
+        // De namen in een map, gelezen op haar vastgehouden handle
+        // (NtQueryDirectoryFile, FileNamesInformation): de spiegel van
+        // localpath.list_local. Niets in de map wordt geopend; wat de
+        // aanroeper daarna opent, gaat opnieuw door de wandeling. null als de
+        // map ontbreekt en dat mag.
+        public static string[] Namen(string pad, string wortel, bool magOntbreken)
+        {
+            if (string.IsNullOrEmpty(wortel)) { throw new ArgumentException("wortel ontbreekt; gebruik NamenZonderWortel"); }
+            return Opsommen(Wandel(pad, wortel, true, magOntbreken, true));
+        }
+
+        public static string[] NamenZonderWortel(string pad, bool magOntbreken)
+        {
+            return Opsommen(Wandel(pad, null, true, magOntbreken, true));
         }
 
         public static string AbsoluteTekst(string tekst)
@@ -1035,6 +1169,30 @@ function Open-GjkLokaalBestand {
         if ($null -ne $weigering) { throw $weigering }
         throw
     }
+}
+
+function Get-GjkLokaleNamen {
+    <#  De namen in -Map, gelezen op de vastgehouden maphandle
+        (NtQueryDirectoryFile; de spiegel van localpath.list_local): de map is
+        haar eigen wortel (dezelfde tekst), dus een koppeling op haar plek of
+        erin wordt geweigerd en een koppeling erboven pas gevolgd na de
+        spelling- en volumetoets van het doel - nooit eerst een opsomming op
+        naam. Niets in de map wordt geopend. Uitvoer: de namen, een per
+        object (gebruik @(...)). -MagOntbreken: een ontbrekende map geeft geen
+        namen in plaats van een weigering. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)] [string] $Map, [switch] $MagOntbreken)
+    try {
+        $wortel = [GjkLokaalPad.Wandeling]::AbsoluteTekst($Map)
+        $namen = [GjkLokaalPad.Wandeling]::Namen($wortel, $wortel, $MagOntbreken.IsPresent)
+    }
+    catch {
+        $weigering = _GjkLokaalPadUitpakken $_
+        if ($null -ne $weigering) { throw $weigering }
+        throw
+    }
+    if ($null -eq $namen) { return }
+    foreach ($naam in $namen) { Write-Output $naam }
 }
 
 function Close-GjkLokaalBestand {
