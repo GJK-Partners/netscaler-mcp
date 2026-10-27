@@ -169,7 +169,21 @@ def check_script_pins(script: Path) -> None:
         ) from None
     for sibling in siblings:
         folded = sibling.name.casefold()
-        if folded == name.casefold() or not _is_script(sibling) or not localpath.is_local_file(sibling, root=map_tekst):
+        if folded == name.casefold() or not _is_script(sibling):
+            continue
+        # Fail-closed (herkeuring 1, H1-I-1): every name with a script suffix
+        # beside the started script is walked as itself from the script
+        # directory. A link or reparse point there (PowerShell would read its
+        # target by name) is a pin mismatch, never a skip; only a real
+        # directory with such a name is no script.
+        try:
+            found = localpath.exists_local(sibling, root=map_tekst)
+        except OSError as exc:
+            raise ScriptPinMismatch(
+                f"het script {sibling.name} naast {name} ligt niet als gewoon bestand in de scriptmap"
+                f" ({localpath.describe(exc)}); er wordt geen proces gestart"
+            ) from None
+        if found != "file":
             continue
         pinned = pins.get(folded)
         if pinned is None:
@@ -296,11 +310,14 @@ def main(argv: list[str] | None = None) -> int:
         if localpath.is_local_dir(path):
             try:
                 map_tekst = localpath.absolute_text(path)
+                # Every script name is walked as itself from the directory: a
+                # link there is an error (never silently left unpinned).
                 found = sorted(
                     (
                         Path(localpath.under(map_tekst, naam))
                         for naam in localpath.list_local(map_tekst, root=map_tekst)
-                        if _is_script(Path(naam)) and localpath.is_local_file(localpath.under(map_tekst, naam))
+                        if _is_script(Path(naam))
+                        and localpath.exists_local(localpath.under(map_tekst, naam), root=map_tekst) == "file"
                     ),
                     key=lambda p: p.name.casefold(),
                 )

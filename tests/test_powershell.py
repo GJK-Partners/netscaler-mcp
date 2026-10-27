@@ -13,6 +13,7 @@ measurement behind the design.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -541,3 +542,82 @@ def test_sr5_the_pin_command_pins_every_script_in_a_directory(tmp_path, capsys):
             "Verzamel.ps1": _sha(main_script),
         }
     }
+
+
+# ---------------------------------------------------------------------------
+# Herkeuring 1 of part 2, H1-I-1: a link with a script name beside the
+# started script is a pin mismatch, never silently skipped (1.0.3 demanded a
+# pin for it through `is_file()`; the first build of 1.1 skipped it).
+# ---------------------------------------------------------------------------
+
+
+def _pinned_runner(tmp_path: Path) -> Path:
+    from nsmcp.powershell import ScriptPolicy, set_script_policy
+
+    main = tmp_path / "scripts" / "Runner.ps1"
+    main.parent.mkdir()
+    main.write_bytes(b"Write-Host 'runner'\r\n")
+    elders = tmp_path / "elders"
+    elders.mkdir()
+    (elders / "kwaad.ps1").write_bytes(b"Write-Host 'kwaad'\r\n")
+    set_script_policy(ScriptPolicy(pins={"runner.ps1": _sha(main), "transport.ps1": _sha(elders / "kwaad.ps1")}))
+    return main
+
+
+@pytest.mark.skipif(os.name != "nt", reason="symbolische links en junctions op Windows")
+def test_h1_a_script_link_beside_the_runner_refuses_the_start(tmp_path, monkeypatch, restore_policy):
+    """A file symlink named like a script beside the pinned runner, pointing
+    at a script elsewhere - even one whose bytes match the pin: PowerShell
+    would read the target by name, so the start is refused, no process."""
+    from nsmcp.powershell import ScriptPinMismatch
+
+    main = _pinned_runner(tmp_path)
+    try:
+        os.symlink(tmp_path / "elders" / "kwaad.ps1", main.parent / "Transport.ps1")
+    except OSError as exc:  # pragma: no cover - depends on the symlink right of the account
+        pytest.skip(f"symbolische link niet toegestaan op deze machine: {exc.__class__.__name__}")
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ScriptPinMismatch) as refused:
+        start_powershell(["-NoProfile", "-File", str(main)])
+    assert "Transport.ps1 naast Runner.ps1 ligt niet als gewoon bestand in de scriptmap" in str(refused.value)
+    assert localpath.REASONS["koppeling"] in str(refused.value)
+    assert started == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="symbolische links en junctions op Windows")
+def test_h1_a_junction_with_a_script_name_beside_the_runner_refuses_the_start(tmp_path, monkeypatch, restore_policy):
+    import _winapi
+
+    from nsmcp.powershell import ScriptPinMismatch
+
+    main = _pinned_runner(tmp_path)
+    _winapi.CreateJunction(str(tmp_path / "elders"), str(main.parent / "lib.psm1"))
+    started = _spy_popen(monkeypatch)
+    with pytest.raises(ScriptPinMismatch) as refused:
+        start_powershell(["-NoProfile", "-File", str(main)])
+    assert "lib.psm1 naast Runner.ps1 ligt niet als gewoon bestand" in str(refused.value)
+    assert started == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="symbolische links en junctions op Windows")
+def test_h1_a_real_directory_with_a_script_name_is_no_script(tmp_path, monkeypatch, restore_policy):
+    main = _pinned_runner(tmp_path)
+    (main.parent / "map.ps1").mkdir()
+    started = _spy_popen(monkeypatch)
+    start_powershell(["-NoProfile", "-File", str(main)])
+    assert len(started) == 1
+
+
+@pytest.mark.skipif(os.name != "nt", reason="symbolische links en junctions op Windows")
+def test_h1_the_pin_cli_names_a_script_link_instead_of_leaving_it_unpinned(tmp_path, capsys):
+    import _winapi
+
+    from nsmcp.powershell import main as pin_main
+
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "Runner.ps1").write_bytes(b"x")
+    (tmp_path / "elders").mkdir()
+    _winapi.CreateJunction(str(tmp_path / "elders"), str(scripts / "lib.psm1"))
+    assert pin_main(["--pin", str(scripts)]) == 1
+    assert capsys.readouterr().err.startswith("Fout: de map scripts kon niet gelezen worden (")
