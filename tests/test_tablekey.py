@@ -11,7 +11,6 @@ from __future__ import annotations
 import ctypes
 import json
 import sys
-import uuid
 from pathlib import Path
 
 import pytest
@@ -434,30 +433,9 @@ def test_a_reset_without_the_flag_changes_nothing(tmp_path, registry):
 
 
 @pytest.fixture
-def hkcu(monkeypatch):
-    import winreg
-
-    base = f"{TEST_BASE}\\{uuid.uuid4()}"
-    store = tablekey._WinRegistry(base)
-    monkeypatch.setattr(tablekey, "_registry", store)
-    yield store
-
-    def remove(path: str) -> None:
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_ALL_ACCESS) as key:
-                while True:
-                    try:
-                        child = winreg.EnumKey(key, 0)
-                    except OSError:
-                        break
-                    remove(f"{path}\\{child}")
-        except FileNotFoundError:
-            return
-        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
-
-    remove(base)
-    with pytest.raises(FileNotFoundError):
-        winreg.OpenKey(winreg.HKEY_CURRENT_USER, base)
+def hkcu(hkcu_anchor):
+    """The shared real-store fixture of conftest (unique test key, removed after)."""
+    return hkcu_anchor
 
 
 def test_the_real_store_writes_one_string_record_under_the_slot(tmp_path, hkcu):

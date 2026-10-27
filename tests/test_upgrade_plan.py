@@ -17,6 +17,7 @@ import math
 from pathlib import Path
 
 import pytest
+from conftest import table_rows
 
 import nsmcp.upgrade_plan as upgrade_plan_module
 from nsmcp.answer import Certainty, ReadGap
@@ -604,7 +605,6 @@ def test_without_a_firmware_directory_the_target_build_is_named_not_read(lab_exp
 def test_the_floor_lines_survive_every_disclosure_level_that_shows_findings(lab_export, tmp_path):
     """A build number is not an object name: the seam may not mask it, and
     it may not land in the pseudonym table either."""
-    import json
 
     from nsmcp.answer import Answer
     from nsmcp.disclosure import Disclosure, names_from_export, render
@@ -632,7 +632,7 @@ def test_the_floor_lines_survive_every_disclosure_level_that_shows_findings(lab_
         assert "- doelbuild: 14.1-72.57 [vastgesteld]" in tekst
         assert "14.1-73.32" in tekst
         assert "CTX696939" in tekst
-    tabelinhoud = json.loads(tabel.read_text(encoding="utf-8")) if tabel.exists() else {}
+    tabelinhoud = table_rows(tabel) if tabel.exists() else {}
     assert not {n for n in tabelinhoud.values() if n not in set(namen)}
 
 

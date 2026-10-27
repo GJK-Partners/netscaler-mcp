@@ -331,7 +331,8 @@ def place_of(table: Path, root: str, held: localpath.LocalHandle) -> Place:
         directory = held.directory_name()
     except localpath.PathRefused:
         raise Fault("slot") from None
-    return Place(table, root, compute_slot(serial, directory, table.name), localpath.parent_text(held.path))
+    listing = held.path if held.kind == "dir" else localpath.parent_text(held.path)
+    return Place(table, root, compute_slot(serial, directory, table.name), listing)
 
 
 def directory_names(place: Place) -> list[str]:

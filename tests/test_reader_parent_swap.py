@@ -30,7 +30,7 @@ from pathlib import Path
 
 import mcp.types as types
 import pytest
-from conftest import _knowledge_file, seal_manifest
+from conftest import _knowledge_file, seal_manifest, write_signed_table
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nsmcp import localpath
@@ -704,7 +704,7 @@ def test_targets_a_parent_swapped_for_a_share_link_mid_walk_is_refused(tmp_path,
 def _table(tmp_path: Path) -> Path:
     table = tmp_path / "beheer" / "tabel.json"
     table.parent.mkdir(parents=True)
-    table.write_text(json.dumps({"object-01": "CERT-BINNEN"}), encoding="utf-8")
+    write_signed_table(table, {"object-01": "CERT-BINNEN"})
     return table
 
 
@@ -725,7 +725,7 @@ def test_table_a_table_directory_swapped_mid_walk_is_refused_and_never_read(tmp_
     table = _table(tmp_path)
     assert "object-01" in _limited_render(table), "premisse"
     outside = _outside_dir(tmp_path)
-    (outside / "tabel.json").write_text(json.dumps({"object-01": NAALD}), encoding="utf-8")
+    write_signed_table((outside / "tabel.json"), {"object-01": NAALD})
     seam.opens.clear()
     seam.events.clear()
     _swap_before(seam, "beheer", lambda: _replace_by_junction(table.parent, outside))
@@ -854,7 +854,7 @@ def test_table_the_needle_never_reaches_an_answer(tmp_path, level):
     export_dir = _export(tmp_path)
     table = _table(tmp_path)
     outside = _outside_dir(tmp_path)
-    (outside / "tabel.json").write_text(json.dumps({"object-01": NAALD}), encoding="utf-8")
+    write_signed_table((outside / "tabel.json"), {"object-01": NAALD})
     _replace_by_junction(table.parent, outside)
     server = build_server(export_dir, _knowledge_file(tmp_path), disclosure=level, pseudonym_table_path=table)
 

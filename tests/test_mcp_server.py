@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import mcp.types as types
 import pytest
-from conftest import provenance_dir_for, record_collected, seal_manifest
+from conftest import provenance_dir_for, record_collected, seal_manifest, table_rows, write_signed_table
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError as FastMCPToolError
 from mcp.shared.memory import create_connected_server_and_client_session
@@ -2794,7 +2794,7 @@ def test_FOUTLEK_pseudonym_table_refusal_reaches_the_client_without_a_real_name(
     as the FOUTLEK tests in tests/test_disclosure.py, proven here through
     a real MCP session (_ask) instead of render() in isolation."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"LB_VS_PORTAAL": "object-01"}), encoding="utf-8")
+    write_signed_table(path, {"LB_VS_PORTAAL": "object-01"})
     server = build_server(
         _full_export_dir(tmp_path),
         _valid_knowledge(tmp_path),
@@ -2850,7 +2850,7 @@ def test_PSEUDONIEMINVOER_doorvragen_met_een_pseudoniem_krijgt_een_eerlijke_weig
 
     error, first = _ask(server, "certificaat_wat_verloopt_er", {"horizon_dagen": 90})
     assert error is False, first  # premise: the normal question just works
-    table = json.loads(path.read_text(encoding="utf-8"))
+    table = table_rows(path)
     pseudonym = {v: k for k, v in table.items()}[CERT]
     assert pseudonym in first  # premise: the client really saw this pseudonym
 
@@ -3065,7 +3065,7 @@ def test_PSEUDONIEMINVOER_bestaand_ongebonden_certificaat_versus_verzonnen_naam(
     # Premise: this certificate is unbound and issues nothing, so the rest of the
     # answer is identical to the answer for a name that does not exist at all.
     assert "geen gebonden virtuele servers en geen uitgegeven certificaten" in bestaand
-    pseudonym = {v: k for k, v in json.loads(path.read_text(encoding="utf-8")).items()}[CERT]
+    pseudonym = {v: k for k, v in table_rows(path).items()}[CERT]
 
     error, verzonnen = _ask(server, "certificaat_wat_breekt_er", {"certnaam": "dit_bestaat_niet"})
     assert error is False, verzonnen
@@ -3133,7 +3133,7 @@ def test_PSEUDONIEMINVOER_uitgedeeld_en_niet_uitgedeeld_pseudoniem_zijn_ononders
     )
     error, first = _ask(server, "certificaat_wat_verloopt_er", {"horizon_dagen": 90})
     assert error is False, first
-    table = json.loads(path.read_text(encoding="utf-8"))
+    table = table_rows(path)
     issued = {v: k for k, v in table.items()}[CERT]
     unissued = "object-98"
     assert unissued not in table  # premise: this one was never handed out
@@ -3155,7 +3155,7 @@ def test_PSEUDONIEMINVOER_een_echt_botsende_tabel_houdt_zijn_eigen_melding(tmp_p
     collision demonstrably does not come from the input: this is the case
     that must NOT get the new pseudonym message."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "OUDE_NAAM"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "OUDE_NAAM"})
     before = path.read_bytes()
     before_hash = hashlib.sha256(before).hexdigest()
     server = build_server(

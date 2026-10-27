@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 import pytest
-from conftest import seal_manifest
+from conftest import seal_manifest, table_rows
 
 from nsmcp.answer import Certainty
 from nsmcp.export import load_export
@@ -278,7 +278,7 @@ def test_the_answer_survives_all_three_disclosure_levels(lab_export, tmp_path):
     assert "onder de vloer" in beperkt
     assert "status_update_advies" in minimaal
     echte_namen = set(namen)
-    tabelinhoud = json.loads(tabel.read_text(encoding="utf-8")) if tabel.exists() else {}
+    tabelinhoud = table_rows(tabel) if tabel.exists() else {}
     vreemd = {n for n in tabelinhoud.values() if n not in echte_namen}
     assert not vreemd, f"eigen vocabulaire in de pseudoniemtabel beland: {vreemd}"
 

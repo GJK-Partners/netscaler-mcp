@@ -38,15 +38,15 @@ Two structural choices to know before editing:
 from __future__ import annotations
 
 import json
-import os
 import re
+import sys
 import threading
 import time
 from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 
-from nsmcp import localpath
+from nsmcp import localpath, tablekey
 from nsmcp.answer import NAME_CUT_NOTE, Answer, Certainty, safe_text
 from nsmcp.cert_usage import names_in_cert_usage_sources
 from nsmcp.chain import ENTRY_RESOURCES, NOT_FOLLOWED, SERVICEGROUP_BINDING, names_in_chain_sources
@@ -611,6 +611,94 @@ class PseudonymTablePathRefused(PseudonymTableBroken):
     path - this refusal travels at `beperkt` and `minimaal` too."""
 
 
+class PseudonymTableIntegrity(PseudonymTableBroken):
+    """1.1 C (SR-7): the pseudonym table is readable but not INTACT - a row
+    that does not match its signature, a broken chain, a rolled-back or
+    discarded table, a table at another place, or an anchor or key that is
+    missing or unreadable. `soort` is one of `tablekey.SOORTEN`. A
+    `PseudonymTableBroken`, so every caller that refuses a broken table
+    refuses this one before any pseudonym is used and before any write code
+    is issued. The message names the soort and at most a row POSITION (the
+    same `_entry_ref`), never a name, a pseudonym or a table id."""
+
+    def __init__(self, message: str, soort: str) -> None:
+        super().__init__(message)
+        self.soort = soort
+
+
+# The operator's two ways out, named once (C.3): a known good copy of the
+# ACTIVE generation back, or a reset. The anchor is never removed by hand.
+_INTEGRITY_TAIL = (
+    "; de tabel wordt niet gebruikt en niet overschreven - zet een bekende goede kopie van de actieve generatie"
+    " terug met python -m nsmcp.disclosure --herstel <kopie> --pad <tabel> --gecontroleerd, of reset met"
+    " python -m nsmcp.disclosure --reset --pad <tabel> --gecontroleerd (zie de handleiding)"
+)
+
+# One sentence per soort; `{ref}` is the row position where there is one.
+_INTEGRITY_SENTENCES: dict[str, str] = {
+    "mac": "is niet intact: {ref} past niet bij haar ondertekening (een naam of pseudoniem is gewijzigd)",
+    "keten": "is niet intact: de volgorde of het aantal rijen past niet bij de ondertekende keten{ref}",
+    "kop": "is niet intact: de kop past niet bij de rijen (afgekapt of met de hand aangepast)",
+    "teruggedraaid": "is teruggezet naar een oudere stand met minder rijen dan er op deze plek al vastgelegd waren",
+    "anker_ontbreekt": "heeft op deze plek geen anker; een tabel met inhoud zonder anker wordt nooit vertrouwd",
+    "anker_onleesbaar": "heeft een anker dat niet leesbaar of niet geldig is; het anker wordt nooit automatisch vervangen",
+    "bestand_ontbreekt": "ontbreekt terwijl deze plek een vastgelegd anker heeft; dat is nooit een eerste start",
+    "sleutel_ontbreekt": "heeft geen sleutelbestand meer terwijl deze plek een vastgelegd anker heeft",
+    "sleutel_onleesbaar": (
+        "heeft een sleutelbestand dat onder dit Windows-account op deze machine niet te openen is (een ander"
+        " account, een andere machine of een andere generatie)"
+    ),
+    "tabelid": "is niet de actieve tabel van deze plek (een andere tabel of een andere generatie)",
+    "afgedankt": "is een afgedankte generatie van deze plek; een afgedankte generatie laadt nooit meer",
+    "slot": (
+        "staat op een nieuwe plek of hoort bij een andere plek (een tabel verplaatsen is een reset); zet haar terug"
+        " op haar eigen plek of reset"
+    ),
+    "aanmaak_onderbroken": "is bij het aanmaken onderbroken en de bestanden ernaast passen niet bij het anker",
+}
+
+_INTEGRITY_OWN_SENTENCE: dict[str, str] = {
+    "migratie_onderbroken": (
+        "is midden in de ondertekening onderbroken; draai python -m nsmcp.disclosure --onderteken <pad>"
+        " --gecontroleerd opnieuw"
+    ),
+    "reset_onderbroken": (
+        "is midden in een reset onderbroken; draai python -m nsmcp.disclosure --reset --pad <tabel> --gecontroleerd"
+        " opnieuw"
+    ),
+}
+
+# C.4: the 1.0.x form is never converted automatically.
+FORM_1_SENTENCE = (
+    "heeft nog de vorm van 1.0.x; onderteken haar eenmalig met python -m nsmcp.disclosure --onderteken <pad>"
+    " --gecontroleerd nadat u haar gecontroleerd heeft"
+)
+# Revision 3: a 1.0.x rewrite next to an existing anchor - never migrated again.
+FORM_1_NEXT_TO_ANCHOR_SENTENCE = (
+    "heeft weer de vorm van 1.0.x terwijl deze plek al een ondertekende tabel had; een 1.0.x-server heeft haar"
+    " overschreven. Stop elke 1.0.x-server op deze tabel en zet een goede kopie terug met --herstel, of reset"
+)
+_FORM_2_BROKEN_SENTENCE = "heeft niet de vorm van een ondertekende vertaaltabel" + _INTEGRITY_TAIL
+
+
+def _integrity(path: Path, fault: tablekey.Fault) -> PseudonymTableIntegrity:
+    soort = fault.soort
+    if soort == "formaat":
+        sentence = {
+            "1": FORM_1_SENTENCE,
+            "1-naast-anker": FORM_1_NEXT_TO_ANCHOR_SENTENCE,
+        }.get(fault.vorm, _FORM_2_BROKEN_SENTENCE)
+    elif soort in _INTEGRITY_OWN_SENTENCE:
+        sentence = _INTEGRITY_OWN_SENTENCE[soort]
+    else:
+        if fault.positie is None:
+            ref = "" if soort == "keten" else "een rij"
+        else:
+            ref = f" (bij {_entry_ref(fault.positie)})" if soort == "keten" else _entry_ref(fault.positie)
+        sentence = _INTEGRITY_SENTENCES[soort].format(ref=ref) + _INTEGRITY_TAIL
+    return PseudonymTableIntegrity(f"de vertaaltabel op {path} {sentence}", soort)
+
+
 _TABLE_REFUSED_TAIL = (
     "; dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit overschreven - herstel de"
     " plek van de vertaaltabel en stel de vraag opnieuw"
@@ -776,6 +864,7 @@ class _ProcessLock:
     def __init__(self, path: Path) -> None:
         self._lock_path = path.with_name(path.name + ".lock")
         self._held = None
+        self._handle: localpath.LocalHandle | None = None
 
     def _cannot_open(self, err: BaseException) -> PseudonymTableLocked:
         return PseudonymTableLocked(
@@ -799,7 +888,7 @@ class _ProcessLock:
         while True:
             held = localpath.open_local_for_append(target, root=root, shared_writers=False)
             try:
-                held.__enter__()
+                handle = held.__enter__()
             except localpath.PathRefused as err:
                 if err.status == _STATUS_SHARING_VIOLATION:
                     if time.monotonic() >= deadline:
@@ -815,10 +904,21 @@ class _ProcessLock:
             except OSError as err:
                 raise self._cannot_open(err) from err
             self._held = held
+            self._handle = handle
             return self
+
+    @property
+    def held(self) -> localpath.LocalHandle:
+        """1.1 C: the held chain of the lock file - every directory from the
+        volume root to the table's directory, held without delete sharing for
+        the whole critical section. The table slot is read on it."""
+        if self._handle is None:
+            raise RuntimeError("het slot wordt niet vastgehouden")
+        return self._handle
 
     def __exit__(self, *exc_info) -> None:
         held, self._held = self._held, None
+        self._handle = None
         if held is not None:
             held.__exit__(None, None, None)
 
@@ -1038,138 +1138,182 @@ def _validate_loaded_table(raw: dict, path: Path, current_names: set[str]) -> di
     return {str(k): str(v) for k, v in raw.items()}
 
 
-def _atomic_write(path: Path, table: dict[str, str]) -> None:
-    """Write to a temp file on the SAME volume (the same directory as
-    `path`, so no cross-volume-rename pitfall), flush + fsync before the
-    rename, then replace with `os.replace` - atomic on both Windows and
-    POSIX. A reader opening the file at this very moment (an operator
-    inspecting it by hand, for instance) therefore always sees EITHER the
-    old, OR the fully new content - never a half-written in-between state.
-
-    1.1 B: `localpath.replace_local` with the table's directory as the root:
-    the temporary file is created relative to the held directory, written
-    and flushed on its handle, and renamed by that handle onto the table; a
-    table that is a link or reparse point is refused before anything is
-    written. The line ends stay what the text-mode write gave them."""
-    root = localpath.absolute_text(path.parent)
+def _parse_table_bytes(data: bytes, path: Path) -> object:
+    """The bytes of a table file as JSON - the 1.0.x read failures with their
+    unchanged sentences. Owned here, handed to `tablekey` as its parser, so a
+    form-1 table, a form-2 table and a restore copy fail the same way."""
     try:
-        localpath.mkdir_local(root)
-    except localpath.PathRefused as exc:
-        raise _table_refused("de vertaaltabel", exc) from exc
-    content = json.dumps(table, indent=2, ensure_ascii=False).replace("\n", os.linesep)
+        raw_text = localpath.as_text(data)
+    except UnicodeDecodeError as exc:
+        # Only the class name, never str(exc) - a UnicodeDecodeError message
+        # quotes the offending bytes, and even one byte is table content.
+        raise PseudonymTableBroken(
+            f"de vertaaltabel op {path} kon niet gelezen worden ({exc.__class__.__name__}); "
+            "dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit "
+            "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
+        ) from exc
     try:
-        localpath.replace_local(localpath.under(root, path.name), content.encode("utf-8"), root=root)
-    except localpath.PathRefused as exc:
-        raise _table_refused("de vertaaltabel", exc) from exc
+        raw = json.loads(raw_text)
+    except (RecursionError, MemoryError):
+        # 1.0.2: too deep for the parser is a broken table too.
+        raise PseudonymTableBroken(
+            f"de vertaaltabel op {path} is te diep genest om te lezen; dit bestand is de enige"
+            " sleutel naar de echte namen en wordt daarom nooit overschreven - herstel het bestand"
+            " of zet het aan de kant en stel de vraag opnieuw"
+        ) from None
+    except json.JSONDecodeError as exc:
+        # Only line/column, not str(exc) - some JSONDecodeError messages quote
+        # a loose character from the file, and even a single character is
+        # table content.
+        raise PseudonymTableBroken(
+            f"de vertaaltabel op {path} is niet leesbaar als JSON "
+            f"(parsefout op regel {exc.lineno}, kolom {exc.colno}); "
+            "dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit "
+            "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
+        ) from exc
+    if not isinstance(raw, dict):
+        raise PseudonymTableBroken(
+            f"de vertaaltabel op {path} draagt geen JSON-object op het topniveau; "
+            "dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit "
+            "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
+        )
+    return raw
 
 
-def _load_table(path: Path, names: list[str]) -> dict[str, str]:
-    """Loads/enriches the pseudonym table. Existing assignments NEVER change
-    (stability across calls); new names get the next number AFTER the
-    highest existing one (see `_next_number`) that is demonstrably disjoint
-    from all known real names (`_next_free_pseudonym`).
+class _TableErrors:
+    """Maps the protocol's own exceptions onto this module's refusals: an
+    integrity fault onto `PseudonymTableIntegrity`, a refused place onto
+    `PseudonymTablePathRefused`, a file that could not be read or written
+    onto `PseudonymTableBroken` with the class name only."""
 
-    This file carries PSEUDONYM -> REAL NAME (the design, par. 3). A loaded
-    table is first validated semantically (`_validate_loaded_table`): every
-    deviation (identity, duplicate assignment, wrong pattern, namespace
-    collision, empty/non-text values) fails closed BEFORE anything is
-    written.
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, kind, exc, _tb) -> None:
+        if exc is None:
+            return
+        if isinstance(exc, tablekey.Fault):
+            raise _integrity(self._path, exc) from None
+        if isinstance(exc, tablekey.PlaceRefused):
+            raise _table_refused(exc.what, exc.exc) from exc.exc
+        if isinstance(exc, tablekey.FileFailed):
+            if exc.what == "de vertaaltabel":
+                raise PseudonymTableBroken(
+                    f"de vertaaltabel op {self._path} kon niet gelezen worden ({exc.exc.__class__.__name__}); "
+                    "dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit "
+                    "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
+                ) from None
+            raise PseudonymTableBroken(
+                f"{exc.what} bij de vertaaltabel op {self._path} kon niet gelezen of geschreven worden"
+                f" ({exc.exc.__class__.__name__}); er is niets overschreven - herstel dat en stel de vraag opnieuw"
+            ) from None
+
+
+def _validated_rows(verified: tablekey.Verified, path: Path, current_names: set[str]) -> dict[str, str]:
+    """The semantic checks of 1.0.x (`_validate_loaded_table`) on the rows of
+    a table that passed the integrity rules; a pseudonym that occurs twice is
+    refused by position before the rows become a mapping."""
+    seen: dict[str, int] = {}
+    for position, row in enumerate(verified.doc.rows, start=1):
+        if row.pseudoniem in seen:
+            raise PseudonymTableBroken(
+                f"de vertaaltabel op {path} gebruikt hetzelfde pseudoniem op "
+                f"{_entry_ref(seen[row.pseudoniem], position)}; dit bestand wordt daarom nooit overschreven -"
+                " herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
+            )
+        seen[row.pseudoniem] = position
+    return _validate_loaded_table(verified.mapping(), path, current_names)
+
+
+def _verified(path: Path, names: list[str]) -> tablekey.Verified:
+    """Loads, verifies and enriches the pseudonym table. Existing assignments
+    NEVER change (stability across calls); new names get the next number
+    AFTER the highest existing one (see `_next_number`) that is demonstrably
+    disjoint from all known real names (`_next_free_pseudonym`).
+
+    1.1 C: the table is form 2 (`tablekey`): before a single pseudonym is
+    used, the slot of its PLACE is computed on the held lock chain, the
+    anchor of that slot is read and validated, the table's id and generation
+    are compared with the anchor, the key is opened with the anchor's
+    entropy, every row MAC, the chain and the head are checked, and the
+    watermark of the anchor is applied (load rules 1-8). Only then the 1.0.x
+    semantic checks (`_validate_loaded_table`). Every deviation fails closed
+    as `PseudonymTableIntegrity` (or the existing `PseudonymTableBroken`);
+    nothing is ever repaired or overwritten. New rows are signed and the
+    anchor moves forward (`tablekey.append`); WITHOUT new rows nothing is
+    written at all.
 
     `names` carries ONLY structurally known names (see `_collect_names()`):
     a name the caller invented never reaches this function, so it can
     neither accuse a healthy table nor add a row of its own.
 
-    A BROKEN table (unreadable as a file, no valid JSON, no JSON object) is
-    never silently replaced by a fresh one. This file is, for the operator,
-    the ONLY decode key to the real object names (see README, "The
-    disclosure switch"). `PseudonymTableBroken` names the path and asks the
-    operator to repair the file or set it aside; `render()` (and thus the
-    answer) then fails visibly instead of handing out pseudonyms that no
-    longer match the old table - or instead of using a semantically broken
-    table as if it were healthy.
-
     Concurrency, two layers (see the comment at `_TABLE_LOCK` above):
     `_TABLE_LOCK` serializes threads WITHIN this process, `_ProcessLock`
     serializes processes on the same table file. The full
-    read-validate-enrich-write sequence sits under BOTH.
+    verify-read-enrich-write-anchor sequence sits under BOTH.
     """
     with _TABLE_LOCK:
-        with _ProcessLock(path):
-            existing: dict[str, str] = {}
-            # 1.1 B: read through `localpath` from the table's directory: a
-            # link or reparse point in the place of the table (or of the
-            # directory) is `PseudonymTablePathRefused`, never followed.
+        with _ProcessLock(path) as lock:
+            # 1.1 B: everything through `localpath` from the table's
+            # directory: a link or reparse point in the place of the table,
+            # its key or its directory is `PseudonymTablePathRefused`.
             root = localpath.absolute_text(path.parent)
-            try:
-                got = localpath.read_local(
-                    localpath.under(root, path.name), root=root, max_bytes=MAX_FILE_BYTES, allow_missing=True
-                )
-            except localpath.PathRefused as exc:
-                raise _table_refused("de vertaaltabel", exc) from exc
-            except OSError as exc:
-                got = exc
-            if isinstance(got, OSError) or got.exists:
-                try:
-                    if isinstance(got, OSError):
-                        raise got
-                    if got.over_cap:
-                        raise OSError("de vertaaltabel is groter dan het plafond")
-                    raw_text = localpath.as_text(got.data)
-                except (OSError, UnicodeDecodeError) as exc:
-                    # UnicodeDecodeError alongside OSError, as everywhere else
-                    # in the codebase (target.py, start.py): an unreadable
-                    # TEXT ENCODING is just as much a read failure as an
-                    # unreadable FILE. Only the class name, never str(exc) -
-                    # a UnicodeDecodeError message quotes the offending
-                    # bytes, and even one byte is table content.
-                    raise PseudonymTableBroken(
-                        f"de vertaaltabel op {path} kon niet gelezen worden ({exc.__class__.__name__}); "
-                        "dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit "
-                        "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
-                    ) from exc
-                try:
-                    raw = json.loads(raw_text)
-                except (RecursionError, MemoryError):
-                    # 1.0.2: too deep for the parser is a broken table too.
-                    raise PseudonymTableBroken(
-                        f"de vertaaltabel op {path} is te diep genest om te lezen; dit bestand is de enige"
-                        " sleutel naar de echte namen en wordt daarom nooit overschreven - herstel het bestand"
-                        " of zet het aan de kant en stel de vraag opnieuw"
-                    ) from None
-                except json.JSONDecodeError as exc:
-                    # Only line/column, not str(exc) - some JSONDecodeError
-                    # messages quote a loose character from the file
-                    # ("Invalid control character '\x00' at ..."), and even
-                    # a single character is table content.
-                    raise PseudonymTableBroken(
-                        f"de vertaaltabel op {path} is niet leesbaar als JSON "
-                        f"(parsefout op regel {exc.lineno}, kolom {exc.colno}); "
-                        "dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit "
-                        "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
-                    ) from exc
-                if not isinstance(raw, dict):
-                    raise PseudonymTableBroken(
-                        f"de vertaaltabel op {path} draagt geen JSON-object op het topniveau; "
-                        "dit bestand is de enige sleutel naar de echte namen en wordt daarom nooit "
-                        "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
-                    )
-                existing = _validate_loaded_table(raw, path, set(names))
+            with _TableErrors(path):
+                place = tablekey.place_of(path, root, lock.held)
+                verified = tablekey.load(place, _parse_table_bytes, table_cap=MAX_FILE_BYTES)
+                existing = _validated_rows(verified, path, set(names))
+                known_real_names = set(existing.values()) | set(names)
+                pseudonym_of_name = {v: k for k, v in existing.items()}
+                next_number = _next_number(existing)
+                new_rows: list[tuple[str, str]] = []
+                for name in sorted(names):  # assignment in a fixed order
+                    if name not in pseudonym_of_name:
+                        next_number, candidate = _next_free_pseudonym(next_number, known_real_names)
+                        new_rows.append((candidate, name))
+                        pseudonym_of_name[name] = candidate
+                        # Generated aliases are not real names. Treating them
+                        # as such makes object-10 block object-100 and
+                        # exhausts every later candidate once this call has
+                        # assigned 99 aliases. Monotonic numbering already
+                        # guarantees unique keys.
+                        next_number += 1
+                return tablekey.append(verified, new_rows)
 
-            known_real_names = set(existing.values()) | set(names)
-            pseudonym_of_name = {v: k for k, v in existing.items()}
-            next_number = _next_number(existing)
-            for name in sorted(names):  # assignment in a fixed order
-                if name not in pseudonym_of_name:
-                    next_number, candidate = _next_free_pseudonym(next_number, known_real_names)
-                    existing[candidate] = name
-                    pseudonym_of_name[name] = candidate
-                    # Generated aliases are not real names. Treating them as
-                    # such makes object-10 block object-100 and exhausts every
-                    # later candidate once this call has assigned 99 aliases.
-                    # Monotonic numbering already guarantees unique keys.
-                    next_number += 1
-            _atomic_write(path, existing)
-            return existing
+
+def _load_table(path: Path, names: list[str]) -> dict[str, str]:
+    """PSEUDONYM -> REAL NAME of the verified (and enriched) table; see
+    `_verified` for every rule it runs first."""
+    return _verified(path, names).mapping()
+
+
+def verify_table(path: Path) -> None:
+    """The table gate of the writing path (1.1 C.3): load rules 1-8 and the
+    semantic checks, nothing added. A writing tool at 'beperkt' calls this
+    BEFORE it validates arguments or issues a code, so a manipulated table
+    refuses without a code ever existing."""
+    _verified(path, [])
+
+
+def resolve_pseudonym_bound(
+    value: str, names: tuple[str, ...], path: Path
+) -> tuple[str | None, tablekey.TableBinding | None]:
+    """`resolve_pseudonym`, plus WHAT the resolution went through: the slot,
+    the full table id, the generation and the exact row (number and MAC). A
+    write confirmation binds these (1.1 C.3); at redemption the table is
+    loaded and verified again in full and the binding compared. A real name
+    the caller gave itself goes through no row: (name, None)."""
+    if value in names:
+        return value, None
+    if not has_pseudonym_shape(value):
+        return None, None
+    verified = _verified(path, list(names))
+    name = verified.mapping().get(value)
+    if name is None:
+        return None, None
+    return name, verified.binding(value)
 
 
 def resolve_pseudonym(value: str, names: tuple[str, ...], path: Path) -> str | None:
@@ -1183,16 +1327,12 @@ def resolve_pseudonym(value: str, names: tuple[str, ...], path: Path) -> str | N
     Three cases, and the order matters. A value that is already a real name
     (it is in `names`) is returned unchanged: the seam never invented that
     name, so the caller may have it from the operator. A value with the
-    pseudonym SHAPE is looked up in the table and returns None when it is not
-    in there - the same refusal for an issued and an unissued pseudonym, so
-    the difference cannot be walked (see `render`). Anything else is not a
-    name this product knows, and that is None as well.
+    pseudonym SHAPE is looked up in the VERIFIED table and returns None when
+    it is not in there - the same refusal for an issued and an unissued
+    pseudonym, so the difference cannot be walked (see `render`). Anything
+    else is not a name this product knows, and that is None as well.
     """
-    if value in names:
-        return value
-    if not has_pseudonym_shape(value):
-        return None
-    return _load_table(path, list(names)).get(value)
+    return resolve_pseudonym_bound(value, names, path)[0]
 
 
 def has_pseudonym_shape(value: str) -> bool:
@@ -1711,3 +1851,106 @@ def render(
             raise PseudonymAsInput(_PSEUDONYM_AS_INPUT)
         return _limit(answer, extra_names, pseudonym_table_path, invented).to_text()
     return _minimal(_cut_long_names(answer, extra_names, caller_name), tool)
+
+
+# ---------------------------------------------------------------------------
+# 1.1 C: the operator's CLI for the pseudonym table (migration, restore, reset)
+# ---------------------------------------------------------------------------
+
+
+def _cli_args(argv: list[str] | None):
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m nsmcp.disclosure",
+        description=(
+            "Onderteken een vertaaltabel uit 1.0.x, zet een bekende goede kopie terug, of reset de tabel."
+            " Elke wijziging vraagt --gecontroleerd; zonder die vlag verandert er niets."
+        ),
+    )
+    route = parser.add_mutually_exclusive_group(required=True)
+    route.add_argument("--onderteken", type=Path, metavar="PAD", help="de vertaaltabel in de vorm van 1.0.x")
+    route.add_argument("--herstel", type=Path, metavar="KOPIE", help="een kopie van de actieve generatie")
+    route.add_argument("--reset", action="store_true", help="dank de huidige generatie af en begin leeg")
+    parser.add_argument("--pad", type=Path, metavar="TABEL", help="de vertaaltabel (bij --herstel en --reset)")
+    parser.add_argument(
+        "--gecontroleerd",
+        action="store_true",
+        help="uw verklaring dat u de tabel en de stap gecontroleerd heeft (geen bewijs van de inhoud)",
+    )
+    args = parser.parse_args(argv)
+    if args.onderteken is None and args.pad is None:
+        parser.error("--herstel en --reset vragen --pad <tabel>")
+    if args.onderteken is not None and args.pad is not None:
+        parser.error("--onderteken neemt het pad zelf; laat --pad weg")
+    return args
+
+
+def _cli_route(args, table: Path, lines: list[str]) -> int:
+    """One route under the SAME thread lock and process lock as the server,
+    on the slot of the CONFIGURED place (the path given here)."""
+
+    def form_1(raw: object) -> list[tuple[str, str]]:
+        assert isinstance(raw, dict)
+        return list(_validate_loaded_table(raw, table, set()).items())
+
+    with _TABLE_LOCK:
+        with _ProcessLock(table) as lock:
+            root = localpath.absolute_text(table.parent)
+            with _TableErrors(table):
+                place = tablekey.place_of(table, root, lock.held)
+                if args.onderteken is not None:
+                    return tablekey.migrate(
+                        place,
+                        _parse_table_bytes,
+                        form_1,
+                        confirmed=args.gecontroleerd,
+                        say=lines.append,
+                        table_cap=MAX_FILE_BYTES,
+                    )
+                if args.herstel is not None:
+                    return tablekey.restore(
+                        place,
+                        args.herstel,
+                        _parse_table_bytes,
+                        confirmed=args.gecontroleerd,
+                        say=lines.append,
+                        table_cap=MAX_FILE_BYTES,
+                    )
+                return tablekey.reset(place, confirmed=args.gecontroleerd, say=lines.append, table_cap=MAX_FILE_BYTES)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`python -m nsmcp.disclosure --onderteken <pad> --gecontroleerd`,
+    `--herstel <kopie> --pad <tabel> --gecontroleerd`, or
+    `--reset --pad <tabel> --gecontroleerd`.
+
+    Exit 0: done (or already signed); 2: nothing changed because
+    `--gecontroleerd` was missing; 1: refused, with the reason. Never
+    silent: a `[START]` line, every protocol line as `[INFO]`, and exactly
+    one `[EINDSTATUS]`. No line names a real name, a pseudonym or a table id.
+    """
+    args = _cli_args(argv)
+    route = "onderteken" if args.onderteken is not None else "herstel" if args.herstel is not None else "reset"
+    table = args.onderteken if args.onderteken is not None else args.pad
+    print(f"[START] vertaaltabel {route}: {table}")
+    lines: list[str] = []
+    try:
+        code = _cli_route(args, table, lines)
+    except (PseudonymTableBroken, PseudonymTableLocked, tablekey.Stop) as exc:
+        for line in lines:
+            print(f"[INFO] {line}")
+        print(f"[FOUT] {safe_text(str(exc))}", file=sys.stderr)
+        print("[EINDSTATUS] niet uitgevoerd - er is niets na de laatste vastgelegde stap gewijzigd", file=sys.stderr)
+        return 1
+    for line in lines:
+        print(f"[INFO] {line}")
+    if code == 2:
+        print("[EINDSTATUS] niets gewijzigd (--gecontroleerd ontbrak)")
+    else:
+        print(f"[EINDSTATUS] {route} afgerond")
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

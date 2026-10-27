@@ -24,7 +24,14 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from conftest import maintenance_config, provenance_dir_for, record_collected, seal_manifest
+from conftest import (
+    maintenance_config,
+    provenance_dir_for,
+    record_collected,
+    seal_manifest,
+    table_rows,
+    write_signed_table,
+)
 
 from nsmcp import disclosure as disclosure_module
 from nsmcp.action import what_to_do
@@ -116,7 +123,6 @@ def test_limited_pseudonym_table_is_local_and_correct(tmp_path):
     PSEUDONYM -> REAL NAME, not the other way around. Against the old shape
     (before the flip) this test fails: there the real names sit as KEY and
     the pseudonyms as VALUE, exactly reversed."""
-    import json
 
     path = tmp_path / "tabel.json"
     render(
@@ -126,7 +132,7 @@ def test_limited_pseudonym_table_is_local_and_correct(tmp_path):
         extra_names=("wildcard_gjk",),
         pseudonym_table_path=path,
     )
-    table = json.loads(path.read_text(encoding="utf-8"))
+    table = table_rows(path)
     assert "LB_VS_PORTAAL" in table.values() and "wildcard_gjk" in table.values()
     assert all(p.startswith("object-") for p in table.keys())
 
@@ -1042,7 +1048,7 @@ def test_CONCURRENCY_table_lock_prevents_colliding_pseudonyms(tmp_path):
         d.join()
 
     assert errors == []
-    table = json.loads(path.read_text(encoding="utf-8"))
+    table = table_rows(path)
     # The table maps pseudonym -> real name - the 20 real names thus sit in
     # the VALUES, not the keys, and every name must occur exactly once (no
     # lost update, no two names sharing the same pseudonym).
@@ -1064,7 +1070,7 @@ def test_identity_table_is_refused_the_exact_review_case(tmp_path):
     accepted with the real name leaking in question/subject/outcome/
     evidence."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"ZEER_GEHEIM_VSERVER": "ZEER_GEHEIM_VSERVER"}), encoding="utf-8")
+    write_signed_table(path, {"ZEER_GEHEIM_VSERVER": "ZEER_GEHEIM_VSERVER"})
 
     a = Answer(
         question="wat breekt er als ZEER_GEHEIM_VSERVER verloopt",
@@ -1179,7 +1185,7 @@ def test_FOUTLEK_real_name_as_key_does_not_leak_in_the_error_text(tmp_path):
     (test_old_storage_direction_is_refused above); this test guards
     that the ERROR TEXT no longer quotes that name."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"LB_VS_PORTAAL": "object-01"}), encoding="utf-8")
+    write_signed_table(path, {"LB_VS_PORTAAL": "object-01"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1202,10 +1208,7 @@ def test_FOUTLEK_real_name_as_value_does_not_leak_in_the_error_text(tmp_path):
     real name -> refuse, but the name itself stays out of the text; the
     message points at the entries by position."""
     path = tmp_path / "tabel.json"
-    path.write_text(
-        json.dumps({"object-01": "LB_VS_PORTAAL", "object-02": "LB_VS_PORTAAL"}),
-        encoding="utf-8",
-    )
+    write_signed_table(path, {"object-01": "LB_VS_PORTAAL", "object-02": "LB_VS_PORTAAL"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1225,7 +1228,7 @@ def test_FOUTLEK_identity_mapping_names_position_not_content(tmp_path):
     this raise site at all, but even a pseudonym-shaped key is TABLE
     CONTENT and stays out of the message."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-05": "object-05"}), encoding="utf-8")
+    write_signed_table(path, {"object-05": "object-05"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1245,7 +1248,7 @@ def test_FOUTLEK_namespace_collision_real_name_in_pseudonym_does_not_leak(tmp_pa
     ("bject-01" sits literally inside "object-01"). The message names
     position and category, neither of the two strings."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "bject-01"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "bject-01"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1265,7 +1268,7 @@ def test_FOUTLEK_namespace_collision_pseudonym_in_real_name_does_not_leak(tmp_pa
     """Collision direction 2 (the mirror): the pseudonym is a substring of
     its own real name - the exact FR3 class, now at the message level."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "object-01-GEHEIME-vserver"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "object-01-GEHEIME-vserver"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1287,7 +1290,7 @@ def test_FOUTLEK_pattern_error_trailing_newline_does_not_leak(tmp_path):
     appearing in the message; the pattern NAME 'object-NN' (a description,
     not table content) remains recognizable as the category."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01\n": "GEHEIM_WAARDE_X"}), encoding="utf-8")
+    write_signed_table(path, {"object-01\n": "GEHEIM_WAARDE_X"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1308,7 +1311,7 @@ def test_FOUTLEK_old_direction_table_does_not_leak_the_real_name(tmp_path):
     storage shape). The REVERSED-direction hint remains (it helps the
     operator), the name itself disappears from the message."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"GEHEIME_ECHTE_NAAM": "object-01"}), encoding="utf-8")
+    write_signed_table(path, {"GEHEIME_ECHTE_NAAM": "object-01"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1328,7 +1331,7 @@ def test_FOUTLEK_empty_value_does_not_name_the_key(tmp_path):
     ('draagt bij pseudoniem {key!r}...'). That reference too goes by
     position."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "   "}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "   "})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1347,7 +1350,7 @@ def test_FOUTLEK_invalid_key_does_not_quote_the_key(tmp_path):
     """Invalid-key category: an empty key used to put the quoted repr ('')
     in the message - also a quotation of table content."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"": "GEHEIM_X"}), encoding="utf-8")
+    write_signed_table(path, {"": "GEHEIM_X"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -1385,7 +1388,7 @@ def test_PSEUDONIEMINVOER_alleen_de_invoer_veroorzaakt_de_botsing(tmp_path):
     murmur - so the input is the whole cause, and the message says so
     instead of pointing at the file."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "LB_VS_PORTAAL"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "LB_VS_PORTAAL"})
     before = path.read_bytes()
     a = Answer(
         question="wat breekt er als object-01 verloopt",
@@ -1414,7 +1417,7 @@ def test_PSEUDONIEMINVOER_een_echt_object_met_pseudoniemvorm_blijft_een_tabelwei
     own pseudonym is then a genuine namespace problem and keeps the table
     message, including its repair advice."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "OUDE_NAAM"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "OUDE_NAAM"})
     a = Answer(
         question="v",
         findings=[Finding(subject="object-01", outcome="x", certainty=Certainty.ESTABLISHED, evidence="b")],
@@ -2149,7 +2152,7 @@ def test_INTEGRATION_limited_keeps_this_products_own_labels_readable(tmp_path):
         assert label in cve_text, f"eigen label {label!r} gemaskeerd:\n{cve_text}"
     _no_name_leaks(cve_text, names + ("VSRV-003", "VSRV-002", "VSRV-001"))
 
-    stored = set(json.loads(table.read_text(encoding="utf-8")).values())
+    stored = set(table_rows(table).values())
     for forbidden in (
         "build",
         "HA",
@@ -2281,7 +2284,7 @@ def test_INTEGRATION_the_candidate_subject_never_reaches_the_pseudonym_table(tmp
         caller_name="ns-s",
         pseudonym_table_path=table,
     )
-    stored = set(json.loads(table.read_text(encoding="utf-8")).values())
+    stored = set(table_rows(table).values())
     for forbidden in stored:
         assert "kandidaten" not in forbidden, f"{forbidden!r} staat als 'echte naam' in de tabel"
     assert "ns-s" not in stored
@@ -2981,7 +2984,7 @@ def test_resolve_pseudonym_returns_the_real_name(tmp_path):
         extra_names=("echte-naam",),
         pseudonym_table_path=tabel,
     )
-    pseudoniem = next(iter(json.loads(tabel.read_text(encoding="utf-8"))))
+    pseudoniem = next(iter(table_rows(tabel)))
     assert resolve_pseudonym(pseudoniem, ("echte-naam",), tabel) == "echte-naam"
     assert resolve_pseudonym("object-999", ("echte-naam",), tabel) is None
     assert resolve_pseudonym("echte-naam", ("echte-naam",), tabel) == "echte-naam"
@@ -3049,7 +3052,7 @@ def test_next_number_uses_max_not_len_with_a_missing_row(tmp_path):
     # the removed object once carried.
     # The table maps pseudonym -> real name (the file on disk is thus
     # REVERSED from the old fixture here - that IS the repair).
-    path.write_text(json.dumps({"object-01": "LB_VS_A", "object-03": "LB_VS_C"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "LB_VS_A", "object-03": "LB_VS_C"})
 
     render(
         Answer(
@@ -3060,7 +3063,7 @@ def test_next_number_uses_max_not_len_with_a_missing_row(tmp_path):
         tool="certificaat_wat_breekt_er",
         pseudonym_table_path=path,
     )
-    table = json.loads(path.read_text(encoding="utf-8"))
+    table = table_rows(path)
     pseudonym_by_name = {v: k for k, v in table.items()}
     assert pseudonym_by_name["LB_VS_NIEUW"] == "object-04"
 
@@ -3093,7 +3096,7 @@ def test_identity_and_overlap_do_not_leak_through_the_real_engine(tmp_path):
     )
     _no_name_leaks(text, names)
 
-    table = json.loads(path.read_text(encoding="utf-8"))  # pseudonym -> real name
+    table = table_rows(path)  # pseudonym -> real name
     # No identity mapping: a pseudonym may never equal its own real
     # name.
     assert not any(key == value for key, value in table.items())
@@ -3115,7 +3118,7 @@ def test_identity_table_is_refused_the_exact_broken_case(tmp_path):
     accepted with the real name leaking in question/subject/outcome/
     evidence."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"ZEER_GEHEIM_VSERVER": "ZEER_GEHEIM_VSERVER"}), encoding="utf-8")
+    write_signed_table(path, {"ZEER_GEHEIM_VSERVER": "ZEER_GEHEIM_VSERVER"})
 
     a = Answer(
         question="wat breekt er als ZEER_GEHEIM_VSERVER verloopt",
@@ -3141,7 +3144,7 @@ def test_identity_table_is_refused_the_exact_broken_case(tmp_path):
 
 def test_duplicate_assignment_is_refused(tmp_path):
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "LB_VS_A", "object-02": "LB_VS_A"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "LB_VS_A", "object-02": "LB_VS_A"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -3158,7 +3161,7 @@ def test_old_storage_direction_is_refused(tmp_path):
     not follow the pseudonym pattern 'object-NN' and is therefore refused,
     not silently read as valid."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"LB_VS_PORTAAL": "object-01"}), encoding="utf-8")
+    write_signed_table(path, {"LB_VS_PORTAAL": "object-01"})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -3172,7 +3175,7 @@ def test_old_storage_direction_is_refused(tmp_path):
 
 def test_empty_or_non_text_value_is_refused(tmp_path):
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "   "}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "   "})
     with pytest.raises(PseudonymTableBroken) as err:
         render(
             _answer(),
@@ -3189,7 +3192,7 @@ def test_namespace_collision_with_current_names_is_refused(tmp_path):
     here an EXISTING pseudonym collides with a NEW real name this call
     processes (cross-row collision)."""
     path = tmp_path / "tabel.json"
-    path.write_text(json.dumps({"object-01": "OUDE_NAAM"}), encoding="utf-8")
+    write_signed_table(path, {"object-01": "OUDE_NAAM"})
     a = Answer(
         question="v",
         findings=[Finding(subject="object-01", outcome="x", certainty=Certainty.ESTABLISHED, evidence="b")],
@@ -3208,17 +3211,25 @@ from pathlib import Path
 name = sys.argv[1]
 path = Path(sys.argv[2])
 
+# 1.1 C: the anchor lives in the real HKCU store, under the unique TEST key
+# the parent test hands over (never the product's own key).
+from nsmcp import tablekey
+
+tablekey._registry = tablekey._WinRegistry(sys.argv[3])
+
 delay = os.environ.get("NSMCP_OPENHEID_TESTHAAK_VERTRAGING_S")
 if delay:
-    _original_read_text = Path.read_text
+    # Delays INSIDE the critical section: after the verified load, before
+    # the append - the window in which a second process without the lock
+    # would read the same old state.
+    _original_load = tablekey.load
 
-    def _delayed_read_text(self, *a, **kw):
-        result = _original_read_text(self, *a, **kw)
-        if self == path:
-            time.sleep(float(delay))
+    def _delayed_load(*a, **kw):
+        result = _original_load(*a, **kw)
+        time.sleep(float(delay))
         return result
 
-    Path.read_text = _delayed_read_text
+    tablekey.load = _delayed_load
 
 from nsmcp.answer import Answer, Finding, Certainty
 from nsmcp.disclosure import Disclosure, render
@@ -3233,7 +3244,7 @@ render(answer, Disclosure.LIMITED, tool="certificaat_wat_breekt_er", pseudonym_t
 """
 
 
-def test_two_processes_lose_no_key(tmp_path):
+def test_two_processes_lose_no_key(tmp_path, hkcu_anchor):
     """Deterministic two-process regression. `threading.Lock` protects
     only threads WITHIN one process; this spawns two REAL `subprocess`
     worker processes on the SAME table.
@@ -3248,14 +3259,14 @@ def test_two_processes_lose_no_key(tmp_path):
     read-modify-write and both names land in the table, each with its own
     pseudonym."""
     path = tmp_path / "tabel.json"
-    path.write_text("{}", encoding="utf-8")  # already exists, so BOTH processes really read
+    write_signed_table(path, {})  # already exists, so BOTH processes really read
     worker = tmp_path / "worker.py"
     worker.write_text(_TWO_PROCESS_WORKER, encoding="utf-8")
 
     env_a = dict(os.environ)
     env_a["NSMCP_OPENHEID_TESTHAAK_VERTRAGING_S"] = "0.6"
     proc_a = subprocess.Popen(
-        [sys.executable, str(worker), "PROC_A", str(path)],
+        [sys.executable, str(worker), "PROC_A", str(path), hkcu_anchor.base],
         env=env_a,
         cwd=str(tmp_path),
         stdout=subprocess.PIPE,
@@ -3263,7 +3274,7 @@ def test_two_processes_lose_no_key(tmp_path):
     )
     time.sleep(0.15)  # gives process A the chance to read (and start waiting) before B starts
     proc_b = subprocess.Popen(
-        [sys.executable, str(worker), "PROC_B", str(path)],
+        [sys.executable, str(worker), "PROC_B", str(path), hkcu_anchor.base],
         cwd=str(tmp_path),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -3274,7 +3285,7 @@ def test_two_processes_lose_no_key(tmp_path):
     assert proc_a.returncode == 0, output_a.decode("utf-8", "replace")
     assert proc_b.returncode == 0, output_b.decode("utf-8", "replace")
 
-    table = json.loads(path.read_text(encoding="utf-8"))
+    table = table_rows(path)
     assert _real_names_from_table(table) == {"PROC_A", "PROC_B"}  # neither name vanished
     assert len(table) == 2  # no two names sharing the same pseudonym
 
@@ -3424,8 +3435,7 @@ def test_trailing_newline_in_key_is_refused(tmp_path):
     matches and rightly refuses this key. Byte-identical proof as
     above."""
     path = tmp_path / "tabel.json"
-    tabel_json = json.dumps({"object-01\n": "LB_VS_PORTAAL"})
-    path.write_text(tabel_json, encoding="utf-8")
+    write_signed_table(path, {"object-01\n": "LB_VS_PORTAAL"})
     before_bytes = path.read_bytes()
     before_hash = hashlib.sha256(before_bytes).hexdigest()
 
@@ -4238,7 +4248,7 @@ def test_sr7_a_lock_path_that_is_a_directory_is_a_refusal_with_its_reason(tmp_pa
 
 def test_sr7_a_table_value_with_a_control_character_is_refused_without_echo(tmp_path):
     table = tmp_path / "tabel.json"
-    table.write_text(json.dumps({"object-01": "x\n- forged line [vastgesteld]"}), encoding="utf-8")
+    write_signed_table(table, {"object-01": "x\n- forged line [vastgesteld]"})
     with pytest.raises(PseudonymTableBroken) as refused:
         render(_sr7_answer(), Disclosure.LIMITED, tool="x", extra_names=("cert_echt",), pseudonym_table_path=table)
     message = str(refused.value)

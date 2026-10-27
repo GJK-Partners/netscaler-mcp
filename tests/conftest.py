@@ -515,3 +515,95 @@ def maintenance_config(tmp_path: Path) -> MaintenanceConfig:
         soak_uren=24,
         ssh_gebruiker="nsroot",
     )
+
+
+# ---------------------------------------------------------------------------
+# 1.1 C: the anchor of the pseudonym table never touches the real HKCU store
+# in a test. Every test gets its own in-memory store (`tablekey._registry`,
+# the seam); the proofs on the real store use a unique key under
+# HKCU\Software\GJK\netscaler-mcp\Test and remove it (tests/test_tablekey.py).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _table_anchor_in_memory(monkeypatch):
+    from nsmcp import tablekey
+
+    store = tablekey.MemoryRegistry()
+    monkeypatch.setattr(tablekey, "_registry", store)
+    return store
+
+
+def table_place(table: Path):
+    """The place (slot) of a pseudonym table, computed the way the product
+    does: on a held chain of the table's directory (nothing is created)."""
+    from nsmcp import localpath, tablekey
+
+    table.parent.mkdir(parents=True, exist_ok=True)
+    root = localpath.absolute_text(table.parent)
+    with localpath.open_local(root, root=root, expect="dir") as held:
+        return tablekey.place_of(table, root, held)
+
+
+def write_signed_table(table: Path, rows) -> None:
+    """A SIGNED form-2 table with exactly these (pseudonym, real name) rows,
+    with its anchor and key - the semantic checks are NOT applied here, so a
+    test can hand the product a well-signed table with a semantically broken
+    row. `rows` is a dict or a list of pairs."""
+    import secrets
+
+    from nsmcp import tablekey
+
+    pairs = list(rows.items()) if isinstance(rows, dict) else list(rows)
+    where = table_place(table)
+    tabel_id = secrets.token_hex(16)
+    key = secrets.token_bytes(tablekey.KEY_BYTES)
+    tablekey.key_path(table).write_bytes(tablekey.wrap_key(key, where.slot, tabel_id, 1))
+    doc = tablekey.build_doc(key, where.slot, tabel_id, 1, pairs)
+    table.write_bytes(tablekey.doc_bytes(doc))
+    anchor = tablekey.Anchor(where.slot, tabel_id, 1, doc.aantal, doc.keten, "vastgelegd", None, ())
+    tablekey._registry.write(where.slot, anchor.text())
+
+
+def table_rows(table: Path) -> dict[str, str]:
+    """PSEUDONYM -> REAL NAME as the form-2 file on disk carries it (read by
+    the test, without verification)."""
+    raw = json.loads(table.read_text(encoding="utf-8"))
+    return {row["pseudoniem"]: row["naam"] for row in raw["rijen"]}
+
+
+HKCU_TEST_BASE = "Software\\GJK\\netscaler-mcp\\Test"
+
+
+@pytest.fixture
+def hkcu_anchor(monkeypatch):
+    """The REAL HKCU anchor store, under a unique key
+    `HKCU\\Software\\GJK\\netscaler-mcp\\Test\\<uuid4>` that is removed
+    afterwards (and proven gone). For the proofs that need the real store or
+    a second process; every other test keeps the in-memory store."""
+    import uuid
+    import winreg
+
+    from nsmcp import tablekey
+
+    base = f"{HKCU_TEST_BASE}\\{uuid.uuid4()}"
+    store = tablekey._WinRegistry(base)
+    monkeypatch.setattr(tablekey, "_registry", store)
+    yield store
+
+    def remove(path: str) -> None:
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_ALL_ACCESS) as key:
+                while True:
+                    try:
+                        child = winreg.EnumKey(key, 0)
+                    except OSError:
+                        break
+                    remove(f"{path}\\{child}")
+        except FileNotFoundError:
+            return
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+
+    remove(base)
+    with pytest.raises(FileNotFoundError):
+        winreg.OpenKey(winreg.HKEY_CURRENT_USER, base)
