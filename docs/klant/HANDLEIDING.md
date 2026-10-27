@@ -1772,6 +1772,39 @@ van de vorige bewaarde export worden vanuit dit rapport nog niet aangeroepen. He
 noemt dat blok expliciet als "niet beoordeeld in deze versie", nooit als een stille leegte.
 Zie `OPENSTAANDE-METINGEN.md` voor de precieze status.
 
+### De overstap van 13.1 naar 14.1
+
+Deze subsectie groeit met de bouw van 1.1. De overstap zelf is in deze bouw nog niet in te
+schakelen; wat hieronder staat, verandert niets aan een upgrade binnen 14.1.
+
+**Classic-configuratie.** Binnen 14.1 blijft toets 2 van `status_update_preflight` precies wat
+hij was: hij zoekt de tekstueel eenduidige markers (`add filter`, `add cr policy`, `ns_true`,
+`ns_false`) en zegt er eerlijk bij wat buiten die zoektocht valt. Voor de overstap van 13.1 naar
+14.1 kijkt het product preciezer, en wel eerst naar de FEATURE van een regel en pas daarna naar
+de vorm van de expressie. Elke regel valt in een van vier verzamelingen:
+
+1. **verwijderd en gebonden**: een regel van een feature waaruit classic verwijderd is (Filter,
+   SureConnect, classic Cache Redirection, Content Switching, Compression, Application Firewall,
+   SSL, een classic expressie in een LB-regel, en `add cs policy` met `-url` of `-domain`), met
+   een bewezen classic vorm, en gebonden. Dit blokkeert de overstap tot de regel naar advanced
+   is omgezet.
+2. **verwijderd, ongebonden**: dezelfde vormen zonder binding; een aandachtspunt.
+3. **deprecated, blokkeert niet**: classic vormen die op 14.1 blijven werken: classic
+   Gateway-authenticatie, -sessie, -verkeer en -autorisatie, classic audit (SYSLOG en NSLOG) en
+   de classic TM-sessie. Omzetten is een ontwerpkeuze, geen upgradevoorwaarde; het product zet
+   dit nooit zwaarder neer dan een aandachtspunt.
+4. **onbeslist**: een regel waarvan de feature geen vendorrij in het product heeft, of waarvan
+   de expressie niet bewezen classic en niet bewezen advanced is. Een onbesliste regel is nooit
+   groen: de toets zegt dan `niet beoordeeld`.
+
+`ns_true` en `ns_false` bewijzen alleen dat een expressie classic is, nooit dat een feature
+verwijderd is: dezelfde `ns_true` is in een classic CS-policy blokkerend en in een classic
+audit-policy alleen deprecated. Een named expression (`add policy expression`) volgt de feature
+die haar gebruikt. Elke klasse in verzameling 1 en 3 draagt de vendorrij waar ze op rust
+(CTX296948, tabel 1, 2 of 3). Het antwoord noemt per verzameling het aantal en de regelnummers,
+nooit de tekst van een regel, en zegt er altijd bij dat dit geen vendor-precheck is: de vendor
+beslist zelf met `check_invalid_config`.
+
 ## Als er iets misgaat
 
 - **Een scan mislukt.** De vorige export blijft in vrijwel alle gevallen gelden; de

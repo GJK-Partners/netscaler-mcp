@@ -696,3 +696,34 @@ def test_the_english_readme_does_not_end_in_a_dutch_internal_chapter():
 def test_the_readme_explains_the_unknown_tool_error_of_an_unregistered_writing_tool():
     readme = _read("README.md")
     assert "Unknown tool: <name>" in readme and "handelen" in readme
+
+
+def test_the_handleiding_classic_paragraph_matches_the_classic_module():
+    """1.1 A.14: the classic paragraph of the transition subsection names the
+    four sets by the module's own labels, the source and the vendor tool, and
+    says within 14.1 nothing changes; the families it lists for set 3 are the
+    ones the module puts there."""
+    from nsmcp import classic
+
+    section = _section(_read("docs/klant/HANDLEIDING.md"), "## Onderhoud: de firmware-upgraderoute")
+    paragraph = " ".join(section[section.index("**Classic-configuratie.**") :].split())
+    for label in classic.SET_LABELS.values():
+        assert f"**{label}**" in paragraph, label
+    assert "CTX296948" in paragraph and "`check_invalid_config`" in paragraph
+    assert "Binnen 14.1 blijft toets 2 van `status_update_preflight` precies wat hij was" in paragraph
+    deprecated_classes = {f.klasse for f in classic._FAMILIES.values() if f.verzameling == classic.SET_DEPRECATED}
+    assert deprecated_classes == {
+        "classic Gateway-authenticatie",
+        "classic Gateway-sessie",
+        "classic Gateway-verkeer",
+        "classic autorisatie",
+        "classic audit SYSLOG",
+        "classic audit NSLOG",
+        "classic TM-sessie",
+    }
+    for word in (
+        "Gateway-authenticatie, -sessie, -verkeer en -autorisatie",
+        "classic audit (SYSLOG en NSLOG)",
+        "TM-sessie",
+    ):
+        assert word in paragraph, word

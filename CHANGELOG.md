@@ -87,6 +87,15 @@ the knowledge package.
   only). Read only: no PowerShell route writes through it. The runner reads it
   by name from its own directory, so it is a script under the `scriptpin` of
   that directory: pin the whole directory again after the update.
+- `src/nsmcp/classic.py`, the one owner of the classic rules (spec A.5.1). The
+  1.0.3 marker table of pre-flight check 2 moved there unchanged
+  (`classify_markers`); within 14.1 check 2 and the three read tools say byte
+  for byte what they said in 1.0.3, pinned per export fixture. New is
+  `classify`, for the transition 13.1 -> 14.1: feature first, then the
+  expression form; `ns_true`/`ns_false` prove only the form; four sets
+  (removed and bound, removed and unbound, deprecated, undecided) with the
+  CTX296948 row per class; no catch-all. It and the transition form of check 2
+  are not reachable from any tool yet: no behaviour change within 14.1.
 
 ### Changed
 - `uv.lock` is the one source of the dependencies. `requirements-build.txt` is no
