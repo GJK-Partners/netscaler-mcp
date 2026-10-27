@@ -598,6 +598,46 @@ def _provenance_records(provenance_dir: Path | None, target: str, export_dir: Pa
     return found
 
 
+PROVENANCE_IDENTITY_NOTICE = (
+    "Let op: de laatste herkomstregel hoort bij een andere plek of schrijfwijze van de exportmap dan deze"
+    " configuratie noemt (bijvoorbeeld na de update naar 1.1 bij een exportpad met een korte 8.3-naam of een"
+    " koppeling erin); antwoorden met doel en de schrijvende gereedschappen weigeren deze export tot de eerste"
+    " scan met status_ververs, die de herkomst opnieuw vastlegt."
+)
+
+
+def provenance_identity_mismatch(provenance_dir: Path | None, export_dir: Path) -> bool:
+    """Whether the provenance map carries records, and the NEWEST of them
+    names another export map than this one (`export_identity`) - what a
+    start after the update to 1.1 sees when the identity of the export map
+    changed (no `resolve()` by name any more). No records, or no readable
+    ones: False. Read through `localpath` like every provenance read."""
+    if provenance_dir is None:
+        return False
+    root = _root_text(provenance_dir)
+    try:
+        got = localpath.read_local(
+            localpath.under(root, PROVENANCE_FILE),
+            root=root,
+            max_bytes=MAX_FILE_BYTES,
+            allow_missing=True,
+            shared_writers=True,
+        )
+    except OSError:
+        return False
+    if not got.exists or got.over_cap:
+        return False
+    newest = None
+    for line in got.data.decode("utf-8", errors="replace").splitlines():
+        try:
+            record = json.loads(line)
+        except (RecursionError, ValueError):
+            continue
+        if isinstance(record, dict) and isinstance(record.get("exportmap"), str):
+            newest = record["exportmap"]
+    return newest is not None and newest != export_identity(export_dir)
+
+
 def collected_for(provenance_dir: Path | None, target: str | None, manifest_hash: str | None, export_dir: Path):
     """The moment this server recorded collecting THIS export for `target`,
     when the NEWEST record for that target carries this manifest hash - the

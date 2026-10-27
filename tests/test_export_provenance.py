@@ -26,7 +26,7 @@ from pathlib import Path
 
 import mcp.types as types
 import pytest
-from conftest import PATH_SPELLINGS, directory_link, provenance_dir_for, seal_manifest, spelled
+from conftest import PATH_SPELLINGS, directory_link, provenance_dir_for, record_collected, seal_manifest, spelled
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nsmcp.mcp_server import build_server
@@ -759,3 +759,34 @@ def test_the_replacement_proposal_names_no_use_from_an_export_this_server_did_no
     assert "ook elders in gebruik" not in text, text
     assert "gebruik buiten de binding niet vastgesteld [niet vastgesteld]" in text
     assert f"reden: {REFUSED}" in text
+
+
+def test_h1_a_start_names_provenance_of_another_export_identity(tmp_path, capsys):
+    """Herkeuring 1, H1-M-2: after the update to 1.1 the identity of the
+    export map no longer goes through `resolve()`. When the newest record in
+    the provenance map names another export map, the start says that
+    target-bound answers and writing tools refuse until the first scan."""
+    from nsmcp.export import PROVENANCE_IDENTITY_NOTICE
+    from nsmcp.start import build_server_from_config
+
+    export = _export_of_b(tmp_path)
+    config = _service_config(tmp_path / "beheer", export, _knowledge(tmp_path))
+    herkomst = tmp_path / "beheer" / "herkomst"
+    herkomst.mkdir(parents=True)
+    record = {"tijd": "2026-10-01T08:00:00Z", "doel": "b", "manifestSha256": "0" * 64, "exportmap": "c:/elders"}
+    (herkomst / "herkomst.jsonl").write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    assert build_server_from_config(config)
+    assert PROVENANCE_IDENTITY_NOTICE in capsys.readouterr().err
+
+
+def test_h1_a_start_with_matching_or_no_provenance_says_nothing(tmp_path, capsys):
+    from nsmcp.export import PROVENANCE_IDENTITY_NOTICE
+    from nsmcp.start import build_server_from_config
+
+    export = _export_of_b(tmp_path)
+    config = _service_config(tmp_path / "beheer", export, _knowledge(tmp_path))
+    assert build_server_from_config(config)
+    record_collected(export, "b", tmp_path / "beheer" / "herkomst")
+    assert build_server_from_config(config)
+    assert PROVENANCE_IDENTITY_NOTICE not in capsys.readouterr().err

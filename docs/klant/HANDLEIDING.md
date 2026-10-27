@@ -1285,6 +1285,15 @@ server niets vast. Kan de vastlegging niet geschreven worden, of is de export in
 niet die van de scan, dan zegt het antwoord van `status_ververs` dat, en weigeren antwoorden met
 doel en de schrijvende gereedschappen die export tot een volgende scan.
 
+**Na de update naar 1.1: eerst een scan.** Versie 1.1 stelt de plek van de exportmap in een
+herkomstregel vast via dezelfde lokale wandeling als elke lezing, niet meer via de oplossing van
+Windows. Bevat het exportpad een korte 8.3-naam (zoals `PROGRA~1`) of een koppeling, dan past een
+herkomstregel van 1.0.x niet meer bij de exportmap. De server meldt dat bij de start ("Let op: de
+laatste herkomstregel hoort bij een andere plek of schrijfwijze van de exportmap ..."), en tot de
+eerste scan weigeren antwoorden met doel en de schrijvende gereedschappen die export. Draai na de
+update daarom eerst `status_ververs` voor elk doel: die scan legt de herkomst opnieuw vast. Een
+exportpad zonder korte naam en zonder koppeling merkt hier niets van.
+
 De startcontrole kijkt naar paden, ook in een andere schrijfwijze van dezelfde plek (het
 Windows-voorvoegsel `\\?\`, de UNC-vorm daarvan of de beheershare van de lokale schijf), maar
 niet naar rechten. Wie in welke map mag schrijven, regelt u zelf:

@@ -40,6 +40,7 @@ from nsmcp import localpath
 from nsmcp.backup import target_name_rules, valid_target_name
 from nsmcp.code_channel import KINDS, MissingField, UnknownKind, presenter_for
 from nsmcp.disclosure import Disclosure, load_disclosure
+from nsmcp.export import PROVENANCE_IDENTITY_NOTICE, provenance_identity_mismatch
 from nsmcp.handelen import (
     ARGUMENTS,
     DENIED_NAMES,
@@ -1558,6 +1559,12 @@ def build_server_from_config(path: Path) -> FastMCP:
     if not export_dir.is_dir():
         raise ConfigError(f"exportmap niet gevonden: {export_dir}{_relative_note(raw['exportmap'], base)}")
     _check_provenance_dir(provenance_dir, export_dir)
+    # 1.1 B (herkeuring 1, H1-M-2): the identity of the export map no longer
+    # goes through `resolve()`; when the newest provenance record names
+    # another one, the operator hears at the start that target-bound answers
+    # and writing tools refuse this export until the first scan.
+    if provenance_identity_mismatch(provenance_dir, export_dir):
+        print(PROVENANCE_IDENTITY_NOTICE, file=sys.stderr)
     # After the provenance check on purpose: a ledger map or a configuration
     # file in the export map keeps the refusal it already had (its provenance
     # map lies there too); everything else now gets a refusal of its own.
