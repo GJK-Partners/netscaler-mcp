@@ -3651,6 +3651,10 @@ _1_1_REFUSAL_REASONS = {
     "geen_gewoon_bestand": "op deze plek staat geen gewoon bestand of geen gewone map van de verwachte soort",
     "te_veel_koppelingen": "het pad loopt via meer dan 32 koppelingen; zo'n pad wordt niet gevolgd",
     "onleesbaar": "het pad kan niet als gewoon lokaal bestand of als gewone lokale map gelezen of vastgesteld worden",
+    "hardlink": (
+        "het bestand heeft meer dan een naam op de schijf (hardlink); dit product leest binnen de map alleen"
+        " bestanden met een naam"
+    ),
 }
 
 # Per reader: the sentence around the reason ({reden}), as the answer, the
@@ -3681,7 +3685,12 @@ _1_1_READER_SENTENCES = {
     "actieregister": "duurzame registratie NIET vastgesteld ({reden})",
     "herkomst": "De herkomst is niet vastgelegd ({reden}); {gevolg}.",
     "firmwarebundel": "de firmwarebundel in onderhoud.firmwaremap is geweigerd: {reden}",
+    "firmwaremap": "onderhoud.firmwaremap is geweigerd: {reden}",
     "scriptpin": "het script {script} kon niet gelezen worden voor de pincontrole ({reden}); er wordt geen proces gestart",
+    "scriptpin: map": (
+        "de map van het script {script} kon niet gelezen worden voor de pincontrole ({reden}); er wordt geen proces"
+        " gestart"
+    ),
     "codekanaal": "kon het codebestand niet schrijven: {reden}",
     "serverlog: codekanaal": "[nsmcp-pad] codekanaal: verbruikte code niet gemarkeerd: geweigerd (soort={soort})",
     "serverlog: herkomst": "[nsmcp-pad] herkomst niet vastgelegd: geweigerd (soort={soort})",
@@ -3776,14 +3785,14 @@ def test_1_1_every_reader_names_a_refusal_with_its_pinned_sentence(tmp_path, mon
     texts["ledger"] = str(error.value)
     with pytest.raises(handelen.FirmwareBundleError) as error:
         handelen.firmware_target_build(plek)
-    texts["firmwarebundel"] = error.value.zonder_pad
+    texts["firmwaremap"] = error.value.zonder_pad
     powershell.set_script_policy(powershell.ScriptPolicy(pins={"runner.ps1": hashlib.sha256(b"# x").hexdigest()}))
     try:
         with pytest.raises(powershell.ScriptPinMismatch) as error:
             powershell.check_script_pins(plek / "runner.ps1")
     finally:
         powershell.set_script_policy(powershell.ScriptPolicy())
-    texts["scriptpin"] = str(error.value)
+    texts["scriptpin: map"] = str(error.value)
     with pytest.raises(CodeChannelError) as error:
         FileCodeChannel(plek / "code.txt").notice("bericht")
     texts["codekanaal"] = str(error.value)
@@ -3799,8 +3808,8 @@ def test_1_1_every_reader_names_a_refusal_with_its_pinned_sentence(tmp_path, mon
         "collector: fasebestand": _1_1_READER_SENTENCES["collector: fasebestand"].format(reden=reden),
         "collector: scanslot": _1_1_READER_SENTENCES["collector: scanslot"].format(reden=reden),
         "ledger": _1_1_READER_SENTENCES["ledger"].format(reden=reden),
-        "firmwarebundel": _1_1_READER_SENTENCES["firmwarebundel"].format(reden=reden),
-        "scriptpin": _1_1_READER_SENTENCES["scriptpin"].format(script="runner.ps1", reden=reden),
+        "firmwaremap": _1_1_READER_SENTENCES["firmwaremap"].format(reden=reden),
+        "scriptpin: map": _1_1_READER_SENTENCES["scriptpin: map"].format(script="runner.ps1", reden=reden),
         "codekanaal": _1_1_READER_SENTENCES["codekanaal"].format(reden=reden),
         "serverlog: kennisverversing": _1_1_READER_SENTENCES["serverlog: kennisverversing"].format(
             soort="herparseerpunt"

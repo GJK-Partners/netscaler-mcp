@@ -640,13 +640,14 @@ def test_config_a_parent_swapped_for_a_share_link_is_a_config_error_of_its_kind(
     path = directory / "nsmcp.json"
     path.write_text("{}", encoding="utf-8")
     # The start check walks the path first (and would refuse the swap
-    # itself); the swap lands right before the READ walk opens `config`.
+    # itself), then `_require_file` walks it (herstelronde 1: no stat by
+    # name any more); the swap lands right before the READ walk opens `config`.
     encounters = []
 
     def between(index, name):
         if name == "config":
             encounters.append(index)
-            if len(encounters) == 2:
+            if len(encounters) == 3:
                 _swap_for_share_link(directory)
 
     seam.between = between
@@ -768,16 +769,80 @@ def test_table_a_link_in_the_place_of_the_lock_is_refused_before_the_table_is_re
     assert list(outside.iterdir()) == []
 
 
+_PROBE = (
+    "import os, sys\n"
+    "lock, spare = sys.argv[1], sys.argv[2]\n"
+    "try:\n"
+    "    with open(lock, 'ab') as stream:\n"
+    "        stream.write(b'x')\n"
+    "    print('SCHRIJFT')\n"
+    "except OSError:\n"
+    "    print('GEWEIGERD')\n"
+    "try:\n"
+    "    open(spare, 'wb').close()\n"
+    "    os.replace(spare, lock)\n"
+    "    print('VERVANGT')\n"
+    "except OSError:\n"
+    "    print('NIETVERVANGEN')\n"
+)
+
+_HOLDER = (
+    "import sys, time\n"
+    "from pathlib import Path\n"
+    "from nsmcp import disclosure\n"
+    "lock = disclosure._ProcessLock(Path(sys.argv[1]))\n"
+    "lock.__enter__()\n"
+    "print('HOUDT', flush=True)\n"
+    "time.sleep(30)\n"
+)
+
+
+def _probe(lock: Path, spare: Path) -> list[str]:
+    import subprocess
+
+    run = subprocess.run(
+        [sys.executable, "-c", _PROBE, str(lock), str(spare)], capture_output=True, text=True, check=True, timeout=60
+    )
+    return run.stdout.split()
+
+
+def test_table_the_lock_keeps_another_process_out_and_lets_it_in_once_free(tmp_path):
+    """M-1 of the red review: two-sided, with the PRODUCT holding the lock.
+    While `_ProcessLock` holds the lock file, a second process can neither
+    write it nor replace it; once it is free, the same process can do both.
+    A product lock that shared writing (or deletion) lets the second process
+    in while it is held, and this test falls."""
+    from nsmcp import disclosure
+
+    table = _table(tmp_path)
+    lock = table.with_name("tabel.json.lock")
+    with disclosure._ProcessLock(table):
+        held = _probe(lock, tmp_path / "reserve-1")
+    free = _probe(lock, tmp_path / "reserve-2")
+    assert held == ["GEWEIGERD", "NIETVERVANGEN"], held
+    assert free == ["SCHRIJFT", "VERVANGT"], free
+
+
 def test_table_a_second_process_holding_the_lock_is_a_lock_refusal(tmp_path, monkeypatch):
+    """The other side: a second PROCESS takes the product's own lock and
+    holds it; this process waits and is refused with the time-bounded
+    `PseudonymTableLocked`, and reads the table once the holder is gone."""
+    import subprocess
+
     from nsmcp import disclosure
     from nsmcp.disclosure import PseudonymTableLocked
 
     table = _table(tmp_path)
     monkeypatch.setattr(disclosure, "_PROCESS_LOCK_TIMEOUT_S", 0.3)
-    root = str(table.parent)
-    with localpath.open_local_for_append(localpath.under(root, "tabel.json.lock"), root=root):
+    holder = subprocess.Popen([sys.executable, "-c", _HOLDER, str(table)], stdout=subprocess.PIPE, text=True)
+    try:
+        assert holder.stdout.readline().strip() == "HOUDT"
         with pytest.raises(PseudonymTableLocked, match="niet verkrijgen"):
             _limited_render(table)
+    finally:
+        holder.kill()
+        holder.wait(timeout=30)
+        holder.stdout.close()
     assert "object-01" in _limited_render(table), "na het loslaten werkt het slot weer"
 
 
@@ -1189,7 +1254,7 @@ def test_config_a_cloud_placeholder_after_the_start_check_is_a_config_error_of_i
 
     def tag_after_the_check(handle):
         status, attributes, tag = real_tag(handle)
-        if names.get(handle) == "config" and len(encounters) >= 2:
+        if names.get(handle) == "config" and len(encounters) >= 3:
             return status, attributes | localpath.FILE_ATTRIBUTE_REPARSE_POINT, 0x9000601A
         return status, attributes, tag
 
@@ -1205,6 +1270,71 @@ def test_config_a_cloud_placeholder_after_the_start_check_is_a_config_error_of_i
     with pytest.raises(ConfigError) as refused:
         load_config(path)
 
-    assert len(encounters) == 2, "premisse: de startcontrole en de lezing liepen elk een keer"
+    assert len(encounters) == 3, "premisse: de startcontrole, _require_file en de lezing liepen elk een keer"
     assert str(refused.value) == "configuratiebestand onleesbaar: " + REASONS["herparseerpunt"]
     assert seam.calls["ReadFile"] == reads and NAALD not in str(refused.value)
+
+
+# ---------------------------------------------------------------------------
+# Hardlink (B.2 step 6, revision 3): a file outside the export with a second
+# name inside it is a read gap of its own kind, nothing of it read.
+# ---------------------------------------------------------------------------
+
+
+def _hardlinked_object(tmp_path: Path) -> Path:
+    import os
+
+    export_dir = _export(tmp_path)
+    outside = _outside_dir(tmp_path)
+    (outside / "sslcertkey.json").write_text(json.dumps(_cert_object(NAALD)), encoding="utf-8")
+    (export_dir / "objects" / "sslcertkey.json").unlink()
+    os.link(outside / "sslcertkey.json", export_dir / "objects" / "sslcertkey.json")
+    seal_manifest(export_dir)  # the manifest even carries the hash of the outside bytes
+    return export_dir
+
+
+def test_export_a_hardlink_inside_the_export_is_a_read_gap_and_nothing_is_read(tmp_path, seam):
+    export_dir = _hardlinked_object(tmp_path)
+    export = load_export(export_dir)
+    reads = seam.calls["ReadFile"]
+
+    objects, gap = export.objects("config/sslcertkey")
+
+    assert objects == []
+    assert gap is not None and gap.reason == "objectbestand kon niet gelezen worden: " + REASONS["hardlink"]
+    assert seam.calls["ReadFile"] == reads, "niets van het bestand met twee namen gelezen"
+
+
+@pytest.mark.parametrize("level", [Disclosure.LIMITED, Disclosure.MINIMAL])
+def test_export_the_needle_of_a_hardlink_never_reaches_an_answer(tmp_path, level):
+    from nsmcp.mcp_server import build_server, forget_identities
+
+    forget_identities()
+    export_dir = _hardlinked_object(tmp_path)
+    server = build_server(export_dir, _knowledge_file(tmp_path), disclosure=level)
+
+    text = _answers(server, [("certificaat_wat_verloopt_er", {})])["certificaat_wat_verloopt_er"]
+
+    _assert_no_needle(text, tmp_path)
+    if level is Disclosure.LIMITED:
+        assert REASONS["hardlink"] in text
+    else:
+        assert "1 leesgat(en)" in text
+
+
+def test_ledger_an_append_on_a_hardlink_writes_no_line(tmp_path, seam):
+    import os
+
+    from nsmcp.upgrade import append_line
+
+    ledgermap = tmp_path / "ledger"
+    ledgermap.mkdir()
+    outside = _outside_dir(tmp_path)
+    (outside / "elders.jsonl").write_text("", encoding="utf-8")
+    os.link(outside / "elders.jsonl", ledgermap / "run-1.jsonl")
+
+    with pytest.raises(OSError) as refused:
+        append_line(ledgermap / "run-1.jsonl", _ledger_row("run-1"))
+
+    assert isinstance(refused.value, localpath.PathRefused) and refused.value.soort == "hardlink"
+    assert (outside / "elders.jsonl").read_bytes() == b"" and seam.calls["WriteFile"] == 0

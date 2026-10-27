@@ -1484,3 +1484,21 @@ def test_a_lost_certificate_use_source_is_one_read_gap_not_two(tmp_path, change)
     assert coverage_of(export).verdict == "gedeeltelijk"
     assert [gap for gap in answer.read_gaps if gap.reason == REFUSED_KEY_REASON] == []
     assert len(answer.read_gaps) == 1, answer.read_gaps
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="de wandeling over NtCreateFile bestaat alleen op Windows")
+def test_watch_target_file_ceiling_holds_before_the_read(tmp_path, monkeypatch):
+    """M-2 of the red review of part 2: the watch's ceiling for the target
+    file of a retained export (1 KiB) is the cap of the read itself, checked
+    on the held handle - not a check after 32 MiB were read."""
+    from nsmcp import localpath
+    from nsmcp.coverage import _WatchPath
+    from nsmcp.export import TARGET_FILE, _read_export_file, _within
+
+    native = localpath._Native(record=True)
+    monkeypatch.setattr(localpath, "_native", native)
+    (tmp_path / TARGET_FILE).write_bytes(b"x" * 2048)
+    directory = _WatchPath(tmp_path)
+    with pytest.raises(OSError):
+        _read_export_file(directory, _within(directory, TARGET_FILE))
+    assert native.calls["ReadFile"] == 0, "boven het plafond van de bewaking is niets gelezen"
