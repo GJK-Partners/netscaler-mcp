@@ -142,7 +142,24 @@ lokale hash; elk verschil sluit R1. De grenzen:
 - het kiezen van een naam (een map opsommen op het bundelpatroon) en een vraag naar metadata
   lezen geen inhoud; elke inhoud die erop volgt, gaat door de wandeling;
 - de upload door `Set-SFTPItem` opent de bundel op naam terwijl de keten en de bundel
-  vastgehouden worden; de vergelijking op de appliance bindt de geuploade bytes aan de gehashte.
+  vastgehouden worden; de vergelijking op de appliance bindt de geuploade bytes aan de gehashte;
+- **een bestand met meer dan een naam op de schijf (hardlink)** binnen een goedgekeurde map wordt
+  geweigerd (soort `hardlink`), voordat er een byte gelezen of geschreven wordt: een hardlink is
+  geen herparseerpunt, dus zonder die regel kon een bestand van buiten de goedgekeurde boom via een
+  tweede naam erin gelezen worden. Zet zo'n bestand neer als gewone kopie. Een geconfigureerd pad
+  zonder goedgekeurde map eromheen (het configuratiebestand, het doelenbestand, het kennispakket)
+  kent die regel niet;
+- **restgrens R-B4, metadatavragen op naam.** Bestaan, mapinhoud, nieuwe mappen, verwijderen en
+  vrije ruimte lopen in 1.1 door dezelfde wandeling, en de inventaris telt elke vraag op naam. Wat
+  overblijft, staat er met reden in: de startcontrole van de configuratie (bestaat de map, is het een
+  map, liggen twee plekken in elkaar) vraagt nog op naam, eenmaal bij de start en voordat de server
+  iets beantwoordt; zo'n vraag leest geen inhoud, maar kan een koppeling naar een share volgen. Elke
+  inhoud die daarna gelezen wordt, gaat door de wandeling en wordt daar geweigerd;
+- **restgrens R-B5, gemengde versies op een vertaaltabel.** Het slot tussen processen rond de
+  vertaaltabel is in 1.1 de deelmodus van het vastgehouden slotbestand, niet meer
+  `msvcrt.locking`. Een 1.0.x-server met zijn oude slot op dezelfde tabel sluit een 1.1-server niet
+  uit, en omgekeerd. Zet daarom alle servers die dezelfde tabel delen in een keer over naar 1.1.0;
+  draaien ze toch tegelijk, dan kan tussen de twee sloten een bijwerking verloren gaan.
 
 **Wie het kennispad kan beschrijven, kan zonder pin de kennis veranderen.** Een pakket waarin
 getroffen reeks en fix-build samen verlaagd zijn, of waaruit het laatste bulletin is gehaald,

@@ -627,20 +627,20 @@ table below says why per part.
 
 | part | platform | why |
 |---|---|---|
-| the reading tools (an answer from a supplied export) | Windows | `nsmcp.mcp_server` imports `nsmcp.disclosure` at module scope, and `nsmcp.disclosure` does an unconditional top-level `import msvcrt` - stdlib on Windows only, absent on Linux and macOS. Importing the server fails with `ModuleNotFoundError` before any tool runs |
+| the reading tools (an answer from a supplied export) | Windows | every file the product reads or writes is opened through `nsmcp.localpath`, whose walk is built on Windows native calls (`NtCreateFile` relative to held directory handles). Off Windows there is only a read walk for the test suite's logic runs (`os.open` with `O_NOFOLLOW`); every write route refuses with `NotImplementedError` before anything is opened - also the lock file of the pseudonym table. No run of this repository exercises the product off Windows |
 | self-scanning (`status_ververs`) | Windows | it starts the NSHC collector through Windows PowerShell |
 | five of the seven writing tools | Windows | they start the reviewed write script through Windows PowerShell (the sixth, `onderhoud_upgrade_fase`, starts its own runner and the seventh, `config_opslaan`, its own SSH script - see docs/ARCHITECTURE.md) |
-| the confirmation window (`codekanaal: venster`) | Windows | `ctypes.windll` and a user32 message box. `ctypes` itself imports on any platform; only touching `.windll` fails, so in isolation this channel refuses gracefully when it is used, with a message that points at the file channel (`code_channel.window_presenter`) - unreached today, though: importing `nsmcp.mcp_server` also imports `nsmcp.disclosure`, so on another platform the `msvcrt` import failure fires at start and this refusal never runs through the product's shipped entry point |
+| the confirmation window (`codekanaal: venster`) | Windows | `ctypes.windll` and a user32 message box. `ctypes` itself imports on any platform; only touching `.windll` fails, so in isolation this channel refuses gracefully when it is used, with a message that points at the file channel (`code_channel.window_presenter`); like the rest of the product off Windows, that path is not run by any test or CI job |
 
-**Why the reading half is not the exception it looks like.** `msvcrt` is
-unlike `ctypes` or `subprocess`: it does not exist at all outside Windows,
-so the bare `import msvcrt` fails immediately, rather than only when a
-Windows-only member is touched. `nsmcp/disclosure.py` uses it for real
-cross-process file locking around the pseudonym table (`msvcrt.locking` in
-`disclosure._ProcessLock`). So a Linux or macOS user
-gets nothing today: the failure is `ModuleNotFoundError` at import time,
-before any question is asked - not a first-use refusal like the
-confirmation window's.
+**Why the reading half is not the exception it looks like.** Since 1.1 the
+cross-process lock around the pseudonym table is no longer `msvcrt.locking`
+on a descriptor opened by name: `disclosure._ProcessLock` holds the lock file
+open through `nsmcp.localpath` for appending without write sharing, and that
+share mode is the lock - a second process cannot open the same lock file for
+writing until the first lets go (`PseudonymTableLocked`, time-bounded). That
+lock, like every other file operation, exists only on Windows: off Windows
+`localpath` refuses every write route before anything is opened, so a Linux
+or macOS user gets no working lock and no working product, only refusals.
 
 **What is proven and what is not.** CI runs the full suite on
 `windows-latest`, on Python 3.11 and 3.12. There is no CI job for any other

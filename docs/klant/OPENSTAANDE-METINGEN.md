@@ -247,15 +247,15 @@ wortelcontainment: met beide uit (48) werd een zusje van de wortel met een ligat
 een lange s als "binnen" gelezen; met alleen de vergelijking uit (52) opende de wandeling nog steeds
 de wortel op haar eigen tekst en bleef het zusje ongeopend.
 
-De acht proeven 77-84 (versie 1.1, de PowerShell-route van het lokale pad) op dezelfde manier: elke
+De acht proeven 91-98 (versie 1.1, de PowerShell-route van het lokale pad) op dezelfde manier: elke
 mutatie in de werkkopie, alleen de genoemde test gedraaid, het bestand daarna byte voor byte
-teruggezet (sha256 voor en na gelijk, `git status` ongewijzigd). 79 en 84 samen tonen de greep van
-race (d): met een blad dat verwijderdeling toestaat (79) lukten hernoemen, overschrijven en
+teruggezet (sha256 voor en na gelijk, `git status` ongewijzigd). 93 en 98 samen tonen de greep van
+race (d): met een blad dat verwijderdeling toestaat (93) lukten hernoemen, overschrijven en
 verwijderen van de bundel, maar het hernoemen van de firmwaremap bleef geweigerd, omdat de keten van
-mappen nog vastgehouden werd; met de stroom gesloten voor de upload (84) lukte het hernoemen van de
+mappen nog vastgehouden werd; met de stroom gesloten voor de upload (98) lukte het hernoemen van de
 firmwaremap (de pogingen op de bundel faalden daarna alleen omdat het pad niet meer bestond).
 
-De vijf proeven 85-89 (versie 1.1) op dezelfde manier. 85 en 89 samen tonen dat de firmwaremap nooit
+De vijf proeven 99-103 (versie 1.1) op dezelfde manier. 99 en 103 samen tonen dat de firmwaremap nooit
 meer op naam opgesomd wordt: met een opsomming op naam (in de runner, of in `Get-GjkLokaleNamen` zelf)
 volgde de opsomming een koppeling naar een share voordat er iets weigerde.
 
