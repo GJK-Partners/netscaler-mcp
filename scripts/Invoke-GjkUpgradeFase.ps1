@@ -899,7 +899,7 @@ try {
                         $ruweMetingen['buildboom'] = $buildDir
                         $ruweMetingen['upload_duur_sec'] = $upload.duurSec
 
-                        $verzoeken += @{ soort = 'firmware-hash'; vendor_sha = $vendorSha; doos_sha = $doosSha }
+                        $verzoeken += @{ soort = 'firmware-hash'; vendor_sha = $vendorSha; doos_sha = $doosSha; lokale_sha = $lokaleSha }
                         $verzoeken += @{
                             soort = 'aanwezig'; naam = 'lokale bundel-sha256 (informatief)'; poorttype = 'bewijs'
                             aanwezig = $true

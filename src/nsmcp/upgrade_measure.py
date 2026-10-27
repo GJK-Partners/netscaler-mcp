@@ -350,7 +350,7 @@ def _shape_one(verzoek: dict) -> Gate:
     if soort == "lokale-bundel":
         return local_bundle_gate(verzoek.get("vendor_sha"), verzoek.get("lokale_sha"))
     if soort == "firmware-hash":
-        return hash_gate(verzoek.get("vendor_sha"), verzoek.get("doos_sha"))
+        return hash_gate(verzoek.get("vendor_sha"), verzoek.get("doos_sha"), verzoek.get("lokale_sha"))
     if soort == "precheck-pad":
         return precheck_path_gate(verzoek.get("pad"), verzoek.get("exitcode"), verzoek.get("stdout"))
     if soort == "precheck-poging":

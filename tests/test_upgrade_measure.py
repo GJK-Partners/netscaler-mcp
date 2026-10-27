@@ -323,6 +323,18 @@ def test_vorm_shapes_firmware_hash_gate():
     assert uitvoer["poort"][0]["uitkomst"] == "dicht"
 
 
+def test_vorm_shapes_the_firmware_hash_gate_on_the_local_hash_too():
+    def vorm(**verzoek):
+        uitvoer, _ = upgrade_measure.main(
+            json.dumps({"actie": "vorm", "verzoeken": [{"soort": "firmware-hash", **verzoek}]})
+        )
+        return uitvoer["poort"][0]["uitkomst"]
+
+    assert vorm(vendor_sha="aa", doos_sha="aa", lokale_sha="aa") == "open"
+    assert vorm(vendor_sha="aa", doos_sha="aa", lokale_sha="bb") == "dicht"
+    assert vorm(vendor_sha="aa", doos_sha="aa") == "dicht", "zonder lokale hash geen open firmware-hash"
+
+
 def test_vorm_shapes_vendor_precheck_gate_and_ignores_no_exit_code_field():
     uitvoer, _ = upgrade_measure.main(
         json.dumps(

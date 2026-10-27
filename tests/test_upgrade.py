@@ -775,11 +775,26 @@ def test_the_actieid_in_the_ledger_must_match_the_confirmed_target():
 
 
 def test_the_hash_gate_compares_with_the_vendor_value_and_not_with_itself():
-    assert hash_gate("aa", "aa").outcome == "open"
-    assert hash_gate("aa", "bb").outcome == "dicht"
-    assert hash_gate(None, "aa").outcome == "dicht", (
+    assert hash_gate("aa", "aa", "aa").outcome == "open"
+    assert hash_gate("aa", "bb", "aa").outcome == "dicht"
+    assert hash_gate(None, "aa", "aa").outcome == "dicht", (
         "zonder de vendorwaarde is er geen hashpoort; ontwerp 3.5 zegt dicht"
     )
+
+
+def test_the_hash_gate_binds_the_box_to_the_locally_hashed_bundle_too():
+    """1.1 B.2: after the upload the box is compared with the vendor sidecar
+    AND with the hash computed on the held local stream; every difference
+    closes R1, and a missing local hash is no gate."""
+    assert hash_gate("aa", "aa", "bb").outcome == "dicht"
+    assert hash_gate("aa", "aa", "bb").reason == "de overgezette bundel is niet de lokaal gecontroleerde bundel"
+    assert hash_gate("aa", "bb", "bb").outcome == "dicht"
+    assert hash_gate("aa", "aa", None).outcome == "dicht"
+    assert hash_gate("aa", "aa", "").reason == "de sha256 van de lokaal vastgehouden bundel ontbreekt"
+    assert hash_gate("AA", " aa ", "aA").outcome == "open"
+    een, twee = "1f" * 32, "2e" * 32
+    for gate in (hash_gate(een, een, twee), hash_gate(een, een, een), hash_gate(een, twee, twee)):
+        assert een not in gate.evidence + gate.reason and twee not in gate.evidence + gate.reason
 
 
 # ---------- het genormaliseerde anker ----------

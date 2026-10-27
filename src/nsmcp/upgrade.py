@@ -1344,10 +1344,17 @@ def local_bundle_gate(vendor_sha, local_sha) -> Gate:
     )
 
 
-def hash_gate(vendor_sha, box_sha) -> Gate:
+def hash_gate(vendor_sha, box_sha, local_sha) -> Gate:
     """The box compared with the VENDOR value from `<bundelnaam>.sha256`, never
     with itself. Without that file there is no gate, and design 3.5 then says
-    `dicht`."""
+    `dicht`.
+
+    1.1 (B.2): the box is also compared with the sha256 the runner computed
+    on the HELD local stream of the bundle (`Open-GjkLokaalBestand`), so the
+    uploaded bytes stay bound to the checked bytes: the upload opens the
+    bundle by name, and only this comparison ties what arrived to what was
+    checked. Every difference closes R1; a missing local hash is no gate.
+    The values themselves never go into the evidence."""
     if not vendor_sha:
         return Gate(
             "firmware-hash",
@@ -1358,7 +1365,16 @@ def hash_gate(vendor_sha, box_sha) -> Gate:
         )
     if not box_sha:
         return Gate("firmware-hash", "bewijs", "dicht", "geen hash van de doos", "de sha256 op de doos is niet gelezen")
-    if str(vendor_sha).strip().lower() != str(box_sha).strip().lower():
+    if not local_sha:
+        return Gate(
+            "firmware-hash",
+            "bewijs",
+            "dicht",
+            "geen lokale hash",
+            "de sha256 van de lokaal vastgehouden bundel ontbreekt",
+        )
+    box = str(box_sha).strip().lower()
+    if str(vendor_sha).strip().lower() != box:
         return Gate(
             "firmware-hash",
             "bewijs",
@@ -1366,7 +1382,20 @@ def hash_gate(vendor_sha, box_sha) -> Gate:
             "hashes verschillen",
             "de overgezette bundel is niet de bundel van de vendor",
         )
-    return Gate("firmware-hash", "bewijs", "open", "sha256 op de doos gelijk aan de vendorwaarde")
+    if str(local_sha).strip().lower() != box:
+        return Gate(
+            "firmware-hash",
+            "bewijs",
+            "dicht",
+            "hashes verschillen",
+            "de overgezette bundel is niet de lokaal gecontroleerde bundel",
+        )
+    return Gate(
+        "firmware-hash",
+        "bewijs",
+        "open",
+        "sha256 op de doos gelijk aan de vendorwaarde en aan de lokaal vastgehouden bundel",
+    )
 
 
 # ---------------------------------------------------------------------------
