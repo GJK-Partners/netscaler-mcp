@@ -718,3 +718,56 @@ def test_the_write_routes_refuse_off_windows_before_anything_opens(tmp_path, mon
     with pytest.raises(NotImplementedError):
         localpath.replace_local(str(tmp_path / "x"), b"x", root=str(tmp_path))
     assert native.opens == []
+
+
+# ---------------------------------------------------------------------------
+# B.5, the network provider (M-4 of the red review of part 2): an open
+# measurement. With a packet capture (pktmon, elevated right) a symbolic link
+# in the place of an ancestor to the documentation address must give ZERO
+# packets to it on 445/139 while the walk refuses it. Without the elevated
+# right and the explicit switch this test is skipped by name and the
+# measurement stays open in docs/klant/OPENSTAANDE-METINGEN.md.
+# ---------------------------------------------------------------------------
+
+
+def _elevated() -> bool:
+    import ctypes
+
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except (AttributeError, OSError):
+        return False
+
+
+@pytest.mark.skipif(
+    not (os.environ.get("NSMCP_NETWERKPROEF") == "1" and _elevated()),
+    reason=(
+        "netwerkproef B.5: vraagt verhoogde rechten en NSMCP_NETWERKPROEF=1 voor een pakketopname met pktmon;"
+        " de meting staat open in docs/klant/OPENSTAANDE-METINGEN.md"
+    ),
+)
+def test_the_network_provider_sees_no_packet(tmp_path, seam):
+    import subprocess
+    import time
+
+    address = "192.0.2.10"
+    capture = tmp_path / "opname.etl"
+    link = tmp_path / "voorouder"
+    os.symlink("\\\\" + address + "\\x", link, target_is_directory=True)
+    subprocess.run(["pktmon", "filter", "remove"], check=True, capture_output=True)
+    for port in ("445", "139"):
+        subprocess.run(["pktmon", "filter", "add", "-i", address, "-p", port], check=True, capture_output=True)
+    subprocess.run(["pktmon", "start", "--capture", "--file-name", str(capture)], check=True, capture_output=True)
+    try:
+        started = time.perf_counter()
+        refused = _refused(lambda: localpath.read_local_bytes(str(link / "x.txt"), max_bytes=10))
+        elapsed = time.perf_counter() - started
+        time.sleep(2)
+    finally:
+        subprocess.run(["pktmon", "stop"], check=True, capture_output=True)
+        subprocess.run(["pktmon", "filter", "remove"], check=False, capture_output=True)
+    counters = subprocess.run(["pktmon", "counters"], capture_output=True, text=True, check=False).stdout
+    assert refused.soort == "netwerkpad"
+    assert elapsed < 0.1
+    assert all("192.0.2.10" not in record["name"] for record in seam.opens)
+    assert "All counters are zero" in counters or "Alle tellers zijn nul" in counters, counters

@@ -75,6 +75,7 @@ SOORTEN = (
     "geen_gewoon_bestand",
     "te_veel_koppelingen",
     "onleesbaar",
+    "hardlink",
 )
 
 # One fixed sentence per kind, never a path, never a status, never a line break.
@@ -101,6 +102,10 @@ REASONS: dict[str, str] = {
     "geen_gewoon_bestand": "op deze plek staat geen gewoon bestand of geen gewone map van de verwachte soort",
     "te_veel_koppelingen": f"het pad loopt via meer dan {LINK_LIMIT} koppelingen; zo'n pad wordt niet gevolgd",
     "onleesbaar": "het pad kan niet als gewoon lokaal bestand of als gewone lokale map gelezen of vastgesteld worden",
+    "hardlink": (
+        "het bestand heeft meer dan een naam op de schijf (hardlink); dit product leest binnen de map alleen"
+        " bestanden met een naam"
+    ),
 }
 
 # Which spelling rule refused (`PathRefused.detail`); internal codes, never a path.
@@ -292,6 +297,8 @@ def _within(key: str, components: list[str], root: str | None) -> list[str] | No
 # ---------------------------------------------------------------------------
 
 STATUS_SUCCESS = 0x00000000
+STATUS_NO_MORE_FILES = 0x80000006
+STATUS_NO_SUCH_FILE = 0xC000000F
 STATUS_REPARSE = 0x00000104
 STATUS_STOPPED_ON_SYMLINK = 0x8000002D
 STATUS_ACCESS_DENIED = 0xC0000022
@@ -396,6 +403,7 @@ FileStandardInformation = 5
 FileRenameInformation = 10
 FileDispositionInformation = 13
 FileAttributeTagInformation = 35
+FileNamesInformation = 12
 FileFsDeviceInformation = 4
 
 # A directory on the way is held with the traverse right only: a relative open
@@ -501,6 +509,20 @@ class _Native:
             function = getattr(ntdll, name)
             function.argtypes = [wt.HANDLE, ctypes.POINTER(IO_STATUS_BLOCK), ctypes.c_void_p, wt.ULONG, ctypes.c_int]
             function.restype = ntstatus
+        ntdll.NtQueryDirectoryFile.argtypes = [
+            wt.HANDLE,
+            wt.HANDLE,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(IO_STATUS_BLOCK),
+            ctypes.c_void_p,
+            wt.ULONG,
+            ctypes.c_int,
+            ctypes.c_ubyte,
+            ctypes.c_void_p,
+            ctypes.c_ubyte,
+        ]
+        ntdll.NtQueryDirectoryFile.restype = ntstatus
         ntdll.NtClose.argtypes = [wt.HANDLE]
         ntdll.NtClose.restype = ntstatus
         kernel32.GetDriveTypeW.argtypes = [wt.LPCWSTR]
@@ -613,6 +635,47 @@ class _Native:
             & 0xFFFFFFFF
         )
         return status, info.EndOfFile, bool(info.Directory)
+
+    def query_link_count(self, handle: int) -> tuple[int, int]:
+        """`NtQueryInformationFile(FileStandardInformation)`: (status, NumberOfLinks)."""
+        self.calls["NtQueryInformationFile"] += 1
+        info = self._STD()
+        iosb = self._IOSB()
+        ctypes = self._ct
+        status = (
+            self._ntdll.NtQueryInformationFile(
+                handle, ctypes.byref(iosb), ctypes.byref(info), ctypes.sizeof(info), FileStandardInformation
+            )
+            & 0xFFFFFFFF
+        )
+        return status, int(info.NumberOfLinks)
+
+    def query_directory(self, handle: int, restart: bool) -> tuple[int, bytes]:
+        """`NtQueryDirectoryFile(FileNamesInformation)` on a held directory
+        handle: (status, the raw entries). Names only; nothing is opened."""
+        self.calls["NtQueryDirectoryFile"] += 1
+        ctypes = self._ct
+        buffer = ctypes.create_string_buffer(64 * 1024)
+        iosb = self._IOSB()
+        status = (
+            self._ntdll.NtQueryDirectoryFile(
+                handle,
+                None,
+                None,
+                None,
+                ctypes.byref(iosb),
+                buffer,
+                len(buffer),
+                FileNamesInformation,
+                0,
+                None,
+                1 if restart else 0,
+            )
+            & 0xFFFFFFFF
+        )
+        if status != STATUS_SUCCESS:
+            return status, b""
+        return status, buffer.raw[: iosb.Information]
 
     def query_fs_device(self, handle: int) -> tuple[int, int, int]:
         """`NtQueryVolumeInformationFile(FileFsDeviceInformation)`: (status, device type, characteristics)."""
@@ -748,6 +811,10 @@ class _PosixNative:
             self.closes.append(handle)
         os.close(handle)
 
+    def list_dir(self, handle: int) -> list[str]:
+        self.calls["listdir"] += 1
+        return os.listdir(handle)
+
     def ReadFile(self, handle: int, size: int) -> bytes | None:
         self.calls["read"] += 1
         try:
@@ -778,6 +845,8 @@ class LocalHandle:
         self.path = path
         self.exists = exists
         self.kind = kind
+        # What the walk found at the leaf: "file" or "dir" (None when absent).
+        self.found: str | None = (kind if kind in ("file", "dir") else None) if exists else None
         self.closed = False
 
     @property
@@ -834,13 +903,63 @@ class LocalHandle:
         return os.fstat(self._leaf).st_size
 
     def flush_directory(self) -> bool:
-        """Best effort: `FlushFileBuffers` on the HELD parent directory handle
-        (the directory entry of a new file), never a second open by name.
-        False where the platform or the handle's access does not allow it."""
+        """Best effort: flushes the directory entry of the leaf (a new file)
+        to disk. The held parent carries the traverse right only, and
+        `FlushFileBuffers` refuses such a handle (measured: ERROR_ACCESS_DENIED);
+        so the held parent is opened once more RELATIVE TO ITSELF with an empty
+        name and `FILE_WRITE_DATA` - no open by name, the chain stays held -
+        flushed, and closed. False where the platform, the access or the
+        flush does not allow it."""
         directory = self._chain[-1] if self._chain else None
-        if self.closed or directory is None or not isinstance(self._native, _Native):
+        native = self._native
+        if self.closed or directory is None or not isinstance(native, _Native):
             return False
-        return self._native.FlushFileBuffers(directory)
+        status, handle = native.NtCreateFile(
+            directory,
+            "",
+            FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            DIR_SHARE,
+            FILE_OPEN,
+            FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+        )
+        if status != STATUS_SUCCESS or handle is None:
+            return False
+        try:
+            return native.FlushFileBuffers(handle)
+        finally:
+            native.NtClose(handle)
+
+    def names(self) -> list[str]:
+        """The names in the held directory (`expect="dir"`), read on its
+        handle (`NtQueryDirectoryFile`); `.` and `..` left out. Names only:
+        nothing in the directory is opened."""
+        if self.closed or self._leaf is None or self.kind != "dir":
+            raise PathRefused("onleesbaar", path=self.path, detail="geen vastgehouden map")
+        native = self._native
+        if not isinstance(native, _Native):
+            return sorted(native.list_dir(self._leaf))
+        found: list[str] = []
+        restart = True
+        while True:
+            status, raw = native.query_directory(self._leaf, restart)
+            restart = False
+            if status in (STATUS_NO_MORE_FILES, STATUS_NO_SUCH_FILE):
+                break
+            if status != STATUS_SUCCESS:
+                raise PathRefused("onleesbaar", path=self.path, status=status, detail="map opsommen")
+            position = 0
+            while True:
+                try:
+                    following, _index, length = struct.unpack_from("<III", raw, position)
+                    name = raw[position + 12 : position + 12 + length].decode("utf-16-le")
+                except (struct.error, UnicodeDecodeError):
+                    raise PathRefused("onleesbaar", path=self.path, detail="mapgegevens") from None
+                if name not in (".", ".."):
+                    found.append(name)
+                if not following:
+                    break
+                position += following
+        return found
 
     def detach_leaf_fd(self) -> int:
         """Windows: hands the leaf handle over to a C runtime file descriptor
@@ -1016,11 +1135,12 @@ def _existing_leaf(native: _Native, parent: int, name: str, path: str, status: i
         FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
     )
     if status != STATUS_SUCCESS or handle is None:
-        return (
-            _status_refusal(first, path, allow_missing=False)
-            if first in _NOT_REGULAR
-            else FileExistsError(errno.EEXIST, "bestaat al")
-        )
+        # The existing object cannot be opened as itself (an ACL, for
+        # example): unreadable, never "already there" - that would read as
+        # another scan holding the lock (red review of part 2, F-8).
+        if first in _NOT_REGULAR:
+            return _status_refusal(first, path, allow_missing=False)
+        return PathRefused("onleesbaar", path=path, status=status, detail="bestaand blad niet te openen")
     try:
         tag_status, attributes, tag = native.query_attribute_tag(handle)
     finally:
@@ -1080,6 +1200,20 @@ def _walk_windows(
                     FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
                 )
             status, handle = native.NtCreateFile(held[-1], component, access, share, disposition, options)
+            if mode == "mkdir" and status in _ABSENT:
+                # Created relative to the held parent, as a directory and
+                # exclusively; a name that appeared meanwhile is opened as
+                # itself and goes through the same checks below.
+                status, handle = native.NtCreateFile(
+                    held[-1],
+                    component,
+                    DIR_ACCESS,
+                    DIR_SHARE,
+                    FILE_CREATE,
+                    FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+                )
+                if status == STATUS_OBJECT_NAME_COLLISION:
+                    status, handle = native.NtCreateFile(held[-1], component, access, share, disposition, options)
             if status != STATUS_SUCCESS or handle is None:
                 if is_leaf and mode == "create" and (status == STATUS_OBJECT_NAME_COLLISION or status in _NOT_REGULAR):
                     raise _existing_leaf(native, held[-1], component, path, status)
@@ -1108,10 +1242,20 @@ def _walk_windows(
             is_directory = bool(attributes & FILE_ATTRIBUTE_DIRECTORY)
             if not (is_leaf and expect == "any") and is_directory != (not is_leaf or expect == "dir"):
                 raise PathRefused("geen_gewoon_bestand", path=path, detail=f"onderdeel {index}")
+            if is_leaf and not is_directory and mode in ("read", "append") and root_count is not None:
+                # B.2 step 6 (revision 3): a file inside the root with a second
+                # name on the disk can be a file from outside the approved
+                # tree; refused on the held leaf before a byte is read or written.
+                status, links = native.query_link_count(handle)
+                if status != STATUS_SUCCESS:
+                    raise PathRefused("onleesbaar", path=path, status=status, detail="namen tellen")
+                if links > 1:
+                    raise PathRefused("hardlink", path=path, detail=f"{links} namen")
         # The last handle is the leaf: the file, the directory, or (no
         # components) the volume root itself.
         leaf = held.pop() if components or expect != "file" else None
         result = LocalHandle(native, held, leaf, path, exists=True, kind=expect)
+        result.found = "dir" if not components or is_directory else "file"
         handed_over = True
         return result
     finally:
@@ -1200,11 +1344,14 @@ def _walk_posix(
                     raise PathRefused("geen_gewoon_bestand", path=path) from None
                 raise PathRefused("onleesbaar", path=path) from None
             held.append(handle)
-            kind = os.fstat(handle).st_mode
+            facts = os.fstat(handle)
+            kind = facts.st_mode
             if want_directory != stat_module.S_ISDIR(kind) or not (
                 stat_module.S_ISDIR(kind) or stat_module.S_ISREG(kind)
             ):
                 raise PathRefused("geen_gewoon_bestand", path=path, detail=f"onderdeel {index}")
+            if is_leaf and not want_directory and root_count is not None and facts.st_nlink > 1:
+                raise PathRefused("hardlink", path=path, detail=f"{facts.st_nlink} namen")
             if is_leaf and not want_directory:
                 leaf = held.pop()
         if expect in ("dir", "any") and leaf is None:
@@ -1212,6 +1359,7 @@ def _walk_posix(
         result = LocalHandle(native, held, leaf, path, exists=True, kind="dir" if expect == "any" else expect)
         if expect == "any" and leaf is not None and not stat_module.S_ISDIR(os.fstat(leaf).st_mode):
             result.kind = "file"
+        result.found = result.kind
         handed_over = True
         return result
     finally:
@@ -1328,6 +1476,69 @@ def check_where_it_leads(path, *, root=None, expect: str, allow_missing: bool = 
         return Path(handle.path)
     finally:
         handle.close()
+
+
+def exists_local(path, *, root=None, expect: str = "any") -> str | None:
+    """Whether something is at `path`, by the same walk (attributes only,
+    every component opened as itself, never a stat by name): "file" or
+    "dir" for what is there, None when a component is absent. A refusal of
+    the walk (a link inside the root, a network place, a cloud placeholder)
+    raises `PathRefused`; with `expect` "file" or "dir" the other type is
+    `geen_gewoon_bestand`."""
+    if expect not in (*_EXPECT, "any"):
+        raise ValueError("expect moet file, dir of any zijn")
+    handle = _open(absolute_text(path), root=root, expect=expect, mode="check", allow_missing=True, shared_writers=True)
+    try:
+        return handle.found if handle.exists else None
+    finally:
+        handle.close()
+
+
+def exists_local_or_none(path, *, root=None) -> str | None:
+    """`exists_local`, with every refusal read as "nothing usable there"
+    (None) - for a caller whose only question is whether to go on."""
+    try:
+        return exists_local(path, root=root)
+    except (OSError, ValueError):
+        return None
+
+
+def is_local_file(path, *, root=None) -> bool:
+    """`Path.is_file()` through the walk: True only for a plain file the walk
+    reaches; absent, another type and every refusal are False."""
+    try:
+        return exists_local(path, root=root) == "file"
+    except (OSError, ValueError):
+        return False
+
+
+def is_local_dir(path, *, root=None) -> bool:
+    """`Path.is_dir()` through the walk (see `is_local_file`)."""
+    try:
+        return exists_local(path, root=root) == "dir"
+    except (OSError, ValueError):
+        return False
+
+
+def list_local(path, *, root=None) -> list[str]:
+    """The names in the directory at `path`, read on its held handle
+    (`NtQueryDirectoryFile`, `FileNamesInformation`); `.` and `..` left out,
+    nothing in it opened. What a caller then opens goes through the walk
+    again."""
+    with open_local(absolute_text(path), root=root, expect="dir") as handle:
+        return handle.names()
+
+
+def mkdir_local(path, *, root=None) -> None:
+    """Creates the directory at `path` and every missing directory before
+    it, each relative to the held parent (`FILE_CREATE` +
+    `FILE_DIRECTORY_FILE`), every existing component opened as itself and
+    checked like any walk (inside `root` no reparse point at all; above it
+    a link is followed only after its target passed the spelling and volume
+    steps). Existing directories are left as they are."""
+    _require_windows_for_writing()
+    handle = _open(absolute_text(path), root=root, expect="dir", mode="mkdir", allow_missing=False, shared_writers=True)
+    handle.close()
 
 
 def read_local_bytes(path, *, root=None, max_bytes: int, shared_writers: bool = False) -> bytes:

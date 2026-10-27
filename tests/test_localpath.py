@@ -33,6 +33,7 @@ def test_every_kind_has_one_fixed_sentence_and_no_other_kind_exists():
             "geen_gewoon_bestand",
             "te_veel_koppelingen",
             "onleesbaar",
+            "hardlink",
         }
     )
 
