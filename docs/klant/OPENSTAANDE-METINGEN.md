@@ -144,6 +144,14 @@ seamteller telt geen pakketten; de opname blijft daarom open tot ze gedraaid is.
 | 88 | startmelding bij een andere herkomstidentiteit (1.1) | `start.build_server_from_config`: de melding uit (`if False:`) | `test_h1_a_start_names_provenance_of_another_export_identity` | uitgevoerd 27-10-2026, teruggedraaid |
 | 89 | verwijderen: een koppeling als zichzelf (1.1) | `localpath._delete_below`: een koppeling behandeld als een gewone map (de toets `not is_link` weg) | `test_rmtree_local_deletes_a_tree_and_a_link_inside_as_itself_never_its_target` BLEEF GROEN: de koppeling is met `FILE_OPEN_REPARSE_POINT` als zichzelf geopend en levert bij het opsommen geen namen van haar doel op; de laag die het doel beschermt is die open-optie (rij 90), niet deze toets | uitgevoerd 27-10-2026, teruggedraaid |
 | 90 | verwijderen opent als zichzelf (1.1) | `localpath._delete_below`: de open zonder `FILE_OPEN_REPARSE_POINT` (een koppeling wordt dan gevolgd) | `test_rmtree_local_deletes_a_tree_and_a_link_inside_as_itself_never_its_target` (de verwijdering volgde de koppeling en brak af) | uitgevoerd 27-10-2026, teruggedraaid |
+| 91 | PowerShell-wandeling: elk onderdeel als zichzelf (1.1) | `GjkUpgrade-LokaalPad.ps1`, `Wandeling.Loop`: `FILE_OPEN_REPARSE_POINT` weg bij de tussenmappen | `test_ancestor_swap_never_opens_outside_the_root` (PowerShell; geen weigering: de junction voor `C` werd gevolgd en het bestand buiten de wortel gelezen) | uitgevoerd 27-10-2026, teruggedraaid |
+| 92 | PowerShell-wandeling: geen open op het volledige pad (1.1) | `Wandeling.Loop`: de wandeling per onderdeel vervangen door een open van het hele pad onder de volumewortel (de wissel loopt eerst) | `test_ancestor_swap_never_opens_outside_the_root` (PowerShell; geen weigering, het bestand buiten de wortel gelezen) | uitgevoerd 27-10-2026, teruggedraaid |
+| 93 | PowerShell-wandeling: de bundel vastgehouden (1.1, race d) | `Wandeling.Loop`: het blad altijd met `FILE_SHARE_READ \| FILE_SHARE_WRITE \| FILE_SHARE_DELETE` | `test_race_d_the_bundle_cannot_be_swapped_between_the_local_hash_and_the_upload` (hernoemen, overschrijven en verwijderen van de bundel tussen hash en upload gelukt) | uitgevoerd 27-10-2026, teruggedraaid |
+| 94 | upload alleen vanaf een vastgehouden stroom (1.1) | `GjkUpgrade-Ssh.ps1`, `Copy-GjkFile`: de controle op een open `GjkLokaalPad.LokaalStroom` vervangen door `if ($false)` | `test_the_real_copy_refuses_a_source_that_is_not_a_held_local_file` (een tekst kwam voorbij de controle en een credential werd gevraagd) | uitgevoerd 27-10-2026, teruggedraaid |
+| 95 | firmware-hash ook tegen de lokale hash (1.1) | `upgrade.hash_gate`: de vergelijking doos tegen lokale hash vervangen door `if False:` | `test_the_hash_gate_binds_the_box_to_the_locally_hashed_bundle_too` (`open` in plaats van `dicht`) | uitgevoerd 27-10-2026, teruggedraaid |
+| 96 | runner: de firmwaremap als wortel (1.1) | `Invoke-GjkUpgradeFase.ps1`, `_GjkOpenLokaal`: `-Wortel` vervangen door `-ZonderWortel` | `test_a_bundle_that_is_a_junction_is_refused_with_exit_4_before_the_session[R1]` (de junction op de plek van de bundel werd gevolgd; de weigering noemde een map in plaats van een koppeling) | uitgevoerd 27-10-2026, teruggedraaid |
+| 97 | runner: stderr van de bruggen door een pijp (1.1) | `_GjkAanroepPython`: terug naar een tijdelijk bestand op naam onder `Stop` | `test_the_stderr_of_a_bridge_reaches_the_fout_line_through_a_pipe_not_a_file` (de stderr-regel werd een afbrekende fout; exitcode 1 in plaats van 2) | uitgevoerd 27-10-2026, teruggedraaid |
+| 98 | runner: de bundel vastgehouden tot na de upload (1.1, race d) | STAP 3b: de stroom direct na hash en sidecar gesloten | `test_race_d_the_bundle_cannot_be_swapped_between_the_local_hash_and_the_upload` (de firmwaremap kon tussen hash en upload hernoemd worden) | uitgevoerd 27-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en
@@ -191,6 +199,14 @@ De vijf proeven 48-52 (versie 1.1) op dezelfde manier. 48 en 52 samen tonen de t
 wortelcontainment: met beide uit (48) werd een zusje van de wortel met een ligatuur, een ringel-s of
 een lange s als "binnen" gelezen; met alleen de vergelijking uit (52) opende de wandeling nog steeds
 de wortel op haar eigen tekst en bleef het zusje ongeopend.
+
+De acht proeven 77-84 (versie 1.1, de PowerShell-route van het lokale pad) op dezelfde manier: elke
+mutatie in de werkkopie, alleen de genoemde test gedraaid, het bestand daarna byte voor byte
+teruggezet (sha256 voor en na gelijk, `git status` ongewijzigd). 79 en 84 samen tonen de greep van
+race (d): met een blad dat verwijderdeling toestaat (79) lukten hernoemen, overschrijven en
+verwijderen van de bundel, maar het hernoemen van de firmwaremap bleef geweigerd, omdat de keten van
+mappen nog vastgehouden werd; met de stroom gesloten voor de upload (84) lukte het hernoemen van de
+firmwaremap (de pogingen op de bundel faalden daarna alleen omdat het pad niet meer bestond).
 
 ## Gemeten: het oude-lijnharnas op de tags v1.0.1, v1.0.2 en v1.0.3 (26-10-2026)
 
