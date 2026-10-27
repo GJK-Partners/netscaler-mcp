@@ -527,6 +527,7 @@ function _GjkWeigerBundelnaam {
 # en exitcode 4 - geen fase gestart, niets naar de appliance.
 # ---------------------------------------------------------------------------
 $script:GjkSidecarMax = 65536
+$script:GjkFaseGestart = $false
 
 function _GjkKiesBundelnaam {
     <#  De naam die STAP 3b vastpakt: de verwachte naam bij een tak in
@@ -537,16 +538,43 @@ function _GjkKiesBundelnaam {
     param([Parameter(Mandatory = $true)] [string] $Firmwaremap)
     $verwacht = _GjkVerwachteBundelnaam
     if ($null -ne $verwacht) { return $verwacht }
-    $kandidaten = @(Get-ChildItem -LiteralPath $Firmwaremap -Filter (_GjkBundelpatroon) -ErrorAction SilentlyContinue)
+    $kandidaten = @(_GjkBundelKandidaten -Firmwaremap $Firmwaremap)
     if ($kandidaten.Count -ne 1) { return $null }
-    if (-not (_GjkBundelnaamGeldig -Naam $kandidaten[0].Name)) { _GjkWeigerBundelnaam }
-    return $kandidaten[0].Name
+    if (-not (_GjkBundelnaamGeldig -Naam $kandidaten[0])) { _GjkWeigerBundelnaam }
+    return $kandidaten[0]
+}
+
+function _GjkBundelKandidaten {
+    <#  De namen in de firmwaremap die op het bundelpatroon passen, gelezen op
+        de VASTGEHOUDEN maphandle (Get-GjkLokaleNamen, NtQueryDirectoryFile):
+        de firmwaremap wordt eerst gewandeld, nooit op naam opgesomd (een
+        opsomming op naam volgt een koppeling naar een share voordat er iets
+        weigert). Een weigering: [FOUT] de firmwaremap is geweigerd: <vaste
+        zin>, exitcode 4. Een ontbrekende map: geen kandidaten (de oude
+        meldroute op de plek van gebruik). Namen, geen bestanden: een map met
+        een bundelnaam is een kandidaat en wordt bij het openen geweigerd. #>
+    param([Parameter(Mandatory = $true)] [string] $Firmwaremap)
+    $patroon = _GjkBundelpatroon
+    try {
+        $namen = @(Get-GjkLokaleNamen -Map $Firmwaremap -MagOntbreken)
+    }
+    catch {
+        $soort = Get-GjkLokaalPadSoort -Fout $_
+        if ($soort) { _GjkWeigerLokaalPad -Omschrijving 'de firmwaremap' -Soort $soort }
+        throw
+    }
+    return @($namen | Where-Object { $_ -like $patroon } | Sort-Object)
 }
 
 function _GjkWeigerLokaalPad {
     param([string] $Omschrijving, [string] $Soort)
     Log 'FOUT' ($Omschrijving + ' is geweigerd: ' + (Get-GjkLokaalPadReden -Soort $Soort))
-    Log 'GEWEIGERD' 'geen fase gestart en niets naar de appliance gestuurd; leg de firmwaremap aan als gewone lokale map met gewone bestanden, zonder koppelingen'
+    if ($script:GjkFaseGestart) {
+        Log 'GEWEIGERD' 'geen schrijfactie op de appliance en geen sluitregel; leg de firmwaremap aan als gewone lokale map met gewone bestanden, zonder koppelingen'
+    }
+    else {
+        Log 'GEWEIGERD' 'geen fase gestart en niets naar de appliance gestuurd; leg de firmwaremap aan als gewone lokale map met gewone bestanden, zonder koppelingen'
+    }
     exit 4
 }
 
@@ -603,14 +631,14 @@ function _GjkVindBundel {
         return $verwacht
     }
     $patroon = _GjkBundelpatroon
-    $kandidaten = @(Get-ChildItem -LiteralPath $Firmwaremap -Filter $patroon -ErrorAction SilentlyContinue)
+    $kandidaten = @(_GjkBundelKandidaten -Firmwaremap $Firmwaremap)
     if ($kandidaten.Count -eq 0) {
         throw ('geen firmwarebundel gevonden die voldoet aan ' + $patroon + ' in ' + $Firmwaremap)
     }
     if ($kandidaten.Count -gt 1) {
         throw ('meer dan een firmwarebundel voldoet aan ' + $patroon + ' in ' + $Firmwaremap + ': geen eenduidige doelbuild')
     }
-    $naam = $kandidaten[0].Name
+    $naam = [string]$kandidaten[0]
     if (-not (_GjkBundelnaamGeldig -Naam $naam)) { _GjkWeigerBundelnaam }
     if ($script:GjkBundelNaam -cne $naam) {
         throw 'de firmwarebundel op de plek van gebruik is niet de bundel die voor de sessie door de lokale wandeling ging'
@@ -618,17 +646,33 @@ function _GjkVindBundel {
     return $naam
 }
 
+$eigenMap = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($eigenMap)) { $eigenMap = Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+# De lokale-padregel (Open-GjkLokaalBestand, Get-GjkLokaleNamen) voor elke
+# fase die de firmwaremap leest, VOOR de eerste naamtoets: ook die somt de map
+# op de vastgehouden maphandle op, niet op naam.
+$lokaalNodig = ($Fase -in @('R1', 'R2', 'R3')) -or ($Fase -eq 'R5' -and [string]::IsNullOrEmpty($script:GjkDoelbuildTak))
+if ($lokaalNodig) {
+    try {
+        . (Join-Path $eigenMap 'GjkUpgrade-LokaalPad.ps1')
+    }
+    catch {
+        Log 'FOUT' 'de lokale-padregel (GjkUpgrade-LokaalPad.ps1) kon niet geladen worden'
+        Log 'GEWEIGERD' 'geen fase gestart: zonder de lokale-padregel leest deze runner geen firmwarebundel'
+        exit 3
+    }
+}
+
 # De eerste toets: voor het transport, de sessie en fase_gestart, alleen waar
 # de naam uit het patroon komt (geen tak in -Doelbuild) en alleen in de fasen
 # die de bundel kiezen.
 if ([string]::IsNullOrEmpty($script:GjkDoelbuildTak) -and $Fase -in @('R1', 'R2', 'R3', 'R5')) {
-    foreach ($kandidaat in @(Get-ChildItem -LiteralPath $Firmwaremap -Filter (_GjkBundelpatroon) -File -ErrorAction SilentlyContinue)) {
-        if (-not (_GjkBundelnaamGeldig -Naam $kandidaat.Name)) { _GjkWeigerBundelnaam }
+    foreach ($kandidaat in @(_GjkBundelKandidaten -Firmwaremap $Firmwaremap)) {
+        if (-not (_GjkBundelnaamGeldig -Naam $kandidaat)) { _GjkWeigerBundelnaam }
     }
 }
 
-$eigenMap = $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($eigenMap)) { $eigenMap = Split-Path -Parent $MyInvocation.MyCommand.Path }
 $echteTransport = Join-Path $eigenMap 'GjkUpgrade-Ssh.ps1'
 . $echteTransport
 Assert-GjkPoshSsh
@@ -691,16 +735,7 @@ $script:GjkBundelStroom = $null
 $script:GjkBundelNaam = $null
 $script:GjkLokaleSha = ''
 $script:GjkVendorSha = ''
-$lokaalNodig = ($Fase -in @('R1', 'R2', 'R3')) -or ($Fase -eq 'R5' -and [string]::IsNullOrEmpty($script:GjkDoelbuildTak))
 if ($lokaalNodig) {
-    try {
-        . (Join-Path $eigenMap 'GjkUpgrade-LokaalPad.ps1')
-    }
-    catch {
-        Log 'FOUT' 'de lokale-padregel (GjkUpgrade-LokaalPad.ps1) kon niet geladen worden'
-        Log 'GEWEIGERD' 'geen fase gestart: zonder de lokale-padregel leest deze runner geen firmwarebundel'
-        exit 3
-    }
     try {
         $kandidaat = _GjkKiesBundelnaam -Firmwaremap $Firmwaremap
         if ($null -ne $kandidaat) {
@@ -802,6 +837,7 @@ if ($startUit.ExitCode -ne 0) {
     exit 2
 }
 $gestartRegel = $startUit.Stdout | ConvertFrom-Json
+$script:GjkFaseGestart = $true
 $actieidUitLedger = [string]$gestartRegel.actieid
 Log 'OK' ('fase_gestart vastgelegd voor ' + $Run + '/' + $Fase)
 

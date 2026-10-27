@@ -2177,7 +2177,13 @@ def test_a_firmware_map_that_is_itself_a_junction_is_refused(tmp_path):
     echte_map = _firmwaremap(tmp_path)
     gekoppeld = tmp_path / "firmware-koppeling"
     _junction(gekoppeld, echte_map)
+    # A bare target build lists the map first (on its held handle): the map is refused.
     proc = _run(tmp_path, "R1", seed_previous=True, firmwaremap=gekoppeld, markerdir=markers)
+    assert proc.returncode == 4, proc.stdout + proc.stderr
+    assert _fout_regels(proc) == ["[FOUT] de firmwaremap is geweigerd: " + KOPPELING_ZIN]
+    assert not (markers / "ssh-sessie-geopend.txt").exists()
+    # A branch-qualified target build walks straight to the bundle: refused on the way.
+    proc = _run(tmp_path, "R1", seed_previous=True, doelbuild="14.1-72.57", firmwaremap=gekoppeld, markerdir=markers)
     assert proc.returncode == 4, proc.stdout + proc.stderr
     assert _fout_regels(proc) == ["[FOUT] de firmwarebundel is geweigerd: " + KOPPELING_ZIN]
     assert not (markers / "ssh-sessie-geopend.txt").exists()
@@ -2195,6 +2201,55 @@ def test_a_sidecar_that_is_a_junction_is_refused(tmp_path):
     assert proc.returncode == 4, proc.stdout + proc.stderr
     assert _fout_regels(proc) == ["[FOUT] de sidecar van de firmwarebundel is geweigerd: " + KOPPELING_ZIN]
     assert not (markers / "ssh-sessie-geopend.txt").exists()
+
+
+def _share_link(tmp_path: Path) -> Path:
+    import os
+
+    link = tmp_path / "gedeeld"
+    try:
+        os.symlink("\\\\192.0.2.10\\x", link, target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - depends on the symlink right of the account
+        pytest.skip(f"symbolische link niet toegestaan op deze machine: {exc.__class__.__name__}")
+    return link
+
+
+NETWERKPAD_ZIN = "het pad leidt naar een netwerkpad; dit product leest en schrijft alleen op een lokale schijf"
+
+
+@pytest.mark.parametrize("watis", [False, True], ids=["run", "watis"])
+def test_a_firmware_map_below_a_link_to_a_share_is_refused_before_any_listing(tmp_path, watis):
+    """I-1 of the red review: with a bare target build the runner listed the
+    firmware map by name (`Get-ChildItem`) before any walk, which followed a
+    link to a share (and found nothing: the old route then said "geen
+    firmwarebundel gevonden", exit 3). The candidates are now read on the held
+    directory handle: the walk refuses the share at the spelling step of the
+    link target, before a listing or a session."""
+    markers = tmp_path / "markers"
+    firmwaremap = _share_link(tmp_path) / "firmware"
+    proc = _run(
+        tmp_path, "R1", watis=watis, seed_previous=True, doelbuild="72.57", firmwaremap=firmwaremap, markerdir=markers
+    )
+    assert proc.returncode == 4, proc.stdout + proc.stderr
+    assert _fout_regels(proc) == ["[FOUT] de firmwaremap is geweigerd: " + NETWERKPAD_ZIN], proc.stdout
+    assert "192.0.2.10" not in proc.stdout
+    assert not (markers / "ssh-sessie-geopend.txt").exists()
+
+
+def test_a_bundle_below_a_link_to_a_share_is_refused_with_a_branch_qualified_target(tmp_path):
+    markers = tmp_path / "markers"
+    firmwaremap = _share_link(tmp_path) / "firmware"
+    proc = _run(tmp_path, "R1", seed_previous=True, doelbuild="14.1-72.57", firmwaremap=firmwaremap, markerdir=markers)
+    assert proc.returncode == 4, proc.stdout + proc.stderr
+    assert _fout_regels(proc) == ["[FOUT] de firmwarebundel is geweigerd: " + NETWERKPAD_ZIN], proc.stdout
+    assert not (markers / "ssh-sessie-geopend.txt").exists()
+
+
+def test_the_runner_lists_no_directory_by_name():
+    code = "\n".join(_code_regels(SCRIPT)).lower()
+    for verboden in ("get-childitem", "test-path", "resolve-path", "get-item "):
+        assert verboden not in code, verboden
+    assert "get-gjklokalenamen" in code
 
 
 def test_r5_with_a_bare_target_build_refuses_a_bundle_that_is_a_junction(tmp_path):
