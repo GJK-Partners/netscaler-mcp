@@ -5449,13 +5449,28 @@ def test_1_1_a_code_file_that_became_a_link_keeps_the_handling_rereads_nothing_a
     pad.rename(pad.with_name("weg.txt"))
     _winapi.CreateJunction(str(outside), str(pad))
     native = localpath._Native(record=True)
-    read_handles: list[int] = []
-    real_read = native.ReadFile
+    # Which name each LIVE handle belongs to, at the moment of a read (a
+    # handle value is reused after a close, so a set of values is no proof).
+    live: dict[int, str] = {}
+    read_names: list[str] = []
+    real_open, real_close, real_read = native.NtCreateFile, native.NtClose, native.ReadFile
+
+    def recorded_open(parent, name, *args, **kwargs):
+        status, handle = real_open(parent, name, *args, **kwargs)
+        if handle is not None:
+            live[handle] = name
+        return status, handle
+
+    def recorded_close(handle):
+        live.pop(handle, None)
+        return real_close(handle)
 
     def recorded_read(handle, size):
-        read_handles.append(handle)
+        read_names.append(live.get(handle, "?"))
         return real_read(handle, size)
 
+    monkeypatch.setattr(native, "NtCreateFile", recorded_open)
+    monkeypatch.setattr(native, "NtClose", recorded_close)
     monkeypatch.setattr(native, "ReadFile", recorded_read)
     monkeypatch.setattr(localpath, "_native", native)
     capsys.readouterr()
@@ -5464,9 +5479,10 @@ def test_1_1_a_code_file_that_became_a_link_keeps_the_handling_rereads_nothing_a
 
     assert done.isError is False, _text(done)
     assert _real_runs(spy) == 1
-    code_file_handles = {record["handle"] for record in native.opens if record["name"] == "codebestand.txt"}
-    assert code_file_handles, "premisse: spent() heeft het codebestand als zichzelf geopend"
-    assert not code_file_handles & set(read_handles), "niets gelezen"
+    assert any(record["name"] == "codebestand.txt" for record in native.opens), (
+        "premisse: spent() heeft het codebestand als zichzelf geopend"
+    )
+    assert "codebestand.txt" not in read_names, "niets gelezen"
     assert sorted(p.name for p in outside.iterdir()) == ["inhoud.txt"], "niets herschreven"
     assert "codekanaal: verbruikte code niet gemarkeerd: geweigerd (soort=koppeling)" in capsys.readouterr().err
 
