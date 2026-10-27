@@ -760,6 +760,7 @@ def test_table_a_link_in_the_place_of_the_lock_is_refused_before_the_table_is_re
     table = _table(tmp_path)
     outside = _outside_dir(tmp_path)
     _junction(table.with_name("tabel.json.lock"), outside)
+    seam.opens.clear()  # the signed test table was written through the seam during the setup
 
     with pytest.raises(PseudonymTablePathRefused) as refused:
         _limited_render(table)

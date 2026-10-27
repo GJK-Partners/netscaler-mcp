@@ -32,14 +32,13 @@ The four facts, each with one owner here:
 
 A deviation is a `Fault` with a kind (`soort`) and at most a row position;
 `disclosure.py` owns the sentences. Nothing here ever repairs, overwrites or
-chooses an identity out of the offered file. The commit points of every route
-are in `docs/ARCHITECTURE.md` and in the design note of this part; `_step()`
-marks each one so a test can crash right there.
+chooses an identity out of the offered file. Every commit point of every
+route is a `_step(label)` call below (a1-a4, t1-t2, m2-m6, h2-h3, r1-r5), so
+a test can crash right there.
 
 Every read and write of a file goes through `localpath`, relative to the table
-directory the caller's lock holds. The one exception is `directory_names()`:
-it lists NAMES (never contents) of the held directory with `os.scandir`, kept
-in this one function so a handle-based listing can replace it locally.
+directory the caller's lock holds; `directory_names()` lists NAMES (never
+contents) on the held directory handle, not on a path text.
 """
 
 from __future__ import annotations
@@ -54,7 +53,7 @@ import re
 import secrets
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from nsmcp import localpath
@@ -311,7 +310,8 @@ class Place:
     table: Path
     root: str
     slot: str
-    listing: str
+    # The chain the caller's lock holds; the directory listing is read on it.
+    held: localpath.LocalHandle | None = field(default=None, compare=False, repr=False)
 
     @property
     def table_name(self) -> str:
@@ -325,25 +325,38 @@ class Place:
 def place_of(table: Path, root: str, held: localpath.LocalHandle) -> Place:
     """The place of the table, from the chain the caller's lock holds (every
     directory from the volume root to the table's directory, held without
-    delete sharing). A place that cannot be established is `slot`."""
+    delete sharing). A place that cannot be established is `slot`.
+
+    The table's own name is its STORED name when the file exists
+    (`localpath.leaf_name`, on the handle of a walk from the held directory),
+    so an 8.3 spelling or another case of the file name gives the same slot;
+    only when there is no file yet does the configured name stand in."""
     try:
         serial = held.volume_serial()
         directory = held.directory_name()
     except localpath.PathRefused:
         raise Fault("slot") from None
-    listing = held.path if held.kind == "dir" else localpath.parent_text(held.path)
-    return Place(table, root, compute_slot(serial, directory, table.name), listing)
+    try:
+        stored = localpath.leaf_name(localpath.under(root, table.name), root=root)
+    except localpath.PathRefused as exc:
+        raise PlaceRefused("de vertaaltabel", exc) from exc
+    except OSError as exc:
+        raise FileFailed("de vertaaltabel", exc) from exc
+    return Place(table, root, compute_slot(serial, directory, stored or table.name), held)
 
 
 def directory_names(place: Place) -> list[str]:
     """The NAMES in the held table directory - never their contents (every
-    content read afterwards goes through `localpath`). The one listing of this
-    module; kept here so a handle-based listing can replace it locally."""
+    content read afterwards goes through `localpath`). Read on the directory
+    handle the caller's lock holds (`LocalHandle.directory_names`), never on
+    a path text: a link above the root that the walk followed cannot be
+    swapped between the walk and this listing."""
+    if place.held is None:
+        raise FileFailed("de map van de vertaaltabel", OSError("geen vastgehouden map"))
     try:
-        with os.scandir(place.listing) as entries:
-            return [entry.name for entry in entries]
-    except OSError as exc:
-        raise FileFailed("de map van de vertaaltabel", exc) from exc
+        return place.held.directory_names()
+    except localpath.PathRefused as exc:
+        raise PlaceRefused("de map van de vertaaltabel", exc) from exc
 
 
 def _leftovers(place: Place) -> bool:
@@ -386,6 +399,10 @@ def _create(place: Place, name: str, data: bytes, what: str) -> None:
         localpath.create_local(localpath.under(place.root, name), data, root=place.root)
     except localpath.PathRefused as exc:
         raise PlaceRefused(what, exc) from exc
+    except FileExistsError:
+        raise
+    except OSError as exc:
+        raise FileFailed(what, exc) from exc
 
 
 def _rename(place: Place, name: str, new_name: str, what: str) -> str:
@@ -1162,12 +1179,23 @@ def reset(place: Place, *, confirmed: bool, say: Callable[[str], None], table_ca
 
 def _finish_reset(place: Place, raw: str | None, pending: Anchor, say: Callable[[str], None], table_cap: int) -> int:
     """r2-r5, also the resumption: only the identity in `nieuw` stays; every
-    other table or key file is renamed to `.afgedankt-<generation>`."""
+    other table or key file is renamed to `.afgedankt-<generation>` (the
+    anchor's generation, else the one in the old table's own head, else
+    `onbekend` - never a made-up number). A table of the `nieuw` identity
+    that no longer verifies, or has no usable key, is set aside as
+    `.afgedankt-<new generation>-onvoltooid` and the route finishes with a
+    fresh key and an empty table on that same identity: a repeated reset
+    always ends, never in the same stop again."""
     assert pending.nieuw is not None
     tabel_id, generatie = pending.nieuw["tabelId"], pending.nieuw["generatie"]
-    label = str(pending.generatie)
     table = _read(place, place.table_name, "de vertaaltabel", table_cap)
     doc = _doc_or_none(table)
+    if pending.tabel_id is not None:
+        label = str(pending.generatie)
+    elif doc is not None and (doc.tabel_id, doc.generatie) != (tabel_id, generatie):
+        label = str(doc.generatie)
+    else:
+        label = "onbekend"
     if table is not None and not (doc is not None and (doc.tabel_id, doc.generatie) == (tabel_id, generatie)):
         _rename(place, place.table_name, f"{place.table_name}.afgedankt-{label}", "de vertaaltabel")
         table, doc = None, None
@@ -1179,20 +1207,24 @@ def _finish_reset(place: Place, raw: str | None, pending: Anchor, say: Callable[
         except Fault:
             _rename(place, place.key_name, f"{place.key_name}.afgedankt-{label}", "het sleutelbestand")
             key = None
+    if doc is not None:
+        usable = False
+        if key is not None:
+            try:
+                verify_doc(doc, key)
+                usable = True
+            except Fault:
+                usable = False
+        if not usable:
+            _rename(place, place.table_name, f"{place.table_name}.afgedankt-{generatie}-onvoltooid", "de vertaaltabel")
+            doc = None
     _step("r2")
     if key is None:
-        if doc is not None:
-            raise Stop("de nieuwe tabel van de onderbroken reset heeft geen sleutel meer; draai de reset opnieuw")
         key = secrets.token_bytes(KEY_BYTES)
         _create(place, place.key_name, wrap_key(key, place.slot, tabel_id, generatie), "het sleutelbestand")
     _step("r3")
     if doc is None:
         doc = _empty_table(place, key, tabel_id, generatie)
-    else:
-        try:
-            verify_doc(doc, key)
-        except Fault:
-            raise Stop("de nieuwe tabel van de onderbroken reset verifieert niet; draai de reset opnieuw") from None
     _step("r4")
     discarded = pending.afgedankt + ((pending.tabel_id,) if pending.tabel_id is not None else ())
     done = Anchor(

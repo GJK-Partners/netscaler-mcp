@@ -1207,8 +1207,9 @@ class _TableErrors:
                     "overschreven - herstel het bestand of zet het aan de kant en stel de vraag opnieuw"
                 ) from None
             raise PseudonymTableBroken(
-                f"{exc.what} bij de vertaaltabel op {self._path} kon niet gelezen of geschreven worden"
-                f" ({exc.exc.__class__.__name__}); er is niets overschreven - herstel dat en stel de vraag opnieuw"
+                f"{exc.what} van de vertaaltabel kon niet gelezen of geschreven worden"
+                f" ({exc.exc.__class__.__name__}); er is niets overschreven - herstel dat (schrijfrecht, ruimte) en"
+                " stel de vraag opnieuw"
             ) from None
 
 
@@ -1941,6 +1942,18 @@ def main(argv: list[str] | None = None) -> int:
         for line in lines:
             print(f"[INFO] {line}")
         print(f"[FOUT] {safe_text(str(exc))}", file=sys.stderr)
+        print("[EINDSTATUS] niet uitgevoerd - er is niets na de laatste vastgelegde stap gewijzigd", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        # Never a traceback and never the OS text (it carries a path): the
+        # class name and the fixed end line, like every other refusal here.
+        for line in lines:
+            print(f"[INFO] {line}")
+        print(
+            f"[FOUT] de vertaaltabel kon niet bijgewerkt worden ({exc.__class__.__name__}); herstel dat (schrijfrecht,"
+            " ruimte) en draai hetzelfde commando opnieuw",
+            file=sys.stderr,
+        )
         print("[EINDSTATUS] niet uitgevoerd - er is niets na de laatste vastgelegde stap gewijzigd", file=sys.stderr)
         return 1
     for line in lines:

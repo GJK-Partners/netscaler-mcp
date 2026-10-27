@@ -190,25 +190,14 @@ METADATA_EXCEPTIONS: dict[tuple[str, str, str], tuple[int, str]] = {
     ),
 }
 
-# 1.1 C (ruling R7): a directory LISTING that reads names, never contents.
-# Not one of the four exceptions of B.3 and therefore listed on its own, as
-# a review point: the first-start check of the pseudonym table (no
-# `.afgedankt-*` or `.v1-*` file beside it) and the reuse of a migration
-# backup need the names in the table's directory. The listing runs on the
-# directory the table lock holds (no delete sharing, so it cannot be swapped
-# during the critical section), and every content read after it goes
-# through `localpath`. `tablekey.directory_names` is the one place, so a
-# handle-based listing can replace it locally.
-NAME_LISTINGS: tuple[Exempt, ...] = (
-    Exempt(
-        "tablekey.py",
-        "directory_names",
-        "os.scandir",
-        0,
-        "names in the held directory of the pseudonym table (first-start check, backup reuse); never a content"
-        " read - every file named there is read through localpath afterwards",
-    ),
-)
+# 1.1 C (ruling R7, review M-6): a directory LISTING by path text
+# (`os.scandir`, `os.listdir`) is counted like every other file operation.
+# The one listing the product needs - the names in the pseudonym table's
+# directory - is read on the directory handle the table lock holds
+# (`localpath.LocalHandle.directory_names`, `NtQueryDirectoryFile`), so it is
+# no finding and this list is empty. A listing by path that ever needs to
+# stand here is a review point: it is not one of the four exceptions of B.3.
+NAME_LISTINGS: tuple[Exempt, ...] = ()
 
 _ANY_BASE = frozenset({"open", "read_text", "read_bytes", "write_text", "write_bytes", "fdopen", "rename"})
 # Metadata and listings by name (herstelronde 1): any base.
@@ -489,6 +478,8 @@ def test_every_name_listing_is_still_there_and_reads_no_content():
     for exempt in NAME_LISTINGS:
         assert found[(exempt.file, exempt.function, exempt.call)] == 1, f"verouderde opsomming: {exempt}"
         assert exempt.call in ("os.scandir", "os.listdir") and len(exempt.reason) > 40, exempt
+    listings = sorted(key for key in found if key[2] in ("os.scandir", "os.listdir"))
+    assert listings == sorted((e.file, e.function, e.call) for e in NAME_LISTINGS), listings
 
 
 def test_the_inventory_counts_the_reads_the_spec_names():

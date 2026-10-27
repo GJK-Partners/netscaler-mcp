@@ -8,6 +8,7 @@ DPAPI is the real one unless a test replaces it."""
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import json
 import sys
@@ -35,11 +36,26 @@ def registry(monkeypatch):
     return store
 
 
+_HELD = contextlib.ExitStack()
+
+
+@pytest.fixture(autouse=True)
+def _release_held_chains():
+    """The place keeps the held lock chain open (the directory listing is read
+    on it), as the product does for its critical section; closed per test."""
+    yield
+    _HELD.close()
+
+
 def place(table: Path) -> tablekey.Place:
     table.parent.mkdir(parents=True, exist_ok=True)
     root = localpath.absolute_text(table.parent)
-    with localpath.open_local_for_append(localpath.under(root, table.name + ".lock"), root=root) as held:
-        return tablekey.place_of(table, root, held)
+    # Write sharing on the test's own lock handle: a test asks for the same
+    # place under several spellings while the earlier chains stay held.
+    held = _HELD.enter_context(
+        localpath.open_local_for_append(localpath.under(root, table.name + ".lock"), root=root, shared_writers=True)
+    )
+    return tablekey.place_of(table, root, held)
 
 
 def parse(data: bytes, path: Path) -> object:
@@ -109,6 +125,17 @@ def test_the_slot_never_comes_from_the_file(tmp_path, registry):
 # ---------------------------------------------------------------------------
 
 
+def _resealed(text: str, **changes) -> str:
+    """The record with `changes` and a CORRECT `controle`: only the shape
+    rules can refuse it."""
+    record = json.loads(text)
+    record.pop("controle")
+    record.update(changes)
+    record["tabelId"] = "b" * 32 if record.get("toestand") == "reset" else record["tabelId"]
+    record["controle"] = __import__("hashlib").sha256(tablekey._canonical(record).encode("ascii")).hexdigest()
+    return tablekey._canonical(record)
+
+
 def _anchor(slot: str) -> tablekey.Anchor:
     return tablekey.Anchor(slot, "a" * 32, 1, 0, tablekey.ZERO_CHAIN, "vastgelegd", None, ())
 
@@ -129,8 +156,16 @@ def test_the_anchor_record_round_trips_and_is_canonical():
         lambda t: t.replace('"formaat"', '"onbekend":1,"formaat"'),
         lambda t: t.replace('"toestand":"vastgelegd"', '"toestand":"klaar"'),
         lambda t: json.dumps(json.loads(t), indent=1),
+        lambda t: _resealed(t, toestand="reset", nieuw={"tabelId": "a" * 32, "generatie": 2}, afgedankt=["a" * 32]),
     ],
-    ids=["afgekapt", "controle-klopt-niet", "onbekende-sleutel", "onbekende-toestand", "niet-canoniek"],
+    ids=[
+        "afgekapt",
+        "controle-klopt-niet",
+        "onbekende-sleutel",
+        "onbekende-toestand",
+        "niet-canoniek",
+        "nieuw-id-al-afgedankt",
+    ],
 )
 def test_a_torn_or_edited_anchor_record_is_unreadable(damage):
     slot = "2" * 64
@@ -420,7 +455,9 @@ def test_a_reset_without_a_readable_anchor_discards_and_never_deletes(tmp_path, 
     lines: list[str] = []
     assert tablekey.reset(where, confirmed=True, say=lines.append, table_cap=CAP) == 0
     assert lines[0] == tablekey.RESET_WARNING
-    assert (table.parent / "tabel.json.afgedankt-0").read_bytes() == old_bytes
+    # Review M-4: the label comes from the old table's own head, never 0.
+    assert (table.parent / "tabel.json.afgedankt-1").read_bytes() == old_bytes
+    assert not list(table.parent.glob("*.afgedankt-0*"))
     assert load(where).anchor.generatie == 2
 
 
@@ -470,3 +507,79 @@ def test_a_record_of_another_value_type_is_unreadable(tmp_path, hkcu):
     with pytest.raises(Fault) as refused:
         load(where)
     assert refused.value.soort == "anker_onleesbaar"
+
+
+# ---------------------------------------------------------------------------
+# Herstelronde 1 (review M-1, M-2, M-3, M-6)
+# ---------------------------------------------------------------------------
+
+
+def test_the_slot_takes_the_stored_file_name_so_an_8_3_file_name_gives_the_same_slot(tmp_path, registry):
+    table = tmp_path / "Beheer Map" / "openheid-vertaaltabel.json"
+    load(place(table))
+    short_file = Path(_short_name(table))
+    assert short_file.name != table.name, "premisse: een echte 8.3-bestandsnaam"
+    assert place(short_file).slot == place(table).slot
+    assert place(Path(str(table.parent)) / table.name.upper()).slot == place(table).slot
+
+
+def test_a_create_that_fails_is_a_file_failure_with_its_class_only(tmp_path, registry, monkeypatch):
+    table = tmp_path / "b" / "tabel.json"
+    where = place(table)
+
+    def refused(path, data, *, root):
+        raise PermissionError(13, "geweigerd", str(path))
+
+    monkeypatch.setattr(localpath, "create_local", refused)
+    with pytest.raises(tablekey.FileFailed) as failed:
+        load(where)
+    assert isinstance(failed.value.exc, PermissionError)
+    monkeypatch.undo()
+    monkeypatch.setattr(tablekey, "_registry", registry)
+    assert load(where).anchor.toestand == "vastgelegd", "de volgende start hervat de aanmaak"
+
+
+def test_a_reset_resumption_whose_new_table_no_longer_verifies_still_ends(tmp_path, registry, monkeypatch):
+    table = tmp_path / "b" / "tabel.json"
+    where = place(table)
+    tablekey.append(load(where), [("object-01", "A")])
+    crash_at(monkeypatch, "r4")
+    with pytest.raises(Crash):
+        reset(where)
+    no_crash(monkeypatch)
+    tablekey.key_path(table).write_bytes(tablekey.KEY_MAGIC + b"beschadigd")
+    assert reset(where) == 0
+    assert reset(where) == 0, "een tweede keer: gewoon een nieuwe reset, geen lus"
+    names = sorted(p.name for p in table.parent.iterdir())
+    assert any(name.startswith("tabel.json.afgedankt-2-onvoltooid") for name in names), names
+    assert load(where).mapping() == {}
+
+
+def test_a_reset_resumption_whose_new_table_was_tampered_still_ends(tmp_path, registry, monkeypatch):
+    table = tmp_path / "b" / "tabel.json"
+    where = place(table)
+    load(where)
+    crash_at(monkeypatch, "r4")
+    with pytest.raises(Crash):
+        reset(where)
+    no_crash(monkeypatch)
+    raw = json.loads(table.read_text(encoding="utf-8"))
+    raw["kop"]["mac"] = "0" * 64
+    table.write_text(json.dumps(raw), encoding="utf-8")
+    assert reset(where) == 0
+    assert load(where).anchor.generatie == 2
+
+
+def test_the_directory_listing_is_read_on_the_held_handle(tmp_path, registry, monkeypatch):
+    seam = localpath._Native(record=True)
+    monkeypatch.setattr(localpath, "_native", seam)
+    table = tmp_path / "b" / "tabel.json"
+    where = place(table)
+    (table.parent / "tabel.json.v1-20261027-00000000").write_bytes(b"{}")
+    seam.opens.clear()
+    names = tablekey.directory_names(where)
+    assert "tabel.json.v1-20261027-00000000" in names and "." not in names and ".." not in names
+    reopen = [record for record in seam.opens if record["name"] == ""]
+    assert len(reopen) == 1 and reopen[0]["parent"] == where.held.directory_handle
+    assert all(record["parent"] is not None for record in seam.opens), "geen open op een padtekst"
+    assert seam.calls["NtQueryDirectoryFile"] >= 1

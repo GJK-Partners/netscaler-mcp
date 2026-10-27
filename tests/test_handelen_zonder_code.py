@@ -5601,3 +5601,23 @@ def test_the_channel_text_carries_the_table_line_under_the_section():
     assert _message("t", "doel", {"a": "b"}, "ABCDEF", "A", "sectie") == _message(
         "t", "doel", {"a": "b"}, "ABCDEF", "A", "sectie", ()
     )
+
+
+def test_the_write_binding_carries_the_row_mac():
+    """Review M-5: the binding of a write code includes the MAC of the row,
+    not only slot, id, generation and number - a row with the same number but
+    another signature is another row."""
+    from nsmcp.confirm import TABEL_VERANDERD, ConfirmationStore, ConfirmError
+    from nsmcp.mcp_server import _binding_key
+    from nsmcp.tablekey import TableBinding
+
+    first = TableBinding("1" * 64, "a" * 32, 1, 3, "c" * 64)
+    other_mac = TableBinding("1" * 64, "a" * 32, 1, 3, "d" * 64)
+    assert _binding_key([("certnaam", first)]) != _binding_key([("certnaam", other_mac)])
+    assert "c" * 64 in _binding_key([("certnaam", first)])[0]
+
+    store = ConfirmationStore()
+    code = store.issue("t", {"a": "b"}, "doel", section="s", table_binding=_binding_key([("certnaam", first)]))
+    with pytest.raises(ConfirmError) as refused:
+        store.redeem(code, "t", {"a": "b"}, "doel", section="s", table_binding=_binding_key([("certnaam", other_mac)]))
+    assert str(refused.value) == TABEL_VERANDERD

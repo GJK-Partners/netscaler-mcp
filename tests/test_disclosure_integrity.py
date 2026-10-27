@@ -100,6 +100,19 @@ def test_swapped_names_are_refused(tmp_path):
     _assert_no_content(str(refused), raw["tabelId"])
 
 
+def test_swapped_pseudonyms_are_refused(tmp_path):
+    """The swap of C.1 the other way round: two valid rows exchange their
+    PSEUDONYM, name and MAC stay. The pseudonym is in the row MAC."""
+    table = _table(tmp_path, NAME_A, NAME_B)
+    raw = _raw(table)
+    first, second = raw["rijen"][0], raw["rijen"][1]
+    first["pseudoniem"], second["pseudoniem"] = second["pseudoniem"], first["pseudoniem"]
+    _write_raw(table, raw)
+    refused = _refusal(table, NAME_A)
+    assert refused.soort == "mac" and "vermelding 1" in str(refused)
+    _assert_no_content(str(refused), raw["tabelId"])
+
+
 def test_reordered_rows_are_refused(tmp_path):
     table = _table(tmp_path, NAME_A, NAME_B)
     raw = _raw(table)
@@ -371,3 +384,40 @@ def test_every_mac_comparison_uses_compare_digest():
             for side in sides:
                 name = side.attr if isinstance(side, ast.Attribute) else side.id if isinstance(side, ast.Name) else ""
                 assert name not in secret_like, ast.unparse(node)
+
+
+def test_a_file_failure_reaches_the_cli_as_a_fixed_sentence_without_traceback(tmp_path, capsys, monkeypatch):
+    """Review M-1: an OS refusal while a file is created (here the new key of
+    a reset) is the fixed sentence with the class name only, exit 1 and the
+    end line - never a traceback, never the OS text with its path."""
+    from nsmcp import localpath
+
+    table = _table(tmp_path, NAME_A)
+
+    def refused(path, data, *, root):
+        raise PermissionError(13, "toegang geweigerd", str(path))
+
+    monkeypatch.setattr(localpath, "create_local", refused)
+    assert main(["--reset", "--pad", str(table), "--gecontroleerd"]) == 1
+    err = capsys.readouterr().err
+    assert (
+        "[FOUT] het sleutelbestand van de vertaaltabel kon niet gelezen of geschreven worden (PermissionError)" in err
+    )
+    assert "[EINDSTATUS] niet uitgevoerd" in err
+    assert "Traceback" not in err and "toegang geweigerd" not in err and str(tmp_path) not in err
+
+
+def test_a_file_failure_at_the_seam_is_a_broken_table_without_the_os_text(tmp_path, monkeypatch):
+    from nsmcp import localpath
+
+    table = tmp_path / "beheer" / "openheid-vertaaltabel.json"
+    table.parent.mkdir(parents=True)
+
+    def refused(path, data, *, root):
+        raise PermissionError(13, "toegang geweigerd", str(path))
+
+    monkeypatch.setattr(localpath, "create_local", refused)
+    with pytest.raises(PseudonymTableBroken) as broken:
+        _render(table, NAME_A)
+    message = str(broken.value)
+    assert "(PermissionError)" in message and "toegang geweigerd" not in message and str(tmp_path) not in message
