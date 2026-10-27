@@ -474,6 +474,26 @@ the knowledge package.
   server itself never resets). Every route takes the same table lock as the
   server and follows the commit points in `src/nsmcp/tablekey.py`.
 - Nothing is written to the table any more when a call adds no row.
+- The code presenter is called with a keyword `tabel=` (a tuple of channel
+  lines) only when a pseudonym of the call went through the table. The three
+  channels of the product accept it; a presenter of your own with exactly
+  seven positional parameters fails closed on such a call (`CHANNEL_FAILED`,
+  the code is spent, nothing runs) - add `*, tabel=()` to it.
+- The slot uses the STORED name of the table file when it exists, so an 8.3
+  spelling or another case of the file name gives the same place; the names in
+  the table's directory (first-start check, backup reuse) are listed on the
+  directory handle the table lock holds, never on a path text.
+- A reset without a readable anchor names the old files after the generation
+  in their own head (else `onbekend`), never 0. A resumed reset whose new table
+  or key no longer verifies sets that table aside as
+  `.afgedankt-<generatie>-onvoltooid` and ends with a fresh, empty table: a
+  repeated reset always ends.
+- A file of the table family that cannot be created or written (access, space)
+  is a refusal with a fixed sentence and the class name only; the CLI ends with
+  `[EINDSTATUS]` and exit 1, never a traceback or the OS text.
+- Windows floor at `openheid: beperkt`: Windows 10 1803 / Windows Server 2019
+  (`FileNormalizedNameInformation`), NTFS or ReFS; older systems refuse with
+  the kind `slot`.
 - At start (`beperkt`), the table and its key file get the same where-it-leads
   refusals as every other configured path.
 - Boundary: whoever runs code as the same Windows account can read the key and

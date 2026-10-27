@@ -649,6 +649,14 @@ lock, like every other file operation, exists only on Windows: off Windows
 `localpath` refuses every write route before anything is opened, so a Linux
 or macOS user gets no working lock and no working product, only refusals.
 
+**Windows version floor at `openheid: beperkt`.** The place of the signed
+pseudonym table (its slot) is read with `FileNormalizedNameInformation`,
+which Windows offers from Windows 10 version 1803 and Windows Server 2019 on,
+on NTFS and ReFS. On an older system, or another file system, the slot
+cannot be established and every load at `beperkt` refuses with the kind
+`slot` (fail-closed) - the migration included. `volledig` and `minimaal` do
+not use the table. Not measured on Windows Server 2016.
+
 **What is proven and what is not.** CI runs the full suite on
 `windows-latest`, on Python 3.11 and 3.12. There is no CI job for any other
 platform, and this README does not claim one exists.

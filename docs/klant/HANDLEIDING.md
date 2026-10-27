@@ -176,7 +176,10 @@ alleen de taal eromheen.
 
 U heeft nodig:
 
-1. **Python 3.11 of hoger** op de machine waar het product draait.
+1. **Python 3.11 of hoger** op de machine waar het product draait. Gebruikt u `openheid:
+   beperkt`, dan ook **Windows 10 versie 1803 of Windows Server 2019 of nieuwer**, met de
+   vertaaltabel op NTFS of ReFS: op een ouder systeem is de plek van de ondertekende tabel
+   niet vast te stellen en weigert elke vraag in die stand (soort "nieuwe of andere plek").
 2. **Het productpakket.** Installeer het volgens de leveringsinstructie, of vanaf de broncode
    op GitHub zoals hieronder; daarna is het commando `netscaler-mcp` beschikbaar.
 3. **Het verzamelscript van GJK NetScaler Healthcheck 1.0** (alleen nodig als het product
@@ -895,9 +898,11 @@ eerst een nieuwe vraag stellen voordat er iets geschreven wordt. Een reset werkt
 anker niet meer leesbaar is; de server zelf reset nooit.
 
 **De grens.** De sleutel is alleen te openen onder hetzelfde Windows-account op dezelfde
-machine. Een ander volume (herformatteren, verhuizen), een ander gebruikersprofiel (ook een
-profielmigratie of een zwervend profiel) of een andere machine maakt de tabel onbruikbaar tot een
-gecontroleerde reset. Wie als hetzelfde Windows-account code draait, kan de sleutel lezen en het
+machine. Een ander volume (herformatteren, verhuizen, een kloon met een ander
+volumeserienummer), het hernoemen of verplaatsen van de map van de tabel of van een map
+erboven, een ander gebruikersprofiel (ook een profielmigratie of een zwervend profiel) of een
+andere machine maakt de tabel onbruikbaar tot een gecontroleerde reset. Een korte (8.3-)
+spelling of andere hoofdletters van hetzelfde pad geven dezelfde plek. Wie als hetzelfde Windows-account code draait, kan de sleutel lezen en het
 anker wijzigen; daartegen beschermt dit niet.
 
 ## Dagelijks gebruik

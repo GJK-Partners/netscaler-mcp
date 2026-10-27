@@ -62,6 +62,17 @@ supply-chain mismatch instead of silently resolving something else.
 of `requirements-build.txt`; without it, pip would fetch setuptools from the
 index into a throwaway build environment, outside the hash check.
 
+The suite never writes the real anchor of the pseudonym table: every test
+gets an in-memory anchor store (`tests/conftest.py`), and the proofs on the
+real HKCU store write only under
+`HKCU\Software\GJK\netscaler-mcp\Test\<uuid4>` and remove it. A server you
+start yourself at `openheid: beperkt` is different: its first start writes
+`HKCU\Software\GJK\netscaler-mcp\vertaaltabel\anker-<slot>` in your own
+registry, next to a signed table and a DPAPI key file in the configuration's
+directory. For a development table you may remove that `anker-<slot>` key
+together with its table and key file; never remove the anchor of a table
+that is in use (that is what `python -m nsmcp.disclosure --reset` is for).
+
 ## Dependencies: uv.lock and its two exports
 
 `uv.lock` is the one source. Both requirements files are exports of it, each
