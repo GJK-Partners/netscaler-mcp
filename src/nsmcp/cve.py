@@ -879,6 +879,13 @@ def _tokens(line: str) -> tuple[list[str], bool]:
     return tokens, True
 
 
+def line_tokens(line: str) -> tuple[list[str], bool]:
+    """The public name of `_tokens` for the other reader of running-config
+    lines (`nsmcp.classic`): one tokenisation for both, so a change to it is a
+    change to both, visible here."""
+    return _tokens(line)
+
+
 def _name_after(line: str, prefix_length: int) -> str | None:
     """The object name a running-config line declares: the token right after
     the keyword. Returns None when there is no such token - a line that

@@ -72,7 +72,7 @@ from nsmcp.cve import (
     parse_build,
 )
 from nsmcp.expiry import THRESHOLDS, age_of, bucket_from_today, counted_from_today, usage_per_certificate
-from nsmcp.export import KEY_MISSING_TEXT, RUNNING_CONFIG_FILE, SAVED_CONFIG_FILE, shape_of
+from nsmcp.export import KEY_MISSING_TEXT, RUNNING_CONFIG_FILE, SAVED_CONFIG_FILE, SAVED_CONFIG_RESOURCE, shape_of
 from nsmcp.update_advice import as_pair, day, floor_for, public_bulletin_id
 
 NO_BLOCKER = "geen blokkade"
@@ -461,66 +461,110 @@ def _check_2_classic_markers(export) -> Check:
 # `onderhoud.overstappen` puts it in the place of `_check_2_classic_markers`
 # for a 13.1 appliance in transition mode, and nowhere else. Within 14.1 the
 # check above stays the only check 2.
+#
+# It reads the RUNNING and the SAVED configuration (ruling R1): classic of the
+# features in CTX296948 tables 1 and 2 no longer loads from 13.1 on, so on a
+# running 13.1 such a command survives only in the saved configuration - and
+# that is the file the vendor check reads. Sets 1 and 2 both block (ruling R2):
+# the vendor check refuses every command of a removed feature, bound or not.
+NAME_2_TRANSITION = "classic-configuratie in de draaiende en de opgeslagen configuratie"
 TRANSITION_NOT_A_VENDOR_PRECHECK = "dit is geen vendor-precheck; R2 laat de vendor beslissen met check_invalid_config"
+SAVED_CONFIG_ABSENT_REASON = "opgeslagen configuratie niet in de export"
 _TRANSITION_SETS = (SET_BLOCKING, SET_UNBOUND, SET_DEPRECATED, SET_UNDECIDED)
+_CUT = ", ...(afgekapt)"
+_ADJECTIVE = {"draaiend": "draaiende", "opgeslagen": "opgeslagen"}
 
 
-def _set_lines(classification, verzameling: int) -> str:
-    # `upgrade` imports this module, so its bound is imported at call time.
-    from nsmcp.upgrade import _bounded
+def _bounded_numbers(numbers) -> str:
+    """The line numbers, bounded at whole numbers: a configuration can hold
+    thousands of such lines and the evidence is one line in front of an
+    operator. The count next to it stays exact."""
+    from nsmcp.upgrade import _UNTRUSTED_ECHO_LIMIT
 
-    numbers = classification.lines(verzameling)
-    # Bounded: a configuration can hold thousands of such lines, and the
-    # evidence is one line in front of an operator. The count stays exact.
-    listed = _bounded(", ".join(str(n) for n in numbers)) if numbers else "-"
-    return f"verzameling {verzameling} ({SET_LABELS[verzameling]}): {len(numbers)} op regel {listed}"
+    if not numbers:
+        return "-"
+    text = ", ".join(str(n) for n in numbers)
+    if len(text) <= _UNTRUSTED_ECHO_LIMIT:
+        return text
+    return text[: text.rfind(", ", 0, _UNTRUSTED_ECHO_LIMIT + 1)] + _CUT
+
+
+def _source_evidence(file_name: str, label: str, lines, gap, classification) -> str:
+    if gap is not None:
+        return f"{file_name} ({label}): niet gelezen ({gap.reason})"
+    sets = "; ".join(
+        f"verzameling {v} ({SET_LABELS[v]}): {len(classification.lines(v))} op regel"
+        f" {_bounded_numbers(classification.lines(v))}"
+        for v in _TRANSITION_SETS
+    )
+    return f"{file_name} ({label}), {len(lines)} regels: {sets}"
 
 
 def _check_2_classic_transition(export) -> Check:
     """Check 2 for the transition: the four sets of `classic.classify` over
-    the running config. `blokkade` when set 1 is not empty; `niet beoordeeld`
-    when set 4 is not empty (an undecided line is no green); `aandachtspunt`
-    when only sets 2 or 3 hold something; `geen blokkade` when all are empty.
-    Counts and line numbers only, never the text of a line."""
-    lines, gap = export.running_config_lines()
-    if gap is not None:
-        return Check(2, NAME_2, NOT_ASSESSED, RUNNING_CONFIG_FILE, gap.reason)
-    classification = classify(lines)
+    the running AND the saved configuration. `blokkade` when set 1 or 2 is not
+    empty in either; `niet beoordeeld` when either cannot be read (the saved
+    configuration absent from the export has its own fixed reason) or set 4 is
+    not empty; `aandachtspunt` when only set 3 holds something; `geen
+    blokkade` when all are empty in both. Counts and line numbers per file,
+    never the text of a line."""
+    running, running_gap = export.running_config_lines()
+    saved, saved_gap = export.saved_config_lines()
+    saved_absent = export.status(SAVED_CONFIG_RESOURCE) == "NIET_IN_MANIFEST"
+    sources = (
+        (RUNNING_CONFIG_FILE, "draaiend", running, running_gap),
+        (SAVED_CONFIG_FILE, "opgeslagen", saved, saved_gap),
+    )
+    classified = [
+        (name, label, lines, gap, classify(lines) if gap is None else None) for name, label, lines, gap in sources
+    ]
     evidence = (
-        f"{RUNNING_CONFIG_FILE}, {len(lines)} regels; classic per feature geclassificeerd (CTX296948): "
-        + "; ".join(_set_lines(classification, v) for v in _TRANSITION_SETS)
+        "; ".join(_source_evidence(*source) for source in classified)
         + f"; van een regel wordt nooit de tekst herhaald; {TRANSITION_NOT_A_VENDOR_PRECHECK}"
     )
-    if classification.blocking:
+    readable = [c for _, _, _, gap, c in classified if gap is None]
+    removed = [len(c.removed) for c in readable]
+    if any(removed):
+        counts = " en ".join(
+            f"{len(c.removed)} in de {_ADJECTIVE[label]} configuratie"
+            for _, label, _, gap, c in classified
+            if gap is None
+        )
         return Check(
             2,
-            NAME_2,
+            NAME_2_TRANSITION,
             BLOCKER,
             evidence,
-            f"{len(classification.blocking)} regel(s) in een feature waaruit classic in 14.1 verwijderd is, met een"
-            " classic vorm en gebonden; de overstap loopt daarop vast tot ze naar advanced omgezet zijn",
+            f"regels van een feature waaruit classic vanaf 13.1 verwijderd is ({counts}), gebonden of niet; de"
+            " vendorcheck keurt elk commando van zo'n feature af, dus de overstap loopt daarop vast tot ze naar"
+            " advanced omgezet zijn",
         )
-    if classification.undecided:
+    if saved_absent:
+        return Check(2, NAME_2_TRANSITION, NOT_ASSESSED, evidence, SAVED_CONFIG_ABSENT_REASON)
+    for _, _, _, gap, _ in classified:
+        if gap is not None:
+            return Check(2, NAME_2_TRANSITION, NOT_ASSESSED, evidence, gap.reason)
+    undecided = sum(len(c.undecided) for c in readable)
+    if undecided:
         return Check(
             2,
-            NAME_2,
+            NAME_2_TRANSITION,
             NOT_ASSESSED,
             evidence,
-            f"{len(classification.undecided)} regel(s) zijn onbeslist: de feature heeft geen vendorrij in dit"
-            " product, of de expressie is niet bewezen classic en niet bewezen advanced; een onbesliste regel is"
-            " geen groen",
+            f"{undecided} regel(s) zijn onbeslist: de feature heeft geen vendorrij in dit product, of de vorm is"
+            " niet bewezen classic en niet bewezen advanced; een onbesliste regel is geen groen",
         )
-    if classification.unbound or classification.deprecated:
+    deprecated = sum(len(c.deprecated) for c in readable)
+    if deprecated:
         return Check(
             2,
-            NAME_2,
+            NAME_2_TRANSITION,
             ATTENTION,
             evidence,
-            f"{len(classification.unbound)} regel(s) verwijderd maar ongebonden en {len(classification.deprecated)}"
-            " regel(s) alleen deprecated; dat houdt de overstap niet tegen: deprecated omzetten is een"
+            f"{deprecated} regel(s) alleen deprecated; dat houdt de overstap niet tegen: deprecated omzetten is een"
             " ontwerpkeuze, geen upgradevoorwaarde",
         )
-    return Check(2, NAME_2, NO_BLOCKER, evidence)
+    return Check(2, NAME_2_TRANSITION, NO_BLOCKER, evidence)
 
 
 # ---------------------------------------------------------------------------

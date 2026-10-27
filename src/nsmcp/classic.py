@@ -36,13 +36,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from nsmcp.cve import _tokens
+from nsmcp.cve import line_tokens
 
 # ---------------------------------------------------------------------------
 # Within the line: the 1.0.3 marker table, moved unchanged.
 # ---------------------------------------------------------------------------
 
-# The markers of features REMOVED in 14.1, measured in the field. This is one
+# The markers of features REMOVED in 14.1, measured in the field (the vendor
+# removed classic for these features from 13.1 on; the in-line sentences keep
+# their 1.0.3 wording, spec section 2 rule 5). This is one
 # of two hard blockers that fail a NetScaler upgrade without ever showing up
 # in the build number - the other being file-based licensing (EOL
 # 15-4-2026, refused by the pre-upgrade check from 14.1-66.x onward). This
@@ -165,6 +167,12 @@ _NS_TOKEN = re.compile(r"(?<![A-Za-z0-9_.])ns_([A-Za-z0-9_]*)")
 # `ns_adv_*` are the built-in ADVANCED compression policies; an `ns_` token
 # start alone would call them classic. Such a token proves neither form.
 _NS_ADVANCED = "adv_"
+# Classic client-security (EPA) expressions begin with `CLIENT.` too
+# (CTX296948 table 3 row 18): such a head proves no form.
+_CLIENT_SECURITY = ("CLIENT.OS", "CLIENT.APPLICATION", "CLIENT.SYSTEM")
+# The advanced function that evaluates a classic expression (CTX296948 table 2
+# row 9): an expression that calls it is not proven advanced.
+_EVAL_CLASSIC = re.compile(r"(?i)SYS\.EVAL_CLASSIC_EXPR")
 # A string literal inside an expression (the tokenizer has already removed
 # the outer quoting and the escapes): its content is data, not form.
 _STRING_LITERAL = re.compile(r'"[^"]*"')
@@ -336,6 +344,27 @@ _NAMED = ("policy", "expression")
 _NAMED_KIND = "add policy expression"
 _NAMED_BRON = "CTX296948 tabel 3 rij 1 (Classic Named (policy) expression); volgt de gebruikende feature"
 _UNKNOWN_KIND = "policyregel van een onbekende familie"
+
+# Forms of CTX296948 table 2 outside the class list of A.5.1. Not a class of
+# set 1 (that is a spec change): each is at least undecided, with its row.
+_ROW_8 = "CTX296948 tabel 2 rij 8 (Pattern function in Rewrite action)"
+_ROW_9 = "CTX296948 tabel 2 rij 9 (SYS.EVAL_CLASSIC_EXPR Classic function)"
+_ROW_10 = "CTX296948 tabel 2 rij 10 (Patclass)"
+_ROW_11 = "CTX296948 tabel 2 rij 11 (BypassSafetyCheck parameter in rewrite action)"
+_ROW_12 = "CTX296948 tabel 2 rij 12 (HTTP.REQ.BODY expression with no arguments)"
+_ROW_13 = "CTX296948 tabel 2 rij 13 (PolicyType Parameter in set cmp parameter)"
+_BODY_WITHOUT_ARGUMENT = re.compile(r"(?i)HTTP\.REQ\.BODY(?!\s*\()")
+# A built-in classic policy (`ns_cmp_content_type`, ...) never has an `add`
+# line; on a bind line of a removed family it is the only trace.
+_BUILTIN_BIND_FAMILIES = {
+    "cmp": ("cmp", "policy"),
+    "cs": ("cs", "policy"),
+    "cr": ("cr", "policy"),
+    "appfw": ("appfw", "policy"),
+    "ssl": ("ssl", "policy"),
+    "filter": ("filter", "policy"),
+}
+_BUILTIN_KLASSE = "ingebouwde classic-policy alleen op een bindregel"
 _NO_SOURCE = "geen vendorrij in deze module"
 
 
@@ -366,6 +395,11 @@ class Classification:
         return self.lines(SET_UNBOUND)
 
     @property
+    def removed(self) -> tuple[int, ...]:
+        """Sets 1 and 2: a removed feature in a classic form, bound or not."""
+        return tuple(sorted(set(self.blocking) | set(self.unbound)))
+
+    @property
     def deprecated(self) -> tuple[int, ...]:
         return self.lines(SET_DEPRECATED)
 
@@ -385,7 +419,7 @@ class _Line:
 def _read(lines: list[str]) -> list[_Line]:
     read = []
     for number, raw in enumerate(lines, start=1):
-        tokens, readable = _tokens(raw.strip())
+        tokens, readable = line_tokens(raw.strip())
         read.append(_Line(number, tokens, readable, [t.lower() for t in tokens]))
     return read
 
@@ -394,6 +428,8 @@ def _bare_form(expression: str) -> str:
     """The form of an expression by its own text only (no named lookups)."""
     text = _STRING_LITERAL.sub(" ", expression)
     head = text.lstrip(" \t!(")
+    if head.startswith(_CLIENT_SECURITY) or _EVAL_CLASSIC.search(text):
+        return FORM_UNDECIDED
     advanced = head.startswith(ADVANCED_PREFIXES) or bool(_ADVANCED_LITERAL.match(head))
     ns_tokens = [m.group(1) for m in _NS_TOKEN.finditer(text)]
     if any(rest.startswith(_NS_ADVANCED) for rest in ns_tokens):
@@ -455,9 +491,11 @@ def classify(lines: list[str]) -> Classification:
     """
     read = _read(lines)
     bind_tokens: set[str] = set()
+    unreadable_bind = False
     for line in read:
         if line.lowered[:1] == ["bind"]:
             bind_tokens.update(token.strip('"') for token in line.lowered)
+            unreadable_bind = unreadable_bind or not line.readable
 
     # Step 0: named expressions, by their content alone.
     named: dict[str, str] = {}
@@ -477,6 +515,7 @@ def classify(lines: list[str]) -> Classification:
 
     findings: list[ClassicFinding] = []
     users: dict[str, list[int | None]] = {name: [] for name in named}
+    user_sources: dict[str, set[str]] = {name: set() for name in named}
     gateway_names: set[str] = set()
 
     def record(line: _Line, kind: str, verzameling: int | None, klasse: str, bron: str, expression: str | None):
@@ -489,6 +528,7 @@ def classify(lines: list[str]) -> Classification:
                 refs.add(exact)
             for name in refs:
                 users[name].append(verzameling)
+                user_sources[name].add(bron)
 
     # Steps 1 and 2: feature first, then the expression form within it.
     for line in read:
@@ -536,6 +576,13 @@ def classify(lines: list[str]) -> Classification:
                 gateway_names.add(line.lowered[3].strip('"'))
             continue
         bound = line.lowered[3].strip('"') in bind_tokens
+        if not bound and (unreadable_bind or family.rule_flag_only):
+            # Fail-closed (review M-1, M-2): an unreadable bind line may name
+            # this object, and `-rule` is a parameter of the vserver, not a
+            # bound policy - "unbound" is not proven either way.
+            why = "binding niet vast te stellen" if unreadable_bind else "een LB-regel is geen gebonden policy"
+            record(line, family.kind, SET_UNDECIDED, f"{klasse}; {why}", bron, expression)
+            continue
         record(line, family.kind, SET_BLOCKING if bound else SET_UNBOUND, klasse, bron, expression)
 
     # The `bind authentication` / `bind vpn` lines of a classic Gateway policy.
@@ -550,7 +597,7 @@ def classify(lines: list[str]) -> Classification:
                     kind,
                     SET_DEPRECATED,
                     _GATEWAY_BIND_KLASSE,
-                    "CTX296948 tabel 3 (Gateway-rijen 5-11, 15, 16)",
+                    "CTX296948 tabel 3 (Gateway-rijen 5-12, 15, 16)",
                 )
             )
 
@@ -571,10 +618,11 @@ def classify(lines: list[str]) -> Classification:
             findings.append(ClassicFinding(number, _NAMED_KIND, SET_UNDECIDED, klasse, _NO_SOURCE))
         elif set(seen) <= {SET_BLOCKING, SET_UNBOUND}:
             verzameling = SET_BLOCKING if SET_BLOCKING in seen else SET_UNBOUND
+            # The verdict rests on the row of the using feature, never on table
+            # 3 row 1, which says classic named expressions keep working.
+            bron = "; ".join(sorted(user_sources[name]))
             findings.append(
-                ClassicFinding(
-                    number, _NAMED_KIND, verzameling, "named expression van een verwijderde feature", _NAMED_BRON
-                )
+                ClassicFinding(number, _NAMED_KIND, verzameling, "named expression van een verwijderde feature", bron)
             )
         elif set(seen) == {SET_DEPRECATED}:
             findings.append(
@@ -593,7 +641,60 @@ def classify(lines: list[str]) -> Classification:
                 )
             )
 
+    declared = {line.lowered[3].strip('"') for line in read if line.lowered[:1] == ["add"] and len(line.lowered) >= 4}
+    taken = {f.line: index for index, f in enumerate(findings)}
+    for line in read:
+        rest = _rest_form(line, lines[line.number - 1], declared)
+        if rest is None:
+            continue
+        finding = ClassicFinding(line.number, rest[0], SET_UNDECIDED, rest[1], rest[2])
+        if line.number not in taken:
+            findings.append(finding)
+        elif (
+            findings[taken[line.number]].verzameling == SET_UNDECIDED
+            and findings[taken[line.number]].bron == _NO_SOURCE
+        ):
+            # An undecided line without a row gets the row that names its form.
+            findings[taken[line.number]] = finding
+
     return Classification(tuple(sorted(findings, key=lambda f: (f.line, f.verzameling))))
+
+
+def _rest_form(line: _Line, raw: str, declared: set[str]) -> tuple[str, str, str] | None:
+    """(kind, klasse, bron) of a CTX296948 table 2 form outside the class
+    list, or None. Read on the raw line too, so a quoted value is no hiding
+    place; the output carries only the product's own words."""
+    head = tuple(line.lowered[:3])
+    if _EVAL_CLASSIC.search(raw):
+        return "regel met SYS.EVAL_CLASSIC_EXPR", "classic expressie via SYS.EVAL_CLASSIC_EXPR", _ROW_9
+    if head[1:3] == ("policy", "patclass") and head[:1] in (("add",), ("set",), ("bind",)):
+        return "policy patclass", "patclass", _ROW_10
+    if head[1:3] == ("rewrite", "action") and head[:1] in (("add",), ("set",)):
+        if "-pattern" in line.lowered:
+            return "rewrite action -pattern", "patroonfunctie in een rewrite-actie", _ROW_8
+        if "-bypasssafetycheck" in line.lowered:
+            return "rewrite action -bypassSafetyCheck", "bypassSafetyCheck in een rewrite-actie", _ROW_11
+    if head == ("set", "cmp", "parameter"):
+        for index, token in enumerate(line.lowered):
+            if token == "-policytype" and line.lowered[index + 1 : index + 2] == ["classic"]:
+                return "set cmp parameter -policyType", "classic policytype voor compressie", _ROW_13
+    if _BODY_WITHOUT_ARGUMENT.search(raw):
+        return "regel met HTTP.REQ.BODY zonder argument", "HTTP.REQ.BODY zonder lengte", _ROW_12
+    if line.lowered[:1] == ["bind"] and len(line.lowered) >= 3:
+        family = _FAMILIES.get(_BUILTIN_BIND_FAMILIES.get(line.lowered[1], ("", "")))
+        if family is not None:
+            skip = False
+            for token in line.lowered[2:]:
+                if skip:
+                    skip = False
+                    continue
+                if token == "-gotopriorityexpression":
+                    skip = True
+                    continue
+                name = token.strip('"')
+                if name.startswith("ns_") and not name.startswith("ns_" + _NS_ADVANCED) and name not in declared:
+                    return f"bind {line.lowered[1]} (ingebouwde policy)", _BUILTIN_KLASSE, family.bron
+    return None
 
 
 def _persistence(line: _Line) -> str:

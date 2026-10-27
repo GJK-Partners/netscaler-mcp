@@ -439,22 +439,42 @@ def test_classic_set_accessors_list_line_numbers_only():
 # ---------------------------------------------------------------------------
 
 
-def _export_with_running(tmp_path: Path, extra: list[str], *, drop_running: bool = False):
-    """The pre-flight base export with lines appended to its running config,
-    re-sealed the way `tests/test_preflight.py::_variant` does it."""
+def _export_with_configs(
+    tmp_path: Path,
+    running_extra: list[str],
+    saved_extra: list[str] | None = None,
+    *,
+    drop_running: bool = False,
+    with_saved: bool = True,
+    saved_hash_wrong: bool = False,
+):
+    """The pre-flight base export with lines appended to its running config
+    and, next to it, a saved config (the base running config plus
+    `saved_extra`, by default the same lines as the running config), re-sealed
+    the way `tests/test_preflight.py::_variant` does it."""
     target = tmp_path / "export"
     shutil.copytree(FIXTURES / "preflight-export", target)
     running = target / "parsed" / "runningconfig.txt"
-    text = running.read_text(encoding="utf-8")
-    if not text.endswith("\n"):
-        text += "\n"
-    text += "".join(line + "\n" for line in extra)
+    base = running.read_text(encoding="utf-8")
+    if not base.endswith("\n"):
+        base += "\n"
+    text = base + "".join(line + "\n" for line in running_extra)
     running.write_text(text, encoding="utf-8")
     manifest_path = target / "export-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["files"]["parsed/runningconfig.txt"] = hashlib.sha256(
         text.replace("\r\n", "\n").encode("utf-8")
     ).hexdigest()
+    if with_saved:
+        saved_text = base + "".join(line + "\n" for line in (running_extra if saved_extra is None else saved_extra))
+        (target / "parsed" / "savedconfig.txt").write_text(saved_text, encoding="utf-8")
+        manifest["resources"]["config/nssavedconfig"] = {
+            "status": "OK",
+            "propertyName": "nssavedconfig",
+            "objectCount": 1,
+        }
+        digest = hashlib.sha256(saved_text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+        manifest["files"]["parsed/savedconfig.txt"] = ("0" * 64) if saved_hash_wrong else digest
     if drop_running:
         del manifest["resources"]["config/nsrunningconfig"]
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -463,6 +483,10 @@ def _export_with_running(tmp_path: Path, extra: list[str], *, drop_running: bool
         "preflight-lab\n" + hashlib.sha256(manifest_path.read_bytes()).hexdigest() + "\n", encoding="utf-8"
     )
     return load_export(target)
+
+
+def _export_with_running(tmp_path: Path, extra: list[str], *, drop_running: bool = False):
+    return _export_with_configs(tmp_path, extra, drop_running=drop_running)
 
 
 def test_classic_transition_check_on_a_clean_config_is_no_blocker(tmp_path):
@@ -475,6 +499,7 @@ def test_classic_transition_check_blocks_on_set_1(tmp_path):
     check = _check_2_classic_transition(_export_with_running(tmp_path, _lines("verzameling-1-filter-gebonden.conf")))
     assert check.word == BLOCKER
     assert "dit is geen vendor-precheck; R2 laat de vendor beslissen met check_invalid_config" in check.evidence
+    assert "vanaf 13.1 verwijderd" in check.reason and "in 14.1" not in check.reason
 
 
 def test_classic_undecided_is_not_assessed_in_transition_mode(tmp_path):
@@ -488,17 +513,61 @@ def test_classic_transition_check_set_1_outweighs_undecided(tmp_path):
     assert _check_2_classic_transition(_export_with_running(tmp_path, extra)).word == BLOCKER
 
 
+def test_classic_transition_blocks_on_an_unbound_removed_feature(tmp_path):
+    """Ruling R2 (review I-2): the vendor check refuses every command of a
+    removed feature, bound or not. Set 2 blocks the transition like set 1,
+    and the sentence never says it does not hold the transition back."""
+    check = _check_2_classic_transition(_export_with_running(tmp_path, _lines("verzameling-2-cs-url-ongebonden.conf")))
+    assert check.word == BLOCKER
+    assert "houdt de overstap niet tegen" not in check.reason
+    assert "gebonden of niet" in check.reason
+
+
 @pytest.mark.parametrize(
-    "fragment",
-    [
-        "verzameling-3-audit-ns-true-gebonden.conf",
-        "verzameling-3-gateway-gebonden.conf",
-        "verzameling-2-cs-url-ongebonden.conf",
-    ],
+    "fragment", ["verzameling-3-audit-ns-true-gebonden.conf", "verzameling-3-gateway-gebonden.conf"]
 )
-def test_classic_transition_check_only_sets_2_and_3_is_an_attention_point(tmp_path, fragment):
+def test_classic_transition_check_only_set_3_is_an_attention_point(tmp_path, fragment):
     check = _check_2_classic_transition(_export_with_running(tmp_path, _lines(fragment)))
     assert check.word == ATTENTION
+    assert "deprecated" in check.reason
+
+
+def test_classic_transition_reads_the_saved_config_too(tmp_path):
+    """Ruling R1 (review I-1): classic of tables 1 and 2 no longer loads from
+    13.1 on, so on a running 13.1 it can only survive in the saved
+    configuration - which is what the vendor check reads."""
+    export = _export_with_configs(tmp_path, [], _lines("verzameling-1-filter-gebonden.conf"))
+    check = _check_2_classic_transition(export)
+    assert check.word == BLOCKER
+    assert check.name == "classic-configuratie in de draaiende en de opgeslagen configuratie"
+    assert "(0 in de draaiende configuratie en 2 in de opgeslagen configuratie)" in check.reason
+    saved, gap = export.saved_config_lines()
+    assert gap is None
+    policy_line = len(saved) - 1
+    assert "parsed/runningconfig.txt (draaiend)" in check.evidence
+    assert (
+        f"parsed/savedconfig.txt (opgeslagen), {len(saved)} regels: verzameling 1 (verwijderd en gebonden): 1 op"
+        f" regel {policy_line}" in check.evidence
+    )
+
+
+def test_classic_transition_without_saved_config_is_not_assessed_with_the_fixed_reason(tmp_path):
+    check = _check_2_classic_transition(_export_with_configs(tmp_path, [], with_saved=False))
+    assert check.word == NOT_ASSESSED
+    assert check.reason == "opgeslagen configuratie niet in de export"
+
+
+def test_classic_transition_unreadable_saved_config_is_not_assessed(tmp_path):
+    check = _check_2_classic_transition(_export_with_configs(tmp_path, [], saved_hash_wrong=True))
+    assert check.word == NOT_ASSESSED
+    assert check.reason != "opgeslagen configuratie niet in de export"
+
+
+def test_classic_transition_a_removed_feature_in_the_readable_source_outweighs_a_read_gap(tmp_path):
+    """A.5.1 R0 order: `dicht` on set 1 in either source comes before `niet
+    beoordeeld` on an unreadable one."""
+    export = _export_with_configs(tmp_path, _lines("verzameling-1-filter-gebonden.conf"), with_saved=False)
+    assert _check_2_classic_transition(export).word == BLOCKER
 
 
 def test_classic_transition_evidence_names_counts_and_line_numbers_never_text(tmp_path):
@@ -519,6 +588,19 @@ def test_classic_transition_check_without_running_config_is_not_assessed(tmp_pat
     assert _check_2_classic_transition(export).word == NOT_ASSESSED
 
 
+def test_the_bounded_line_list_never_cuts_a_number():
+    from nsmcp.preflight import _bounded_numbers
+
+    numbers = tuple(range(1000, 1200))
+    text = _bounded_numbers(numbers)
+    assert text.endswith(", ...(afgekapt)")
+    listed = text[: -len(", ...(afgekapt)")].split(", ")
+    assert all(item.isdigit() and int(item) in numbers for item in listed)
+    assert len(text) <= 200 + len(", ...(afgekapt)")
+    assert _bounded_numbers((3, 7)) == "3, 7"
+    assert _bounded_numbers(()) == "-"
+
+
 def test_the_in_line_pre_flight_still_uses_the_1_0_3_check(tmp_path):
     """Spec section 2, rule 5: the transition check is not wired into the
     nine checks; the in-line check 2 still says what 1.0.3 said (an `ns_true`
@@ -531,3 +613,124 @@ def test_the_in_line_pre_flight_still_uses_the_1_0_3_check(tmp_path):
     assert _check_2_classic_transition(export).word == NOT_ASSESSED
     in_line = next(c for c in preflight_checks(export, _KNOWLEDGE, 9000, 1081) if c.number == 2)
     assert in_line == _check_2_classic_markers(export)
+
+
+# ---------------------------------------------------------------------------
+# Herstelronde 1: forms of CTX296948 table 2 outside the class list (ruling
+# R3), and the review's minor findings.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("lines", "line", "row"),
+    [
+        (
+            [
+                'add cs policy CE -rule "SYS.EVAL_CLASSIC_EXPR(\\"REQ.HTTP.URL CONTAINS /x\\")"',
+                "bind cs vserver V -policyName CE",
+            ],
+            1,
+            9,
+        ),
+        (['add responder policy RE "SYS.EVAL_CLASSIC_EXPR(\\"ns_true\\")" NOOP'], 1, 9),
+        (['add rewrite action RA replace HTTP.REQ.URL "SYS.EVAL_CLASSIC_EXPR(\\"ns_true\\")"'], 1, 9),
+        (["add policy patclass PC"], 1, 10),
+        (['add rewrite action RA replace_all HTTP.REQ.URL "\\"x\\"" -pattern abc'], 1, 8),
+        (['add rewrite action RB replace HTTP.REQ.URL "\\"x\\"" -bypassSafetyCheck YES'], 1, 11),
+        (['add cache policy CB -rule "HTTP.REQ.BODY.CONTAINS(\\"x\\")" -action NOCACHE'], 1, 12),
+        (["set cmp parameter -policyType CLASSIC"], 1, 13),
+    ],
+)
+def test_classic_table_2_rest_forms_are_undecided_with_their_row(lines, line, row):
+    findings = {f.line: f for f in classify(lines).findings}
+    assert findings[line].verzameling == SET_UNDECIDED
+    assert findings[line].bron.startswith(f"CTX296948 tabel 2 rij {row} ")
+
+
+def test_classic_http_req_body_with_argument_and_advanced_cmp_parameter_are_no_finding():
+    lines = [
+        'add cache policy CB -rule "HTTP.REQ.BODY(1000).CONTAINS(\\"x\\")" -action NOCACHE',
+        "set cmp parameter -policyType ADVANCED",
+    ]
+    assert _sets(lines) == {}
+
+
+@pytest.mark.parametrize(
+    ("bind", "row"),
+    [
+        ("bind cmp global ns_cmp_content_type -priority 100", 4),
+        ("bind cs vserver CS_VS -policyName ns_cs_oud -priority 100", 6),
+        ("bind cr vserver CR_VS -policyName ns_cr_oud", 5),
+        ("bind appfw global ns_appfw_oud 100", 3),
+        ("bind ssl vserver V -policyName ns_ssl_oud", 7),
+        ("bind filter global ns_filter_oud", 1),
+    ],
+)
+def test_classic_builtin_classic_policy_only_on_a_bind_line_is_undecided(bind, row):
+    finding = classify([bind]).findings
+    assert [f.verzameling for f in finding] == [SET_UNDECIDED]
+    assert finding[0].bron.startswith(f"CTX296948 tabel 2 rij {row} ")
+
+
+def test_classic_advanced_builtins_goto_expressions_and_declared_names_on_a_bind_line_are_no_finding():
+    lines = [
+        "bind cmp global ns_adv_cmp_content_type -priority 100 -gotoPriorityExpression END -type RES_DEFAULT",
+        "bind cs vserver CS_VS -policyName P -priority 100 -gotoPriorityExpression ns_true",
+        'add cmp policy ns_eigen -rule "HTTP.RES.HEADER(\\"Content-Type\\").CONTAINS(\\"text\\")" -resAction COMPRESS',
+        "bind cmp global ns_eigen -priority 200",
+    ]
+    assert _sets(lines) == {}
+
+
+def test_classic_an_unreadable_bind_line_makes_unbound_not_proven():
+    """Review M-1: an unreadable bind line may name the policy; "unbound" is
+    then not proven, so the line is undecided, never set 2."""
+    lines = [
+        'add filter policy "F P" -rule ns_true -reqAction FA',
+        'bind lb vserver L -policyName "F P -priority 1',
+    ]
+    assert _sets(lines) == {1: SET_UNDECIDED}
+
+
+def test_classic_a_classic_lb_rule_without_a_bind_line_is_undecided():
+    """Review M-2: `-rule` is a parameter of the vserver, not a bound
+    policy; a missing bind line on the vserver proves nothing about it."""
+    assert _sets(['add lb vserver LBV HTTP 192.0.2.43 80 -persistenceType RULE -rule "REQ.HTTP.HEADER Host == x"']) == {
+        1: SET_UNDECIDED
+    }
+
+
+@pytest.mark.parametrize(
+    "prefix", ["CLIENT.OS(win10) EXISTS", "CLIENT.APPLICATION.PROCESS(x) EXISTS", "CLIENT.SYSTEM.DOMAIN EQ x"]
+)
+def test_classic_client_security_expression_is_undecided(prefix):
+    """Review M-3: classic client-security (EPA) expressions also begin with
+    `CLIENT.` (CTX296948 table 3 row 18); such a head proves no form."""
+    assert _sets([f'add vpn sessionPolicy VE "{prefix}" VA']) == {1: SET_UNDECIDED}
+
+
+def test_classic_client_ip_is_still_advanced():
+    assert _sets(['add vpn sessionPolicy VN "CLIENT.IP.SRC.IN_SUBNET(192.0.2.0/24)" VA']) == {}
+
+
+def test_classic_named_expression_in_set_1_cites_the_users_row():
+    """Review M-4: table 3 row 1 says classic named expressions keep working;
+    a blocking verdict on one rests on the row of the feature that uses it."""
+    findings = {f.line: f for f in classify(_lines("named-expressions.conf")).findings}
+    assert findings[6].verzameling == SET_BLOCKING
+    assert findings[6].bron == findings[7].bron == "CTX296948 tabel 2 rij 6 (Content Switching Classic policy)"
+    assert findings[2].bron.startswith("CTX296948 tabel 3 rij 1 ")
+
+
+def test_classic_the_gateway_bind_source_names_the_authorization_row():
+    lines = ["add authorization policy AZ ns_true ALLOW", "bind vpn vserver V -policy AZ -priority 1"]
+    findings = {f.line: f for f in classify(lines).findings}
+    assert findings[2].verzameling == SET_DEPRECATED
+    assert "5-12" in findings[2].bron
+
+
+def test_classic_removed_accessor_is_sets_1_and_2():
+    classification = classify(
+        _lines("verzameling-1-filter-gebonden.conf") + _lines("verzameling-2-cs-url-ongebonden.conf")
+    )
+    assert classification.removed == (1, 2, 4)
