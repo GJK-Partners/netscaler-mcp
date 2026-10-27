@@ -262,6 +262,9 @@ seamteller telt geen pakketten; de opname blijft daarom open tot ze gedraaid is.
 | 164 | classic: `-comment` is geen vorm (1.1, herkeuring H-4) | `classic._scan_text`: de waarde van `-comment` niet overgeslagen | `test_classic_literals_and_comments_are_no_form` (geval comment) | uitgevoerd 27-10-2026, teruggedraaid |
 | 165 | classic: client-security-kop in een verwijderde familie onbeslist (1.1, herkeuring H-6) | `classic.classify`: de kop overal classic | `test_classic_client_security_head_in_a_removed_family_is_undecided` | uitgevoerd 27-10-2026, teruggedraaid |
 | 166 | classic: een zelf onleesbare regel blijft onbeslist (1.1, besluit R3c) | `classic.classify`: de afwaardering van een onleesbare regel vervangen door `if False:` | `test_classic_an_unreadable_line_with_a_rest_form_stays_undecided` en `test_classic_an_unreadable_policy_line_itself_stays_undecided` | uitgevoerd 27-10-2026, teruggedraaid |
+| 167 | classic: HTTP/2 is geen kandidaatparameter (1.1, besluit K-1) | `classic._rest_form`: `-http2 ENABLED` terug als onbeslist | `test_classic_http2_is_no_candidate_parameter` en `test_classic_the_doh_fixture_is_no_blocker_with_the_reservation` | uitgevoerd 27-10-2026, teruggedraaid |
+| 168 | classic: de waarde van `-comment` is geen vlag (1.1, herkeuring K-2) | `classic._read`: de waarde van `-comment` niet gewist | `test_classic_flag_tests_never_read_the_comment_value` (5 gevallen) | uitgevoerd 27-10-2026, teruggedraaid |
+| 169 | classic overstap: kandidaatparameter heet niet onderzocht (1.1, herkeuring K-3) | `preflight._check_2_classic_transition`: `not_examined = 0` | `test_classic_transition_reason_for_a_candidate_parameter_says_not_examined` en `..._names_undecided_and_not_examined_apart` | uitgevoerd 27-10-2026, teruggedraaid |
 
 Voor elk van de vier uitgevoerde proeven (10-13): de bewuste regel is met een enkel woord uitgezet
 (`if False:` of `if True:`), de genoemde test viel om op precies de reden die de poort bewijst, en

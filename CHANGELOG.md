@@ -109,8 +109,11 @@ the knowledge package.
   policy (`ns_cmp_*`, `ns_nocmp_*`) on a policy position of a bind line. Text
   inside a string, regex or q literal and in a `-comment` is never a form.
   Table 1 rows 5, 6 and 8 (SPDY, HTTP/2, AppFlow client-side measurements)
-  are outside the search, and every answer of the check says so; only their
-  probable parameters switched on count as undecided. Undecided is for a form
+  are outside the search, and every answer of the check says so; only the
+  probable parameters of rows 5 and 8 switched on (`-spdy`,
+  `-clientSideMeasurements`) count as undecided, as "niet onderzocht"; HTTP/2
+  itself is an ordinary supported function. The value of `-comment` is never
+  read as a flag. Undecided is for a form
   without a vendor row and for a line that is itself not readable. None of
   this is reachable from any tool yet: no behaviour change within 14.1.
 

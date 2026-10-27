@@ -1815,10 +1815,11 @@ in de export"). Elke classic-policyregel valt in een van vier verzamelingen:
 
 Buiten de zoektocht, en dat zegt elk antwoord van de toets: "niet onderzocht: SPDY,
 HTTP/2-classic, AppFlow client-side measurements (tabel 1 rij 5, 6, 8)". Voor die drie rijen
-kent het product geen eenduidige classic commandovorm; alleen hun vermoedelijke parameters
-(`-spdy`, `-http2`, `-clientSideMeasurements` aan) tellen als onbeslist. Staan die niet aan in de
-draaiende en de opgeslagen configuratie, dan houden deze rijen de toets niet tegen; de vendorcheck
-in R2 beslist daar.
+kent het product geen eenduidige classic commandovorm. Alleen de vermoedelijke parameters van rij
+5 en 8 (`-spdy`, `-clientSideMeasurements` aan) tellen als onbeslist, met de reden "niet
+onderzocht (tabel 1 rij <n>)"; HTTP/2 zelf is op 13.1 en 14.1 een gewone ondersteunde functie en
+valt alleen onder dit voorbehoud. Staan die parameters niet aan in de draaiende en de opgeslagen
+configuratie, dan houden deze rijen de toets niet tegen; de vendorcheck in R2 beslist daar.
 
 `ns_true` en `ns_false` bewijzen alleen dat een expressie classic is, nooit dat een feature
 verwijderd is: dezelfde `ns_true` is in een classic CS-policy blokkerend en in een classic
