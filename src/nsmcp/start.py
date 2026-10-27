@@ -36,7 +36,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from nsmcp import localpath
+from nsmcp import localpath, tablekey
 from nsmcp.backup import target_name_rules, valid_target_name
 from nsmcp.code_channel import KINDS, MissingField, UnknownKind, presenter_for
 from nsmcp.disclosure import Disclosure, load_disclosure
@@ -1631,6 +1631,11 @@ def build_server_from_config(path: Path) -> FastMCP:
     ) / PSEUDONYM_TABLE_NAME
     if disclosure is Disclosure.LIMITED:
         _check_pseudonym_table_dir(pseudonym_table_path, export_dir)
+        # 1.1 C.5: the table and its key file beside it (DPAPI-protected) get
+        # the same where-it-leads refusals as every other configured path;
+        # the anchor lives in HKCU and has no place in the configuration.
+        _refuse_where_it_leads(pseudonym_table_path, "de vertaaltabel")
+        _refuse_where_it_leads(tablekey.key_path(pseudonym_table_path), "het sleutelbestand van de vertaaltabel")
 
     return build_server(
         export_dir,

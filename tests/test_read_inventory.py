@@ -190,6 +190,26 @@ METADATA_EXCEPTIONS: dict[tuple[str, str, str], tuple[int, str]] = {
     ),
 }
 
+# 1.1 C (ruling R7): a directory LISTING that reads names, never contents.
+# Not one of the four exceptions of B.3 and therefore listed on its own, as
+# a review point: the first-start check of the pseudonym table (no
+# `.afgedankt-*` or `.v1-*` file beside it) and the reuse of a migration
+# backup need the names in the table's directory. The listing runs on the
+# directory the table lock holds (no delete sharing, so it cannot be swapped
+# during the critical section), and every content read after it goes
+# through `localpath`. `tablekey.directory_names` is the one place, so a
+# handle-based listing can replace it locally.
+NAME_LISTINGS: tuple[Exempt, ...] = (
+    Exempt(
+        "tablekey.py",
+        "directory_names",
+        "os.scandir",
+        0,
+        "names in the held directory of the pseudonym table (first-start check, backup reuse); never a content"
+        " read - every file named there is read through localpath afterwards",
+    ),
+)
+
 _ANY_BASE = frozenset({"open", "read_text", "read_bytes", "write_text", "write_bytes", "fdopen", "rename"})
 # Metadata and listings by name (herstelronde 1): any base.
 _METADATA = frozenset(
@@ -437,7 +457,7 @@ def runtime_exception(module: str, function: str, path: str = "") -> bool:
 
 
 def _allowed() -> Counter:
-    allowed = Counter({(e.file, e.function, e.call): 1 for e in PYTHON_EXCEPTIONS})
+    allowed = Counter({(e.file, e.function, e.call): 1 for e in (*PYTHON_EXCEPTIONS, *NAME_LISTINGS)})
     for key, (count, _reason) in METADATA_EXCEPTIONS.items():
         allowed[key] += count
     return allowed
@@ -462,6 +482,13 @@ def test_every_pinned_python_exception_is_still_there_and_names_its_reason():
     for key, (count, reason) in METADATA_EXCEPTIONS.items():
         assert found[key] == count, f"verouderde of gewijzigde metadata-uitzondering: {key}"
         assert len(reason) > 40, key
+
+
+def test_every_name_listing_is_still_there_and_reads_no_content():
+    found = python_findings()
+    for exempt in NAME_LISTINGS:
+        assert found[(exempt.file, exempt.function, exempt.call)] == 1, f"verouderde opsomming: {exempt}"
+        assert exempt.call in ("os.scandir", "os.listdir") and len(exempt.reason) > 40, exempt
 
 
 def test_the_inventory_counts_the_reads_the_spec_names():

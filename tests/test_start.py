@@ -3242,6 +3242,31 @@ def test_sr8_a_link_to_a_share_is_refused_where_it_leads(tmp_path, field, target
     assert "netwerk- of apparaatpad" in message, message
 
 
+@pytest.mark.parametrize(
+    "name, field",
+    [
+        ("openheid-vertaaltabel.json", "de vertaaltabel"),
+        ("openheid-vertaaltabel.sleutel", "het sleutelbestand van de vertaaltabel"),
+    ],
+)
+def test_c_the_table_and_its_key_file_are_refused_where_they_lead_at_beperkt(tmp_path, name, field):
+    """1.1 C.5: at `beperkt` the place of the pseudonym table and of its
+    DPAPI key file beside it get the same where-it-leads refusal as every
+    other configured path."""
+    forget_identities()
+    _real_export(tmp_path / "aanlevering")
+    _real_knowledge(tmp_path)
+    path = write(
+        tmp_path, base_config(tmp_path, openheid="beperkt", exportmap=str(tmp_path / "aanlevering" / "export"))
+    )
+    _link(tmp_path / name, _NOWHERE)
+    with pytest.raises(ConfigError) as refused:
+        build_server_from_config(path)
+    message = str(refused.value)
+    assert message.startswith(f"{field} leidt naar een plek die deze versie weigert"), message
+    assert "netwerk- of apparaatpad" in message, message
+
+
 def test_sr8_a_local_junction_on_the_way_to_a_link_to_a_share_is_followed(tmp_path):
     path = _relative_config(tmp_path, exportmap=r"lokaal\export")
     elders = tmp_path / "elders"
