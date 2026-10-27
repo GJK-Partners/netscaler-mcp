@@ -1333,8 +1333,16 @@ deze mappen op een lokale, vaste schijf en buiten een gesynchroniseerde map (nie
 een omgeleide documentenmap): een netwerkstation, een share of een verwisselbaar station wordt
 geweigerd. Een junction BOVEN zo'n map, naar een andere lokale map, blijft toegestaan. De
 faserunner weigert een koppeling in of als de firmwaremap met `[FOUT] de firmwarebundel is
-geweigerd: <reden>` en exitcode 4, voordat er een fase begint of iets naar de appliance gaat. Welke
-rechten iemand op die mappen heeft, toetst het product nog steeds niet.
+geweigerd: <reden>` (of `de firmwaremap is geweigerd: <reden>` als hij de map niet eens kan opsommen)
+en exitcode 4, voordat er een fase begint of iets naar de appliance gaat. Welke rechten iemand op die
+mappen heeft, toetst het product nog steeds niet.
+
+**Schrijf elke map in de configuratie altijd op dezelfde manier, ook in hoofd- en kleine letters.**
+Het product stelt het pad van een bestand samen uit de tekst van de map waarin het hoort, en
+vergelijkt die twee letter voor letter: `C:\GJK\Export` en een pad dat met `C:\gjk\export` begint, zijn
+voor het product twee verschillende plekken, en die lezing wordt geweigerd ("het pad ligt buiten de
+goedgekeurde map"), ook al wijzen ze op schijf naar dezelfde map. Alleen de schijfletter mag in
+kleine of hoofdletters. Neem een map dus overal over zoals hij in de configuratie staat.
 
 In het voorbeeld onder "Configuratie" staan configuratie, kennis en export samen onder
 `C:\GJK\netscaler-mcp\`. Dat is alleen veilig zolang die map een beheermap is en de export door

@@ -51,8 +51,8 @@ the knowledge package.
   which is why CI now checks out the full history (`fetch-depth: 0`). The
   harness reads the matrix and the package with the size and depth ceilings
   of the tag (`nsmcp.limits`), and CI lints and format-checks `tools/` too.
-- `nsmcp.localpath`, the one owner of the local path rule (first part of the
-  runtime path rule; the readers follow). `open_local` opens a file or
+- `nsmcp.localpath`, the one owner of the local path rule (every reader
+  uses it, see below). `open_local` opens a file or
   directory component by component: spelling first, then the volume by its
   drive type and device target without opening anything, then every component
   with `NtCreateFile` relative to the held parent, as itself
@@ -75,7 +75,7 @@ the knowledge package.
   (`replace_local`: an exclusive temporary file renamed by its handle) use the
   same held chain.
 - `scripts/GjkUpgrade-LokaalPad.ps1` with `Open-GjkLokaalBestand`, the
-  PowerShell twin of `nsmcp.localpath` (third part of the runtime path rule):
+  PowerShell twin of `nsmcp.localpath`, the PowerShell side of the local path rule:
   the same walk through an embedded C# binding (`Add-Type`) of `NtCreateFile`,
   `NtQueryInformationFile`, `NtQueryVolumeInformationFile`, `NtClose`,
   `GetDriveTypeW`, `QueryDosDeviceW`, `GetFileType` and
@@ -227,7 +227,7 @@ the knowledge package.
   walk cannot open (1.0.3 stopped silently there). A link chain of exactly 32
   links is now followed; 33 is refused.
 - Every file the product reads or writes is opened on its final local path
-  through `nsmcp.localpath` (second part of the runtime path rule), each from
+  through `nsmcp.localpath`, each from
   the approved directory the file lies in, composed from the same configured
   text: the export map (manifest, object, binding and text files, the target
   file, the scan log), the work export map of a scan (its manifest, the phase
@@ -291,8 +291,8 @@ the knowledge package.
   (measured), so on Windows only the file's own flush stays, as in 1.0.3.
 - Tests: `tests/test_read_inventory.py` (the static inventory over
   `src/nsmcp/*.py` and `scripts/*.ps1`, one pinned exception for Python - the
-  installed distribution's own metadata - and the PowerShell findings pinned
-  for part 3), the runtime seam check (one `sys.addaudithook` in
+  installed distribution's own metadata - and the PowerShell findings, see
+  below), the runtime seam check (one `sys.addaudithook` in
   tests/conftest.py, active in the route and session tests), a negative
   parent-swap proof per reader family (tests/test_reader_parent_swap.py,
   real junctions through the seam, with the needle test at `beperkt` and
@@ -328,7 +328,7 @@ the knowledge package.
   `resolve()`. The identity of an export map in a provenance record is where
   the walk says it leads (no `resolve()` by name): for a path with an 8.3
   short name in it, a record of 1.0.3 no longer matches until the next scan.
-  The start check of the configuration keeps its own metadata checks (part 3).
+  The start check of the configuration keeps its own metadata checks.
 - The flush of the directory entry of a new ledger, register or provenance
   file now happens: the held directory is opened once more relative to
   itself (an empty name) with the write right and flushed; no open by name.
@@ -365,8 +365,8 @@ the knowledge package.
   short name or a link in it), the server says so on stderr: target-bound
   answers and writing tools refuse this export until the first scan
   (HANDLEIDING: after the update, first a scan).
-- The phase runner opens every local file through `Open-GjkLokaalBestand`
-  (third part): before `fase_gestart`, the transport and the session it walks
+- The phase runner opens every local file through `Open-GjkLokaalBestand`:
+  before `fase_gestart`, the transport and the session it walks
   to the firmware bundle in `-Firmwaremap` (R1, R2, R3, and R5 with a bare
   target build) and in R1 to its `.sha256` sidecar. R1 computes the local
   sha256 on the held stream (no `Get-FileHash` by name) and holds the bundle
@@ -394,12 +394,33 @@ the knowledge package.
   code 1 - the word for a judged refusal - instead of its own `[FOUT]` line
   and exit code (for example "kon fase_gestart niet laten vastleggen: <stderr>",
   exit code 2).
-- The PowerShell inventory of `tests/test_read_inventory.py` holds no part-3
-  findings any more: the runner's two `Get-Content`, its `Get-FileHash` and its
-  `Get-Item` run through the walk; three findings stay pinned with their
-  reason: the two Posh-SSH content manifests (`[System.IO.File]::`, exception 3:
-  module files Import-Module reads on its own authority) and the one upload by
-  name (`Set-SFTPItem -Path`, no exception: only behind the check of a held
+- The phase runner no longer lists the firmware map by name: the candidates
+  of a bare target build (the first name check before the transport, the
+  choice before the session and the check where the bundle is used) are read
+  on the held directory handle (`Get-GjkLokaleNamen`, `NtQueryDirectoryFile`,
+  the PowerShell side of `localpath.list_local`). `Get-ChildItem` on the map
+  followed a link in its place to a share before anything refused it; now
+  such a map is refused at the spelling step of the link target, before a
+  listing or a session: `[FOUT] de firmwaremap is geweigerd: <zin>`, exit code
+  4. A firmware bundle with a second name on the disk is refused like on the
+  Python side (`hardlink`).
+- `Invoke-GjkConfigOpslaan.ps1` hands the stderr of its judging half back
+  through a pipe, like the phase runner: a warning line of the bridge on
+  stderr no longer blocks the save with "onverwachte fout" (exit code 3), and
+  a failing bridge names its stderr.
+- The PowerShell inventory of `tests/test_read_inventory.py` holds no file
+  operation of the runner or the save script any more: the runner's two
+  `Get-Content`, its `Get-FileHash`, its `Get-Item` and its listings run through
+  the walk, the temporary stderr files are gone. The scanner is
+  case-insensitive and also counts redirections to a file, `GetTempFileName`,
+  the short type names (`[IO.File]`, `[IO.Path]`, the stream readers and
+  writers), `Get-ChildItem`, `Test-Path`, `Resolve-Path`, `New-Item`,
+  `Copy-Item`, `Export-Csv` and `Start-Transcript`. Pinned with their reason:
+  the Posh-SSH content manifests (their file reads, the listing of the module
+  directory and the existence check of the manifest script: exception 3,
+  module files Import-Module reads on its own authority; two text-only
+  `[System.IO.Path]::GetFullPath`) and the one upload by name
+  (`Set-SFTPItem -Path`, no exception: only behind the check of a held
   stream). Tests: `tests/test_localpath_powershell.py` (the Python test vectors
   on the PowerShell walk: junction, symbolic link, cloud placeholder, alternate
   data stream, network drive and device targets through the seam, the status

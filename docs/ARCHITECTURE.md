@@ -260,9 +260,18 @@ directory, the directory itself included; containment is structural (the root
 is walked on its own text, everything below it relative to the held root
 handle), never a comparison of resolved path strings. A held directory is
 shared for reading and writing but not for deletion, so it cannot be renamed or
-replaced while a file below it is in use. `tests/test_read_inventory.py` proves
-mechanically that no other module and no script opens a file by name (pinned
-exceptions with their reason), and an audit hook in the route and session tests
-catches any open by path at run time. What the walk does not prove: the access
+replaced while a file below it is in use; a directory is listed on its held
+handle (`NtQueryDirectoryFile`), never by name. `tests/test_read_inventory.py`
+checks this mechanically, within what its patterns see: in `src/nsmcp` an AST
+walk over the file operations and the metadata questions and listings by name
+(`open`, `read_text`, `exists`, `glob`, `iterdir`, `stat`, `mkdir`, ...), in
+`scripts/*.ps1` a case-insensitive search over the code (the file cmdlets,
+`Get-ChildItem`, `Test-Path`, `Resolve-Path`, `Get-Item`, `New-Item`,
+`Copy-Item`, the `[System.IO.*]` and `[IO.*]` file, stream and path types,
+`GetTempFileName`, redirections to a file). Every finding outside the walk is
+pinned with its reason or fails the test. A pattern the search does not know
+(an alias such as `gci`, a .NET call through a variable) is not covered by it;
+an audit hook in the route and session tests catches any open by path of the
+Python side at run time. What the walk does not prove: the access
 rights on those directories (who may write there), and which bytes PowerShell
 finally executes for a pinned script.

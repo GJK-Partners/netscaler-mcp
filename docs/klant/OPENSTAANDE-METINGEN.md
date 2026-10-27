@@ -51,7 +51,49 @@ en dat de wijziging is teruggedraaid. Een mutatieproef die alleen op een Windows
 bewijst niets op de bouwmachine waar de vrijgave op leunt - vandaar dat elke poort in
 `src/nsmcp/upgrade.py` staat en niet in de PowerShell-kant van de runner.
 
+## Gemeten: de bouwpoort van het lokale pad (1.1, 26-10-2026)
+
+Voordat het lokale pad (`nsmcp.localpath` en de PowerShell-tweeling `Open-GjkLokaalBestand`) gebouwd
+werd, is op Windows met een prototype gemeten of de vijf eigenschappen waar het op rust, echt gelden.
+Uitkomst:
+
+- (a) **Bewezen.** Een vastgehouden map (geopend zonder verwijderdeling) kan door een ander proces niet
+  hernoemd, verwijderd of vervangen worden, ook niet met de POSIX-verwijderroute; na het vrijgeven
+  wel. Bedoelde bijwerking: de hele keten vanaf de volumewortel is tijdens een bewerking vastgehouden.
+- (b) **Bewezen.** Een junction of symbolische link die onder een vastgehouden ouder wordt ingewisseld,
+  wordt als zichzelf geopend en geweigerd; zonder `FILE_OPEN_REPARSE_POINT` wordt hij wel gevolgd
+  (positieve controle). Een vastgehouden map die in het venster leeggemaakt wordt, kan een mount point
+  krijgen; de relatieve open eronder geeft `0xC0000280` en volgt niets (daarom staat die status als
+  `koppeling` in de tabel).
+- (c) **Gemeten, met een verplichte ontwerpwijziging.** Andere schrijvers in een vastgehouden map
+  (nieuw bestand, append op een ander bestand, vervangen, hernoemen, submap, verwijderen) worden niet
+  geblokkeerd; schrijvers op HETZELFDE bestand wel als dat alleen leesdeling heeft. Daarom kiest het
+  product de deelmodus per bestandsklasse: ledger en runnerlog met schrijfdeling, bundel, sidecar,
+  sleutel en exportbestanden alleen met leesdeling. Mappen met alleen leesdeling is gemeten en
+  verworpen (het blokkeert vervangen, hernoemen en submappen van een ander proces).
+- (d) **Bewezen**, met de afwijkingen die in het ontwerp verwerkt zijn: het type wordt na de tag
+  getoetst, `0xC0000280` en `0xC0000281` zijn `koppeling`, `STATUS_OBJECT_PATH_NOT_FOUND` komt in de
+  wandeling niet voor, `STATUS_DELETE_PENDING` alleen bij de klassieke verwijderroute, en de
+  spellingstap (geen dubbele punt in een onderdeel) is een harde eis: zonder die stap maakt een
+  relatieve open op `naam:stroom` een alternatieve gegevensstroom aan.
+- (e) **Bewezen.** Een symbolische link of mount point naar een UNC-pad (als voorouder en als blad) en
+  een `subst`-station worden geweigerd zonder open van het doel en zonder nieuwe SMB-verbinding
+  (seamteller en TCP-tabel, met een positieve controle die een naieve open wel ziet); een echte
+  netwerkletter wordt geweigerd met nul `NtCreateFile` en alleen `GetDriveTypeW`. In een verhoogde run
+  door een tweede hand toonde een ETW-trace van de SMB-client- en SMB-serverprovider de wandeling op
+  rustniveau (gelijk aan het venster zonder activiteit), tegenover honderden events en een
+  serverzijdig open bestand voor de controle. Een pakketopname met `pktmon` bleek op loopback blind en
+  is als waarnemer verworpen.
+
 ## Openstaande meting: de netwerkproef van het lokale pad (1.1, B.5)
+
+**Release-blokkerend.** De bouwpoortmeting hierboven (e) is op het prototype gedaan. Op de
+productcode is de verhoogde meting een vaste stap van de eindcontrole voor de release: dezelfde
+ETW-trace van de SMB-client- en SMB-serverprovider per venster (rust, wandeling, controle die het
+bestand openhoudt, wandeling, rust) op `localpath.read_local_bytes` tegen een echte netwerkletter,
+verhoogd, door een tweede hand; de controle moet in hetzelfde venster zichtbaar uitslaan, anders telt
+de meting niet. De uitkomst komt in dit document. Zonder die meting gaat 1.1 niet uit. De
+suiteproef hieronder blijft voor de suite een benoemde skip zonder verhoogde rechten.
 
 **Open.** De proef vraagt een pakketopname (`pktmon`) en daarvoor verhoogde rechten: een symbolische
 link op de plek van een voorouder naar het documentatieadres `\\192.0.2.10\x`, de lezing via
