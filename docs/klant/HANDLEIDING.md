@@ -834,9 +834,71 @@ toewijzingen veranderen daarbij nooit, en een kapotte tabel wordt nooit overschr
 hersteld. Het bestand verdient dezelfde bescherming als de export zelf.
 
 Weigert een antwoord omdat de vertaaltabel kapot is (onleesbaar, of met verdachte inhoud),
-dan noemt de melding het pad van het bestand. Herstel het bestand, of zet het aan de kant als
-herstel niet lukt, en stel de vraag opnieuw. Houd er bij het aan de kant zetten rekening mee
-dat nieuwe pseudoniemen dan niet meer aansluiten op eerdere rapportages.
+dan noemt de melding het pad van het bestand. Herstel het bestand (bij voorkeur met `--herstel`
+hieronder) en stel de vraag opnieuw.
+
+Sinds 1.1 is de vertaaltabel ondertekend. Elke rij draagt een HMAC over haar inhoud en over de
+rij ervoor (een keten); de sleutel staat versleuteld met Windows DPAPI naast de tabel
+(`openheid-vertaaltabel.sleutel`), en de laatst vastgelegde stand van de tabel (welke tabel,
+welke generatie, hoeveel rijen, het einde van de keten) staat in een anker in uw eigen
+gebruikersregister (`HKCU\Software\GJK\netscaler-mcp\vertaaltabel\anker-<slot>`). Het slot is
+de identiteit van de PLEK van de tabel: het volume en de map, nooit de inhoud van het bestand.
+Voordat het product een pseudoniem gebruikt, controleert het de plek, het anker, de sleutel,
+elke rij, de keten en de stand. Een tabel waarin twee rijen hun echte naam wisselden, een
+oudere of afgedankte tabel, of een tabel op een andere plek wordt geweigerd - ook bij een
+schrijvend gereedschap, en dan voordat er een bevestigingscode bestaat.
+
+**Bijwerken vanaf 1.0.x: een vertaaltabel hoort bij precies een engineversie.** Een tabel in de
+vorm van 1.0.x wordt niet automatisch omgezet; de server weigert haar tot u haar eenmalig
+ondertekent. Werk daarom zo:
+
+1. stop elke server die deze vertaaltabel gebruikt (ook op een tweede beheermachine);
+2. werk ze allemaal bij naar 1.1.0;
+3. controleer de tabel zelf en onderteken haar:
+   `python -m nsmcp.disclosure --onderteken <pad naar openheid-vertaaltabel.json> --gecontroleerd`.
+   Zonder `--gecontroleerd` toont het commando alleen het aantal rijen en verandert het niets.
+   De exacte oude bytes komen eerst in een backup ernaast (`…json.v1-<datum>-<8 tekens>`), die
+   wordt teruggelezen en vergeleken voordat de tabel vervangen wordt. Een tweede keer draaien
+   op een ondertekende tabel verandert niets en maakt geen nieuwe sleutel;
+4. start de servers weer.
+
+Na de ondertekening mag geen 1.0.x-server die tabel nog openen: het slot tussen processen werkt in
+1.1 anders dan in 1.0.x, en een 1.0.x-server kent de integriteitscontrole niet. Schrijft een
+1.0.x-server de tabel toch terug, dan weigert 1.1 haar ("heeft weer de vorm van 1.0.x …"), en
+ook `--onderteken` weigert die toestand: een terugschrijving wordt nooit opnieuw ondertekend.
+Stop dan elke 1.0.x-server op deze tabel en zet een goede kopie terug met `--herstel`, of reset.
+
+**Wat te doen bij een weigering.** De melding noemt de soort en hoogstens een rijnummer, nooit
+een naam, een pseudoniem of een tabel-id. Het anker haalt u nooit met de hand weg.
+
+| soort in de melding | wat er is | wat u doet |
+|---|---|---|
+| rij past niet bij haar ondertekening, keten, kop | de tabel is na het schrijven gewijzigd | zet een bekende goede kopie terug (`--herstel`) |
+| teruggezet naar een oudere stand | een oudere kopie met minder rijen | zet de nieuwste goede kopie terug |
+| niet de actieve tabel, afgedankte generatie | een tabel van een andere of een oude generatie | zet de kopie van de actieve generatie terug |
+| nieuwe of andere plek | de tabel is verplaatst of verwisseld | zet haar terug op haar eigen plek; een tabel verplaatsen is een reset |
+| geen anker, anker niet leesbaar | het anker ontbreekt of is beschadigd | reset |
+| bestand of sleutelbestand ontbreekt | het anker bestaat, het bestand niet | zet tabel en sleutel terug; dit is nooit een eerste start |
+| sleutelbestand niet te openen | ander Windows-account, andere machine of ander profiel | gebruik het oorspronkelijke account, of reset |
+| aanmaken onderbroken | de eerste aanmaak liep niet af en de bestanden passen niet | reset |
+| ondertekening of reset onderbroken | het commando werd onderbroken | draai hetzelfde commando opnieuw |
+
+Herstel: `python -m nsmcp.disclosure --herstel <kopie> --pad <tabel> --gecontroleerd`. Alleen een
+kopie van de ACTIEVE generatie op dezelfde plek, die met de huidige sleutel klopt en niet minder
+rijen heeft dan er vastgelegd waren, gaat terug; de rest weigert.
+
+Reset: `python -m nsmcp.disclosure --reset --pad <tabel> --gecontroleerd`. De huidige generatie
+wordt afgedankt; de oude tabel en sleutel worden hernoemd naar `….afgedankt-<generatie>`, nooit
+verwijderd, en er komt een nieuwe, lege tabel met een nieuwe sleutel. Gevolg: oude pseudoniemen
+worden ongeldig en kunnen daarna naar een ander object wijzen. Laat de AI-client na een reset
+eerst een nieuwe vraag stellen voordat er iets geschreven wordt. Een reset werkt ook als het
+anker niet meer leesbaar is; de server zelf reset nooit.
+
+**De grens.** De sleutel is alleen te openen onder hetzelfde Windows-account op dezelfde
+machine. Een ander volume (herformatteren, verhuizen), een ander gebruikersprofiel (ook een
+profielmigratie of een zwervend profiel) of een andere machine maakt de tabel onbruikbaar tot een
+gecontroleerde reset. Wie als hetzelfde Windows-account code draait, kan de sleutel lezen en het
+anker wijzigen; daartegen beschermt dit niet.
 
 ## Dagelijks gebruik
 
@@ -1373,7 +1435,10 @@ pseudoniemen namelijk stabiel, en dan wordt zo'n wegwijzer een meetinstrument: w
 enkele stand: een weigering noemt alleen nog een redencode en de waarde die u zelf typte.
 
 In de stand `beperkt` staat naast de vertaaltabel ook `openheid-vertaaltabel.json.lock`: het
-slotbestand dat voorkomt dat twee processen tegelijk in de vertaaltabel schrijven. Dit is een
+slotbestand dat voorkomt dat twee processen tegelijk in de vertaaltabel schrijven (ook de
+commando's `--onderteken`, `--herstel` en `--reset` nemen dit slot). Sinds 1.1 staat er ook
+`openheid-vertaaltabel.sleutel`, de met DPAPI versleutelde sleutel van de ondertekening; zie "De
+openheidsknop". Dit is een
 ander slot dan het scan-slotbestand hierboven. Kan het product dat slot niet openen (er staat
 bijvoorbeeld een map met die naam), dan zegt het antwoord dat, met het pad.
 

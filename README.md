@@ -572,8 +572,15 @@ file is the customer-held decode key: it is itself sensitive, it never leaves
 the operator, and a broken or suspicious table (a value with a control
 character included) is refused visibly - never silently repaired or
 overwritten. A lock next to it that cannot be opened is a refusal with its
-reason, not a generic error. The table carries no integrity pin: it grows
-with every new name, so a pin in the configuration cannot follow it. Age/origin stamps and the visibility of read gaps survive
+reason, not a generic error. Since 1.1 the table is signed: every row
+carries an HMAC chained to the row before it, the key lies beside the table
+protected with Windows DPAPI (`openheid-vertaaltabel.sleutel`), and the last
+committed state (table id, generation, row count, chain end) is an anchor
+record in the user's own registry
+(`HKCU\Software\GJK\netscaler-mcp\vertaaltabel\anker-<slot>`, the slot being
+the place of the table). A 1.0.x table is refused until it is signed once with
+`python -m nsmcp.disclosure --onderteken <path> --gecontroleerd`; restore and
+reset are `--herstel` and `--reset` (see the HANDLEIDING). Age/origin stamps and the visibility of read gaps survive
 every level; in `minimaal` the count of read gaps remains.
 
 The seven writing tools sit UNDER this switch, not outside it. Everything

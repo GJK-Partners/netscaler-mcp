@@ -392,6 +392,19 @@ enige sleutel is waarmee de beheerder eerdere rapportages kan terugvertalen. Een
 stand in de configuratie weigert de server te starten, zonder stille terugval naar een
 andere stand.
 
+Sinds 1.1 is de vertaaltabel ook tegen BEWERKING beschermd, niet alleen tegen een kapotte vorm.
+Op schijf staan twee bestanden: de tabel (`openheid-vertaaltabel.json`, elke rij met een HMAC en
+een keten naar de rij ervoor) en de sleutel (`openheid-vertaaltabel.sleutel`, 32 willekeurige
+bytes, versleuteld met Windows DPAPI onder uw Windows-account; geen Credential Manager). In uw
+eigen gebruikersregister staat per plek van de tabel een ankerrecord
+(`HKCU\Software\GJK\netscaler-mcp\vertaaltabel\anker-<slot>`, een enkele tekstwaarde `record`)
+met het actieve tabel-id, de generatie, het aantal rijen en het einde van de keten. Geen van deze
+drie verlaat de machine. Het slot is een hash van het volumeserienummer en de mapnaam van de
+tabel, nooit van de inhoud. Een tabel die niet bij haar anker, haar sleutel of haar plek past,
+wordt geweigerd voordat een pseudoniem gebruikt wordt; de grens (hetzelfde Windows-account kan
+sleutel en anker lezen en wijzigen; een ander volume, profiel of een andere machine vraagt een
+reset) staat in SECURITY.md en de HANDLEIDING.
+
 De herkomststempels (gegevensleeftijd, kennisleeftijd) en de zichtbaarheid van leesgaten
 overleven alle standen. In de stand minimaal blijft daarvan het aantal leesgaten over; bron
 en reden zijn detail dat een stand die alleen aggregaten toont per definitie niet draagt.

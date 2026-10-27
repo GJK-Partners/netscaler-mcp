@@ -428,6 +428,59 @@ the knowledge package.
   and, in tests/test_runner_script.py, race (d) between the local hash and the
   upload with the NEP transport.
 
+### Security (SR-7: integrity of the pseudonym table)
+- Behavior change: a pseudonym table in the 1.0.x form (a flat object
+  pseudonym -> name) is refused at `openheid: beperkt` until it is signed once
+  with `python -m nsmcp.disclosure --onderteken <pad> --gecontroleerd`. Without
+  `--gecontroleerd` the command prints the row count and changes nothing; with
+  it, the exact old bytes go to a backup beside the table
+  (`<tabel>.v1-<datum>-<8 hex>`), read back and compared before the table is
+  replaced. A second run on a signed table changes nothing and makes no new key.
+  One table belongs to one engine version: every server on the same table moves
+  to 1.1.0 at once, before the migration; a 1.0.x server that rewrites the table
+  in the old form next to an existing anchor is refused, and `--onderteken`
+  never signs such a rewrite.
+- The table is form 2 (`nsmcp-vertaaltabel/2`): every row carries an
+  HMAC-SHA256 over the slot, the table id, the generation, the row number, the
+  pseudonym, the real name and the MAC of the row before it, with a signed head.
+  The key (32 random bytes) lies beside the table as
+  `openheid-vertaaltabel.sleutel`, protected with Windows DPAPI in the user
+  context with slot, table id and generation as extra entropy. The last
+  committed state is one anchor record per table slot in
+  `HKCU\Software\GJK\netscaler-mcp\vertaaltabel\anker-<slot>` (value `record`:
+  active table id, generation, count, chain), written with one registry write
+  after a re-read under the table lock. The slot is the place of the table
+  (volume serial number and normalized directory name, read on the handles of
+  the walk), never its content.
+- A table is verified before any pseudonym is used (`PseudonymTableIntegrity`,
+  a `PseudonymTableBroken`, with a `soort`: `mac`, `keten`, `kop`,
+  `teruggedraaid`, `anker_ontbreekt`, `anker_onleesbaar`, `bestand_ontbreekt`,
+  `sleutel_ontbreekt`, `sleutel_onleesbaar`, `tabelid`, `afgedankt`, `slot`,
+  `aanmaak_onderbroken`, `migratie_onderbroken`, `reset_onderbroken`,
+  `formaat`). The message names the kind and at most a row position, never a
+  name, a pseudonym or a table id. A table moved to another place, an older
+  copy (also with its own old key) and a discarded generation are refused.
+- Writing at `beperkt`: the table is verified before the arguments are
+  validated and before a code exists. A proposal and its code bind the slot,
+  the table id, the generation and the row (number and MAC) every pseudonym
+  resolved through; redeeming re-verifies the table in full and compares the
+  binding - a difference spends the code and starts nothing. The code channel
+  shows `vertaaltabel: <id[:8]>, generatie <g>, rij <nr>` per such argument
+  (presentation only; never in the ledger, the action register or a log).
+- New CLI routes `--herstel <kopie> --pad <tabel> --gecontroleerd` (a known
+  good copy of the ACTIVE generation) and `--reset --pad <tabel> --gecontroleerd`
+  (a new, empty generation; the old table and key are renamed to
+  `.afgedankt-<generatie>`, never deleted; also without a readable anchor; the
+  server itself never resets). Every route takes the same table lock as the
+  server and follows the commit points in `src/nsmcp/tablekey.py`.
+- Nothing is written to the table any more when a call adds no row.
+- At start (`beperkt`), the table and its key file get the same where-it-leads
+  refusals as every other configured path.
+- Boundary: whoever runs code as the same Windows account can read the key and
+  change the anchor. Another volume, another user profile (profile migration,
+  roaming profiles) or another machine makes the table unusable until a
+  controlled reset.
+
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is
   judged exactly as in 1.0.3; `--digest` prints the same pin for it.

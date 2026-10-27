@@ -221,16 +221,33 @@ laten verbranden, met opzet of door verkeerd te gokken; dat is een
 geaccepteerd gevolg, geen kwetsbaarheid - er wordt niets gewijzigd, de
 beheerder vraagt het voorstel gewoon opnieuw aan.
 
-**De pseudoniementabel kent vormcontrole, geen integriteitscontrole.** Een
-gebroken tabel wordt fail-closed geweigerd; een boosaardig bewerkte tabel (rij
-A wijst naar object B) niet. Bij `openheid: beperkt` worden pseudoniemen ook voor schrijven terugvertaald.
-De beheerder moet daarom de echte namen in het codekanaal controleren; de
-tabel en de configuratie moeten tegen wijziging door onbevoegden beschermd zijn.
-Sinds 1.0.2 staat de tabel met haar slotbestand naast het configuratiebestand (of
-in `onderhoud.ledgermap`), nooit naast de export; bij `openheid: beperkt` weigert
-de server te starten als die map de exportmap is of de map eromheen, en een
-slotbestand dat niet te openen is of te lang vastzit, is een weigering met reden.
-De integriteitscontrole zelf ontbreekt nog steeds.
+**De pseudoniementabel is sinds 1.1 ondertekend (SR-7).** Bij `openheid: beperkt` worden
+pseudoniemen ook voor schrijven terugvertaald; een tabel waarin rij A naar object B wijst, liet
+de mens in 1.0.x een ander object bevestigen dan hij las. Nu draagt elke rij een HMAC-SHA256 over
+plek, tabel-id, generatie, rijnummer, pseudoniem, echte naam en de MAC van de rij ervoor (een
+keten), met een ondertekende kop. De sleutel (32 willekeurige bytes) staat met Windows DPAPI
+versleuteld naast de tabel, met plek, tabel-id en generatie als extra entropie. De laatst
+vastgelegde stand staat in EEN ankerrecord per tabelslot in HKCU (actief tabel-id, generatie,
+aantal rijen, einde van de keten), geschreven met een enkele registerschrijving na herlezen onder
+het slot; het slot is de plek van de tabel (volumeserienummer en genormaliseerde mapnaam van de
+vastgehouden handles), nooit de inhoud van het bestand. Gevangen wordt: een verwisselde naam of
+pseudoniem, een verwijderde, ingevoegde of verplaatste rij, een afgekapte tabel met een eigen kop,
+een oudere kopie (ook met haar eigen oude sleutel), een afgedankte generatie na een reset, een
+tabel op een andere plek, en een bestaand anker zonder bestanden (dat is nooit een eerste start).
+Elke afwijking weigert fail-closed voordat een pseudoniem gebruikt wordt; een schrijvend
+gereedschap weigert voordat er een code is. Een voorstel en zijn code binden plek, tabel-id,
+generatie en de MAC van de gebruikte rij; bij het inwisselen wordt de tabel opnieuw volledig
+gecontroleerd en vervalt de code bij een verschil. Het codekanaal toont daarnaast de eerste acht
+tekens van het tabel-id, de generatie en het rijnummer, als extra menselijke controle.
+
+De restgrens, eerlijk: wie als hetzelfde Windows-account code draait, kan de sleutel lezen en het
+anker wijzigen - daartegen beschermt dit niet. DPAPI bindt aan gebruiker en machine: een ander
+volume (herformatteren, verhuizen), een ander profiel (profielmigratie, zwervende profielen) of
+een andere machine maakt de tabel onbruikbaar tot een gecontroleerde reset. Een vertaaltabel hoort
+bij precies een engineversie: een 1.0.x-server die na de migratie in de oude vorm terugschrijft,
+wordt geweigerd en nooit opnieuw ondertekend. De tabel met haar slot- en sleutelbestand staat
+naast het configuratiebestand (of in `onderhoud.ledgermap`), nooit naast de export; bij
+`openheid: beperkt` weigert de server te starten als die map de exportmap is of de map eromheen.
 
 ### Wat buiten scope valt
 
