@@ -176,10 +176,25 @@ _EVAL_CLASSIC = re.compile(r"(?i)SYS\.EVAL_CLASSIC_EXPR")
 # A string literal inside an expression (the tokenizer has already removed
 # the outer quoting and the escapes): its content is data, not form.
 _STRING_LITERAL = re.compile(r'"[^"]*"')
+# A regex or q literal inside an expression (`re/.../`, `q{...}`, ...):
+# data as well. The delimiters are the ones the CLI accepts at the start of
+# such a literal.
+_INNER_LITERAL = re.compile(
+    r'"[^"]*"'
+    r"|(?<![A-Za-z0-9_.])(?:re|q)(?:/[^/]*/|\{[^}]*\}|\([^)]*\)|\[[^\]]*\]|<[^>]*>|\|[^|]*\||#[^#]*#|~[^~]*~|![^!]*!|%[^%]*%|\^[^^]*\^|'[^']*'|@[^@]*@)"
+)
+
+
+def _strip_literals(text: str) -> str:
+    """The expression without its string, regex and q literals."""
+    return _INNER_LITERAL.sub(" ", text)
+
+
 # Characters an object name in an expression is made of.
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_#.:@-]+")
 
 FORM_CLASSIC = "classic"
+FORM_CLIENT = "client-security"
 FORM_ADVANCED = "advanced"
 FORM_UNDECIDED = "onbeslist"
 
@@ -378,6 +393,20 @@ _UNKNOWN_KIND = "policyregel van een onbekende familie"
 # Ruling R3b: the vendor check refuses every command of a removed feature, so
 # each is set 1 (blocking the transition) with its row as the source.
 _ROW_2 = "CTX296948 tabel 2 rij 2 (Q and S prefixes in Advanced expressions)"
+_ROW_HTMLINJECTION = "CTX296948 tabel 1 rij 7 (HTMLInjection)"
+_HTMLINJECTION_OBJECTS = frozenset(
+    {"htmlinjectionvariable", "htmlinjectionparameter", "prebodyinjection", "postbodyinjection"}
+)
+_ROW_SPDY = "CTX296948 tabel 1 rij 5 (SPDY)"
+_ROW_HTTP2 = "CTX296948 tabel 1 rij 6 (HTTP/2)"
+_ROW_APPFLOW_CSM = "CTX296948 tabel 1 rij 8 (AppFlow with Client-Side Measurements)"
+# Rows 5, 6 and 8 of table 1 have no known classic command form. The product
+# says so in every transition answer; their probable parameters, switched on,
+# are undecided with the row - never blocking, never green.
+NOT_EXAMINED_ROWS = "niet onderzocht: SPDY, HTTP/2-classic, AppFlow client-side measurements (tabel 1 rij 5, 6, 8)"
+CANDIDATE_PARAMETERS_NOTE = (
+    "alleen hun vermoedelijke parameters (-spdy, -http2, -clientSideMeasurements aan) tellen als onbeslist"
+)
 # `Q.` / `S.` at the start of a token (not the tail of `REQ.` / `RES.`).
 _QS_PREFIX = re.compile(r"(?<![A-Za-z0-9_.])[QS]\.[A-Z]")
 _ROW_8 = "CTX296948 tabel 2 rij 8 (Pattern function in Rewrite action)"
@@ -387,16 +416,13 @@ _ROW_11 = "CTX296948 tabel 2 rij 11 (BypassSafetyCheck parameter in rewrite acti
 _ROW_12 = "CTX296948 tabel 2 rij 12 (HTTP.REQ.BODY expression with no arguments)"
 _ROW_13 = "CTX296948 tabel 2 rij 13 (PolicyType Parameter in set cmp parameter)"
 _BODY_WITHOUT_ARGUMENT = re.compile(r"(?i)HTTP\.REQ\.BODY(?!\s*\()")
-# A built-in classic policy (`ns_cmp_content_type`, ...) never has an `add`
-# line; on a bind line of a removed family it is the only trace.
-_BUILTIN_BIND_FAMILIES = {
-    "cmp": ("cmp", "policy"),
-    "cs": ("cs", "policy"),
-    "cr": ("cr", "policy"),
-    "appfw": ("appfw", "policy"),
-    "ssl": ("ssl", "policy"),
-    "filter": ("filter", "policy"),
-}
+# The vendor's built-in CLASSIC compression policies (`ns_cmp_content_type`,
+# `ns_cmp_msapp`, `ns_cmp_mscss`, `ns_nocmp_mozilla_47`, `ns_nocmp_xml_ie`) never
+# have an `add` line; on a policy position of a bind line they are the only
+# trace. An allowlist, never "any `ns_` name": the vendor ships many other
+# `ns_` objects (`ns_default_ssl_profile_frontend`, `ns_adv_cmp_*`, ...) that
+# are no classic policy (review H-1).
+_BUILTIN_CLASSIC_CMP = re.compile(r"ns_(?:no)?cmp_")
 _BUILTIN_KLASSE = "ingebouwde classic-policy alleen op een bindregel"
 _NO_SOURCE = "geen vendorrij in deze module"
 
@@ -459,12 +485,12 @@ def _read(lines: list[str]) -> list[_Line]:
 
 def _bare_form(expression: str) -> str:
     """The form of an expression by its own text only (no named lookups)."""
-    text = _STRING_LITERAL.sub(" ", expression)
+    text = _strip_literals(expression)
     head = text.lstrip(" \t!(")
     if _EVAL_CLASSIC.search(text):
         return FORM_UNDECIDED
     if head.startswith(_CLIENT_SECURITY):
-        return FORM_CLASSIC
+        return FORM_CLIENT
     advanced = head.startswith(ADVANCED_PREFIXES) or bool(_ADVANCED_LITERAL.match(head))
     ns_tokens = [m.group(1) for m in _NS_TOKEN.finditer(text)]
     if any(rest.startswith(_NS_ADVANCED) for rest in ns_tokens):
@@ -480,7 +506,7 @@ def _bare_form(expression: str) -> str:
 
 
 def _references(expression: str, named: dict[str, str]) -> set[str]:
-    text = _STRING_LITERAL.sub(" ", expression)
+    text = _strip_literals(expression)
     return {token.lower() for token in _IDENTIFIER.findall(text)} & set(named)
 
 
@@ -495,6 +521,8 @@ def _form(expression: str, named: dict[str, str]) -> str:
     referenced = {named[name] for name in _references(expression, named)}
     if FORM_UNDECIDED in referenced:
         return FORM_UNDECIDED
+    if FORM_CLIENT in referenced:
+        return FORM_UNDECIDED if form == FORM_ADVANCED else FORM_CLIENT
     if FORM_CLASSIC in referenced:
         return FORM_UNDECIDED if form == FORM_ADVANCED else FORM_CLASSIC
     return form
@@ -597,6 +625,11 @@ def classify(lines: list[str]) -> Classification:
         else:
             form = _form(expression, named) if expression is not None else FORM_UNDECIDED
             klasse, bron = family.klasse, family.bron
+        if form == FORM_CLIENT:
+            # Review H-6: whether an advanced form with a client-security head
+            # exists is not established. Classic only where classic keeps
+            # working (table 3 row 18); elsewhere undecided, never blocking.
+            form = FORM_CLASSIC if family.verzameling == SET_DEPRECATED else FORM_UNDECIDED
         if form == FORM_ADVANCED:
             record(line, family.kind, None, klasse, bron, expression)
             continue
@@ -612,11 +645,12 @@ def classify(lines: list[str]) -> Classification:
             continue
         bound = line.lowered[3].strip('"') in bind_tokens
         if not bound and (unreadable_bind or family.rule_flag_only):
-            # Fail-closed (review M-1, M-2): an unreadable bind line may name
-            # this object, and `-rule` is a parameter of the vserver, not a
-            # bound policy - "unbound" is not proven either way.
+            # Ruling R3c (review H-2): an unreadable bind line may name this
+            # object, and `-rule` is a parameter of the vserver, not a bound
+            # policy - but the vendor refuses the readable command bound or
+            # not, so it stays removed; the uncertainty goes in the class.
             why = "binding niet vast te stellen" if unreadable_bind else "een LB-regel is geen gebonden policy"
-            record(line, family.kind, SET_UNDECIDED, f"{klasse}; {why}", bron, expression)
+            record(line, family.kind, SET_UNBOUND, f"{klasse}; {why}", bron, expression)
             continue
         record(line, family.kind, SET_BLOCKING if bound else SET_UNBOUND, klasse, bron, expression)
 
@@ -682,7 +716,12 @@ def classify(lines: list[str]) -> Classification:
         rest = _rest_form(line, lines[line.number - 1], declared)
         if rest is None:
             continue
-        finding = ClassicFinding(line.number, rest[0], SET_BLOCKING, rest[1], rest[2])
+        verzameling, klasse = rest[1], rest[2]
+        if not line.readable:
+            # Ruling R3c: a line that is itself not readable stays undecided,
+            # whatever its raw text suggests.
+            verzameling, klasse = SET_UNDECIDED, f"{klasse}; regel niet eenduidig leesbaar"
+        finding = ClassicFinding(line.number, rest[0], verzameling, klasse, rest[3])
         if line.number not in taken:
             findings.append(finding)
         elif (
@@ -695,46 +734,95 @@ def classify(lines: list[str]) -> Classification:
     return Classification(tuple(sorted(findings, key=lambda f: (f.line, f.verzameling))))
 
 
-def _rest_form(line: _Line, raw: str, declared: set[str]) -> tuple[str, str, str] | None:
-    """(kind, klasse, bron) of a CTX296948 table 2 form outside the class
-    list, or None. Read on the raw line too, so a quoted value is no hiding
-    place; the output carries only the product's own words."""
+def _value_after(line: _Line, flag: str) -> str | None:
+    for index, token in enumerate(line.lowered):
+        if token == flag and index + 1 < len(line.lowered):
+            return line.lowered[index + 1]
+    return None
+
+
+def _scan_text(line: _Line, raw: str) -> str:
+    """The text a rest form is searched in: every token without its string,
+    regex and q literals, and never the value of `-comment` (review H-4). An
+    unreadable line is searched raw: over-reporting is the safe direction."""
+    if not line.readable:
+        return raw
+    kept = [
+        _strip_literals(token)
+        for index, token in enumerate(line.tokens)
+        if not (index > 0 and line.lowered[index - 1] == "-comment")
+    ]
+    return " ".join(kept)
+
+
+def _rest_form(line: _Line, raw: str, declared: set[str]) -> tuple[str, int, str, str] | None:
+    """(kind, set, klasse, bron) of a form with its own row in CTX296948 table 1
+    or 2 outside the families, or of a probable parameter of a row without a
+    known form; None otherwise. The output carries only the product's own
+    words."""
     head = tuple(line.lowered[:3])
-    if _EVAL_CLASSIC.search(raw):
-        return "regel met SYS.EVAL_CLASSIC_EXPR", "classic expressie via SYS.EVAL_CLASSIC_EXPR", _ROW_9
+    scan = _scan_text(line, raw)
+    if _EVAL_CLASSIC.search(scan):
+        return "regel met SYS.EVAL_CLASSIC_EXPR", SET_BLOCKING, "classic expressie via SYS.EVAL_CLASSIC_EXPR", _ROW_9
+    if head[1:2] == ("filter",) and head[:1] in (("add",), ("set",), ("bind",)):
+        if head[2:3] and head[2] in _HTMLINJECTION_OBJECTS:
+            return "filter (HTMLInjection)", SET_BLOCKING, "HTMLInjection (alleen classic)", _ROW_HTMLINJECTION
+        return "filter", SET_BLOCKING, "Filter-commando (alleen classic)", _FAMILIES[("filter", "policy")].bron
     if head[1:3] == ("policy", "patclass") and head[:1] in (("add",), ("set",), ("bind",)):
-        return "policy patclass", "patclass", _ROW_10
+        return "policy patclass", SET_BLOCKING, "patclass", _ROW_10
     if head[1:3] == ("rewrite", "action") and head[:1] in (("add",), ("set",)):
         if "-pattern" in line.lowered:
-            return "rewrite action -pattern", "patroonfunctie in een rewrite-actie", _ROW_8
+            return "rewrite action -pattern", SET_BLOCKING, "patroonfunctie in een rewrite-actie", _ROW_8
         if "-bypasssafetycheck" in line.lowered:
-            return "rewrite action -bypassSafetyCheck", "bypassSafetyCheck in een rewrite-actie", _ROW_11
-    if head == ("set", "cmp", "parameter"):
-        for index, token in enumerate(line.lowered):
-            if token == "-policytype" and line.lowered[index + 1 : index + 2] == ["classic"]:
-                return "set cmp parameter -policyType", "classic policytype voor compressie", _ROW_13
+            return "rewrite action -bypassSafetyCheck", SET_BLOCKING, "bypassSafetyCheck in een rewrite-actie", _ROW_11
+    if head == ("set", "cmp", "parameter") and _value_after(line, "-policytype") == "classic":
+        return "set cmp parameter -policyType", SET_BLOCKING, "classic policytype voor compressie", _ROW_13
     if _is_policy_line(line) or (head[:1] == ("add",) and head[1:3] == _NAMED):
         expression = (
             line.tokens[4] if head[1:3] == _NAMED and len(line.tokens) > 4 else _expression(line, rule_flag_only=False)
         )
-        if expression is not None and _QS_PREFIX.search(_STRING_LITERAL.sub(" ", expression)):
-            return "regel met een Q.- of S.-voorvoegsel", "Q./S.-voorvoegsel in een advanced expressie", _ROW_2
-    if _BODY_WITHOUT_ARGUMENT.search(raw):
-        return "regel met HTTP.REQ.BODY zonder argument", "HTTP.REQ.BODY zonder lengte", _ROW_12
+        if expression is not None and _QS_PREFIX.search(_strip_literals(expression)):
+            return (
+                "regel met een Q.- of S.-voorvoegsel",
+                SET_BLOCKING,
+                "Q./S.-voorvoegsel in een advanced expressie",
+                _ROW_2,
+            )
+    if _BODY_WITHOUT_ARGUMENT.search(scan):
+        return "regel met HTTP.REQ.BODY zonder argument", SET_BLOCKING, "HTTP.REQ.BODY zonder lengte", _ROW_12
     if line.lowered[:1] == ["bind"] and len(line.lowered) >= 3:
-        family = _FAMILIES.get(_BUILTIN_BIND_FAMILIES.get(line.lowered[1], ("", "")))
-        if family is not None:
-            skip = False
-            for token in line.lowered[2:]:
-                if skip:
-                    skip = False
-                    continue
-                if token == "-gotopriorityexpression":
-                    skip = True
-                    continue
-                name = token.strip('"')
-                if name.startswith("ns_") and not name.startswith("ns_" + _NS_ADVANCED) and name not in declared:
-                    return f"bind {line.lowered[1]} (ingebouwde policy)", _BUILTIN_KLASSE, family.bron
+        positions = []
+        if line.lowered[2] == "global" and len(line.lowered) >= 4:
+            positions.append(line.lowered[3])
+        if line.lowered[2] == "policylabel" and len(line.lowered) >= 5:
+            positions.append(line.lowered[4])
+        positions.extend(
+            line.lowered[index + 1]
+            for index, token in enumerate(line.lowered[:-1])
+            if token in ("-policyname", "-policy")
+        )
+        for name in (position.strip('"') for position in positions):
+            if _BUILTIN_CLASSIC_CMP.match(name) and name not in declared:
+                return (
+                    "bindregel met een ingebouwde classic-compressiepolicy",
+                    SET_BLOCKING,
+                    _BUILTIN_KLASSE,
+                    _FAMILIES[("cmp", "policy")].bron,
+                )
+    if head[:1] in (("add",), ("set",)) and head[1:3] == ("ns", "httpprofile"):
+        spdy = _value_after(line, "-spdy")
+        if spdy is not None and spdy != "disabled":
+            return "httpProfile -spdy", SET_UNDECIDED, "SPDY aan; classic vorm niet bekend", _ROW_SPDY
+        if _value_after(line, "-http2") == "enabled":
+            return "httpProfile -http2", SET_UNDECIDED, "HTTP/2 aan; classic vorm niet bekend", _ROW_HTTP2
+    if head[:1] in (("add",), ("set",)) and head[1:3] == ("appflow", "action"):
+        if _value_after(line, "-clientsidemeasurements") == "enabled":
+            return (
+                "appflow action -clientSideMeasurements",
+                SET_UNDECIDED,
+                "client-side measurements aan; classic vorm niet bekend",
+                _ROW_APPFLOW_CSM,
+            )
     return None
 
 

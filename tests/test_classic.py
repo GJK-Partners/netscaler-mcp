@@ -705,20 +705,54 @@ def test_classic_http_req_body_with_argument_and_advanced_cmp_parameter_are_no_f
 
 
 @pytest.mark.parametrize(
-    ("bind", "row"),
+    "bind",
     [
-        ("bind cmp global ns_cmp_content_type -priority 100", 4),
-        ("bind cs vserver CS_VS -policyName ns_cs_oud -priority 100", 6),
-        ("bind cr vserver CR_VS -policyName ns_cr_oud", 5),
-        ("bind appfw global ns_appfw_oud 100", 3),
-        ("bind ssl vserver V -policyName ns_ssl_oud", 7),
-        ("bind filter global ns_filter_oud", 1),
+        "bind cmp global ns_cmp_content_type -priority 10000 -gotoPriorityExpression END -type RES_DEFAULT",
+        "bind cmp global ns_nocmp_xml_ie -priority 8700",
+        "bind cmp global ns_cmp_msapp -priority 9000",
+        "bind lb vserver LB_VS -policyName ns_cmp_mscss -priority 100",
+        "bind cmp policylabel CMP_LABEL ns_nocmp_mozilla_47 100",
     ],
 )
-def test_classic_builtin_classic_policy_only_on_a_bind_line_blocks(bind, row):
+def test_classic_builtin_classic_policy_only_on_a_bind_line_blocks(bind):
+    """Ruling R3b with review H-1/H-7: the vendor's built-in CLASSIC
+    compression policies (`ns_cmp_*`, `ns_nocmp_*`) on a policy position of a
+    bind line block, with table 2 row 4 as the source."""
     finding = classify([bind]).findings
     assert [f.verzameling for f in finding] == [SET_BLOCKING]
-    assert finding[0].bron.startswith(f"CTX296948 tabel 2 rij {row} ")
+    assert finding[0].bron.startswith("CTX296948 tabel 2 rij 4 ")
+
+
+@pytest.mark.parametrize(
+    "bind",
+    [
+        "bind ssl profile ns_default_ssl_profile_frontend -eccCurveName P_256",
+        "bind ssl profile ns_default_ssl_profile_backend -cipherName DEFAULT_BACKEND -cipherPriority 1",
+        "bind ssl vserver SSL_VS -certkeyName ns-server-certificate",
+        "bind cs vserver CS_VS -policyName ns_eigen_naam -priority 100",
+        "bind cmp global ns_adv_nocmp_xml_ie -priority 8700 -gotoPriorityExpression END -type RES_DEFAULT",
+        "bind lb vserver LB_VS ns_cmp_dienst",
+    ],
+)
+def test_classic_vendor_objects_with_an_ns_name_that_are_no_classic_policy_are_no_finding(bind):
+    """Review H-1: the default SSL profiles, the default certificate, a
+    policy name outside the allowlist, an advanced built-in and a service
+    (no policy position) are no classic policy."""
+    assert classify([bind]).findings == ()
+
+
+def test_classic_the_transition_never_blocks_an_existing_export_fixture():
+    """Review H-1: the export fixtures are 14.1 configurations without
+    classic; the transition check must not say `blokkade` on any of them,
+    and neither configuration holds a removed feature."""
+    for export_dir in export_fixtures():
+        export = load_export(export_dir)
+        check = _check_2_classic_transition(export)
+        assert check.word != BLOCKER, (export_dir.name, check.reason)
+        for reader in (export.running_config_lines, export.saved_config_lines):
+            lines, gap = reader()
+            if gap is None:
+                assert classify(lines).removed == (), export_dir.name
 
 
 def test_classic_advanced_builtins_goto_expressions_and_declared_names_on_a_bind_line_are_no_finding():
@@ -731,22 +765,32 @@ def test_classic_advanced_builtins_goto_expressions_and_declared_names_on_a_bind
     assert _sets(lines) == {}
 
 
-def test_classic_an_unreadable_bind_line_makes_unbound_not_proven():
-    """Review M-1: an unreadable bind line may name the policy; "unbound" is
-    then not proven, so the line is undecided, never set 2."""
+def test_classic_an_unreadable_bind_line_keeps_a_removed_feature_removed():
+    """Ruling R3c (review H-2): an unreadable bind line leaves the binding
+    open, but a readable command of a removed feature is refused by the
+    vendor bound or not: set 2 (blocking the transition), the uncertainty in
+    the class."""
     lines = [
         'add filter policy "F P" -rule ns_true -reqAction FA',
         'bind lb vserver L -policyName "F P -priority 1',
     ]
-    assert _sets(lines) == {1: SET_UNDECIDED}
+    findings = classify(lines).findings
+    assert [(f.line, f.verzameling) for f in findings] == [(1, SET_UNBOUND)]
+    assert "binding niet vast te stellen" in findings[0].klasse
+    assert classify(lines).removed == (1,)
 
 
-def test_classic_a_classic_lb_rule_without_a_bind_line_is_undecided():
-    """Review M-2: `-rule` is a parameter of the vserver, not a bound
-    policy; a missing bind line on the vserver proves nothing about it."""
-    assert _sets(['add lb vserver LBV HTTP 192.0.2.43 80 -persistenceType RULE -rule "REQ.HTTP.HEADER Host == x"']) == {
-        1: SET_UNDECIDED
-    }
+def test_classic_a_classic_lb_rule_without_a_bind_line_is_removed():
+    """Ruling R3c (review H-2): `-rule` is a parameter of the vserver, not a
+    bound policy; the vendor refuses the classic rule either way."""
+    findings = classify(
+        ['add lb vserver LBV HTTP 192.0.2.43 80 -persistenceType RULE -rule "REQ.HTTP.HEADER Host == x"']
+    ).findings
+    assert [(f.line, f.verzameling) for f in findings] == [(1, SET_UNBOUND)]
+
+
+def test_classic_an_unreadable_policy_line_itself_stays_undecided():
+    assert _sets(['add filter policy "F P -rule ns_true']) == {1: SET_UNDECIDED}
 
 
 @pytest.mark.parametrize(
@@ -758,6 +802,14 @@ def test_classic_client_security_expression_is_classic(prefix):
     In a Gateway session policy that is set 3, never advanced, never blocking."""
     findings = classify([f'add vpn sessionPolicy VE "{prefix}" VA']).findings
     assert [f.verzameling for f in findings] == [SET_DEPRECATED]
+
+
+def test_classic_client_security_head_in_a_removed_family_is_undecided():
+    """Review H-6: whether an advanced form with this head exists is not
+    established; in a removed family the strictest reading is undecided -
+    never blocking, never open."""
+    lines = ['add cs policy CSE -rule "CLIENT.APPLICATION.PROCESS(x) EXISTS"', "bind cs vserver V -policyName CSE"]
+    assert _sets(lines) == {1: SET_UNDECIDED}
 
 
 def test_classic_client_ip_is_still_advanced():
@@ -785,3 +837,87 @@ def test_classic_removed_accessor_is_sets_1_and_2():
         _lines("verzameling-1-filter-gebonden.conf") + _lines("verzameling-2-cs-url-ongebonden.conf")
     )
     assert classification.removed == (1, 2, 4)
+
+
+# ---------------------------------------------------------------------------
+# Herkeuring 1: HTMLInjection, the rows without a known form, literals.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("line", "bron"),
+    [
+        ("add filter htmlinjectionvariable HV1 -value x", "CTX296948 tabel 1 rij 7 "),
+        ("set filter htmlinjectionparameter -rate 1", "CTX296948 tabel 1 rij 7 "),
+        ("set filter prebodyInjection pre.html", "CTX296948 tabel 1 rij 7 "),
+        ("set filter postbodyInjection post.html", "CTX296948 tabel 1 rij 7 "),
+        ("bind filter global FP_OUD", "CTX296948 tabel 2 rij 1 "),
+    ],
+)
+def test_classic_filter_and_html_injection_commands_block(line, bron):
+    """Review H-3: HTMLInjection (table 1 row 7) and every other command of
+    the classic Filter feature (table 2 row 1) block the transition."""
+    findings = classify([line]).findings
+    assert [f.verzameling for f in findings] == [SET_BLOCKING]
+    assert findings[0].bron.startswith(bron)
+
+
+@pytest.mark.parametrize(
+    ("line", "row"),
+    [
+        ("add ns httpProfile HP_SPDY -spdy ENABLED", 5),
+        ("set ns httpProfile nshttp_default_profile -http2 ENABLED", 6),
+        ("add appflow action AF_ACT -collectors COL -clientSideMeasurements ENABLED", 8),
+    ],
+)
+def test_classic_candidate_parameters_of_rows_without_a_known_form_are_undecided(line, row):
+    """Review H-3/H-5: SPDY, HTTP/2 and AppFlow client-side measurements have a
+    row but no known classic command form; their probable parameters are
+    undecided with the row, never blocking, never green."""
+    findings = classify([line]).findings
+    assert [f.verzameling for f in findings] == [SET_UNDECIDED]
+    assert findings[0].bron.startswith(f"CTX296948 tabel 1 rij {row} ")
+
+
+def test_classic_candidate_parameters_switched_off_are_no_finding():
+    lines = [
+        "add ns httpProfile HP_UIT -spdy DISABLED -http2 DISABLED",
+        "add appflow action AF_UIT -collectors COL -clientSideMeasurements DISABLED",
+    ]
+    assert _sets(lines) == {}
+
+
+def test_classic_transition_names_the_rows_it_does_not_examine(tmp_path):
+    """Review H-3/H-5: the evidence always says which rows lie outside the
+    search, also next to `geen blokkade`."""
+    from nsmcp.classic import NOT_EXAMINED_ROWS
+
+    assert NOT_EXAMINED_ROWS == (
+        "niet onderzocht: SPDY, HTTP/2-classic, AppFlow client-side measurements (tabel 1 rij 5, 6, 8)"
+    )
+    check = _check_2_classic_transition(_export_with_running(tmp_path, []))
+    assert check.word == NO_BLOCKER
+    assert NOT_EXAMINED_ROWS in check.evidence
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ['add cs policy CSR -rule "HTTP.REQ.URL.REGEX_MATCH(re/^S.Admin/)"', "bind cs vserver V -policyName CSR"],
+        ['add cs policy CSR -rule "HTTP.REQ.URL.REGEX_MATCH(re#ns_true#)"', "bind cs vserver V -policyName CSR"],
+        ['add responder action RA respondwith "\\"use SYS.EVAL_CLASSIC_EXPR no more\\""'],
+        ['add responder action RB respondwith "\\"see HTTP.REQ.BODY.x\\""'],
+        ['add rewrite action RC replace HTTP.REQ.URL "\\"/\\"" -comment "SYS.EVAL_CLASSIC_EXPR and Q.URL"'],
+        ['add responder policy RP "HTTP.REQ.URL.CONTAINS(q/S.Admin/)" NOOP'],
+    ],
+)
+def test_classic_literals_and_comments_are_no_form(lines):
+    """Review H-4: inside a string, regex or q literal and in a comment the
+    text is data, never a form."""
+    assert _sets(lines) == {}
+
+
+def test_classic_an_unreadable_line_with_a_rest_form_stays_undecided():
+    """Ruling R3c: a line that is itself not readable stays undecided, also
+    when its raw text carries a form with a vendor row."""
+    assert _sets(['add rewrite action RA replace HTTP.REQ.URL "SYS.EVAL_CLASSIC_EXPR(']) == {1: SET_UNDECIDED}

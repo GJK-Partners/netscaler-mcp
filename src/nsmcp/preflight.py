@@ -53,7 +53,9 @@ from datetime import date, datetime
 
 from nsmcp.answer import Answer, Certainty, Finding
 from nsmcp.classic import (
+    CANDIDATE_PARAMETERS_NOTE,
     MARKERS_SEARCHED,
+    NOT_EXAMINED_ROWS,
     SET_BLOCKING,
     SET_DEPRECATED,
     SET_LABELS,
@@ -520,6 +522,7 @@ def _check_2_classic_transition(export) -> Check:
     ]
     evidence = (
         "; ".join(_source_evidence(*source) for source in classified)
+        + f"; {NOT_EXAMINED_ROWS}; {CANDIDATE_PARAMETERS_NOTE}"
         + f"; van een regel wordt nooit de tekst herhaald; {TRANSITION_NOT_A_VENDOR_PRECHECK}"
     )
     readable = [c for _, _, _, gap, c in classified if gap is None]
