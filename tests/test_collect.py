@@ -1847,14 +1847,17 @@ def test_failed_lock_write_and_failed_cleanup_do_not_lose_the_original_error(tmp
 
     _lock_write_fails(monkeypatch, OSError(28, "geen ruimte meer op het apparaat"))
 
-    original_unlink = Path.unlink
+    # 1.1 B: the lock is deleted by its handle (`localpath.remove_local`).
+    from nsmcp import localpath
 
-    def broken_unlink(self, *a, **k):
-        if self.name == "export.lock":
+    original_remove = localpath.remove_local
+
+    def broken_unlink(path, *a, **k):
+        if Path(path).name == "export.lock":
             raise OSError(13, "toegang geweigerd bij opruimen")
-        return original_unlink(self, *a, **k)
+        return original_remove(path, *a, **k)
 
-    monkeypatch.setattr(Path, "unlink", broken_unlink)
+    monkeypatch.setattr(localpath, "remove_local", broken_unlink)
 
     with pytest.raises(CollectError) as err:
         collect(chain_target(), export_dir, script, run=lambda *a, **k: (0, ""))
@@ -3168,12 +3171,13 @@ def test_a_live_read_without_powershell_says_it_did_not_start(tmp_path, script, 
 
 
 def test_a_live_read_without_a_temporary_directory_says_it_did_not_start(tmp_path, script, monkeypatch):
-    import tempfile
 
     def refuse(*args, **kwargs):
         raise PermissionError(13, "geweigerd", str(tmp_path / "tijdelijk"))
 
-    monkeypatch.setattr(tempfile, "mkdtemp", refuse)
+    from nsmcp import localpath
+
+    monkeypatch.setattr(localpath, "mkdtemp_local", refuse)  # 1.1 B: the work map on the walk
     row, gap, ran = read_single_resource(chain_target(), "stat/system", script, timeout_s=60, run=lambda a, t: (0, ""))
     assert row is None and ran is False
     assert gap.reason.startswith("het verzamelscript is niet gestart: "), gap.reason

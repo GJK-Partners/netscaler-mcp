@@ -268,13 +268,13 @@ def test_prune_removes_oldest_first_and_logs_each_success(tmp_path, monkeypatch)
 
     paths = saved_scans(tmp_path)
     removed = []
-    original = retention.shutil.rmtree
+    original = retention._remove_tree  # 1.1 B: the tree is deleted on the walk
 
     def remove(path):
         removed.append(path)
         original(path)
 
-    monkeypatch.setattr(retention.shutil, "rmtree", remove)
+    monkeypatch.setattr(retention, "_remove_tree", remove)
     monkeypatch.setattr(retention, "free_mb", lambda _: 5000)
     lines = retention.prune(tmp_path / "export", Retention(enabled=True, count=2))
     assert removed == paths[:2]
@@ -410,7 +410,7 @@ def test_prune_revalidates_candidate_immediately_before_delete(tmp_path, monkeyp
     from nsmcp import retention
 
     paths = saved_scans(tmp_path, 3)
-    original_remove = retention.shutil.rmtree
+    original_remove = retention._remove_tree  # 1.1 B: the tree is deleted on the walk
 
     def remove(path):
         original_remove(path)
@@ -428,7 +428,7 @@ def test_prune_revalidates_candidate_immediately_before_delete(tmp_path, monkeyp
         else:
             reparse_at(monkeypatch, paths[1])
 
-    monkeypatch.setattr(retention.shutil, "rmtree", remove)
+    monkeypatch.setattr(retention, "_remove_tree", remove)
     monkeypatch.setattr(retention, "free_mb", lambda _: 5000)
     lines = retention.prune(tmp_path / "export", Retention(enabled=True, count=1))
     assert paths[1].exists() and paths[2].exists()
@@ -443,7 +443,7 @@ def test_prune_delete_failure_never_claims_success_or_echoes_error(tmp_path, mon
     def fail(path):
         raise PermissionError("PRIVATE_TARGET\nPRIVATE_PATH")
 
-    monkeypatch.setattr(retention.shutil, "rmtree", fail)
+    monkeypatch.setattr(retention, "_remove_tree", fail)
     monkeypatch.setattr(retention, "free_mb", lambda _: 5000)
     lines = retention.prune(tmp_path / "export", Retention(enabled=True, count=1))
     assert all(p.exists() for p in paths)
@@ -469,7 +469,8 @@ def test_free_mb_exact_nonnegative_bytes_only(tmp_path, monkeypatch, value, expe
 
     from nsmcp import retention
 
-    monkeypatch.setattr(retention.shutil, "disk_usage", lambda path: SimpleNamespace(free=value))
+    # 1.1 B: the free space is asked on the held handle (`localpath.free_bytes_local`).
+    monkeypatch.setattr(retention.localpath, "free_bytes_local", lambda path, **kw: SimpleNamespace(free=value).free)
     assert retention.free_mb(tmp_path / "export") == expected
 
 
@@ -479,7 +480,7 @@ def test_free_mb_unmeasurable_returns_none(tmp_path, monkeypatch):
     def fail(path):
         raise OSError("PRIVATE_PATH")
 
-    monkeypatch.setattr(retention.shutil, "disk_usage", fail)
+    monkeypatch.setattr(retention.localpath, "free_bytes_local", lambda path, **kw: fail(path))
     assert retention.free_mb(tmp_path / "export") is None
 
 

@@ -19,7 +19,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -540,6 +539,23 @@ def _beside(path: Path, export_dir: Path) -> bool:
         return True
 
 
+def _text_beside(path: Path, export_dir: Path) -> str:
+    """The text of a name beside the export map, composed from the text of
+    the map around the export (the root of every operation there)."""
+    return localpath.under(localpath.absolute_text(export_dir.parent), path.name)
+
+
+def _remove_beside(path: Path, export_dir: Path) -> None:
+    """Best effort (as `shutil.rmtree(..., ignore_errors=True)` was): the
+    directory beside the export map and everything in it, deleted on the
+    walk from the map around the export (`localpath.rmtree_local`) - a link
+    inside is deleted as itself, never followed."""
+    try:
+        localpath.rmtree_local(_text_beside(path, export_dir), root=localpath.absolute_text(export_dir.parent))
+    except OSError:
+        pass
+
+
 def _preserve_as_failed(work_dir: Path, export_dir: Path) -> Path | None:
     """Sets a work directory that failed validation aside in a fixed place,
     instead of throwing it away.
@@ -553,11 +569,11 @@ def _preserve_as_failed(work_dir: Path, export_dir: Path) -> Path | None:
     """
     failed = export_dir.parent / f"{export_dir.name}.mislukt"
     if _beside(failed, export_dir):
-        shutil.rmtree(failed, ignore_errors=True)
+        _remove_beside(failed, export_dir)
     try:
         _rename_beside(work_dir, failed.name, export_dir)
     except OSError:
-        shutil.rmtree(work_dir, ignore_errors=True)
+        _remove_beside(work_dir, export_dir)
         return None
     return failed
 
@@ -593,7 +609,7 @@ def _swap(work_dir: Path, export_dir: Path, retention: Retention | None = None) 
     previous = export_dir.parent / f"{export_dir.name}.vorig"
     try:
         if _beside(previous, export_dir):
-            shutil.rmtree(previous)
+            localpath.rmtree_local(_text_beside(previous, export_dir), root=localpath.absolute_text(export_dir.parent))
         if _beside(export_dir, export_dir):
             _rename_beside(export_dir, previous.name, export_dir)
         _rename_beside(work_dir, export_dir.name, export_dir)
@@ -851,7 +867,7 @@ def _acquire_lock(export_dir: Path, *, recovered_this_call: bool = False) -> Pat
         # replace the intended, informative CollectError below with a bare
         # OSError that loses the original write error without trace.
         try:
-            lock.unlink(missing_ok=True)
+            _remove_lock(lock)
         except OSError:
             pass
         # the bare NAME, never the path; never `{exc}`.
@@ -867,9 +883,16 @@ def _release_lock(lock: Path) -> None:
     OSError from the finally.
     """
     try:
-        lock.unlink(missing_ok=True)
+        _remove_lock(lock)
     except OSError:
         pass
+
+
+def _remove_lock(lock: Path) -> None:
+    """The scan lock deleted by its handle from the map around the export
+    (`localpath.remove_local`, 1.1 B), absent is fine."""
+    root = localpath.absolute_text(lock.parent)
+    localpath.remove_local(localpath.under(root, lock.name), root=root, missing_ok=True)
 
 
 def _clean_stale_work_dirs(export_dir: Path) -> None:
@@ -917,7 +940,7 @@ def _clean_stale_work_dirs(export_dir: Path) -> None:
                 f"kon niet vaststellen of {candidate.name} een map is tijdens het opruimen ({_os_error_kind(exc)})"
             ) from exc
         if is_directory and candidate.name.startswith(prefix):
-            shutil.rmtree(candidate, ignore_errors=True)
+            _remove_beside(candidate, export_dir)
 
 
 def collect(
@@ -1022,7 +1045,10 @@ def collect(
         # attempt". The same parent (export_dir.parent) additionally keeps
         # the later rename to export_dir atomic (same filesystem).
         try:
-            work_dir = Path(tempfile.mkdtemp(prefix=f"{export_dir.name}.nieuw-", dir=export_dir.parent))
+            # 1.1 B: exclusively created relative to the held map around the
+            # export (`localpath.mkdtemp_local`), never by name.
+            root = localpath.absolute_text(export_dir.parent)
+            work_dir = Path(localpath.mkdtemp_local(root, f"{export_dir.name}.nieuw-", root=root))
         except OSError as exc:
             # the bare NAME, never the path; never
             # `{exc}`.
@@ -1184,7 +1210,7 @@ def collect(
             return export_dir
         finally:
             if not cleaned_up and localpath.exists_local_or_none(work_dir) is not None:
-                shutil.rmtree(work_dir, ignore_errors=True)
+                _remove_beside(work_dir, export_dir)
     finally:
         _release_lock(lock)
 
@@ -1814,6 +1840,13 @@ def phase_summary(reports: list[PhaseReport]) -> str:
     return head + "\n" + "\n".join(lines)
 
 
+def _temporary_root() -> str:
+    """The process's temporary map (`tempfile.gettempdir`, the one place in
+    this module that names it), as the root of the live measurement's work
+    map."""
+    return localpath.absolute_text(tempfile.gettempdir())
+
+
 def read_single_resource(
     target: Target, resource: str, script_path: Path, timeout_s: int, run=None
 ) -> tuple[dict | None, ReadGap | None, bool]:
@@ -1863,7 +1896,9 @@ def read_single_resource(
             return _run_powershell(arguments, seconds)
 
     try:
-        work_dir = Path(tempfile.mkdtemp(prefix="nsmcp-live-"))
+        # 1.1 B: exclusively created relative to the held temporary map.
+        temporary = _temporary_root()
+        work_dir = Path(localpath.mkdtemp_local(temporary, "nsmcp-live-", root=temporary))
     except OSError as exc:
         # The kind, never `{exc}`: that names the local temporary directory.
         return (
@@ -1937,6 +1972,11 @@ def read_single_resource(
             )
         return row, None, True
     finally:
-        # Nothing of this run survives the call: the temporary directory goes,
-        # and the export directory was never touched.
-        shutil.rmtree(work_dir, ignore_errors=True)
+        # Nothing of this run survives the call: the temporary directory goes
+        # (deleted on the walk from the temporary map), and the export
+        # directory was never touched.
+        try:
+            temporary = _temporary_root()
+            localpath.rmtree_local(localpath.under(temporary, work_dir.name), root=temporary)
+        except OSError:
+            pass

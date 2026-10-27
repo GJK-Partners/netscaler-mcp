@@ -213,3 +213,35 @@ def test_the_ledger_path_of_a_run_is_text_only(share_link):
     assert native.opens == [], "een tekstbewerking opent niets"
     with pytest.raises(ValueError):
         ledger_path_for(link / "ledger", "..")
+
+
+# ---------------------------------------------------------------------------
+# Herstelronde 2 (H1-M-1): the scan route - free space, a new work map, the
+# removal of a tree and of the scan lock - without network contact.
+# ---------------------------------------------------------------------------
+
+
+def test_the_free_space_of_the_map_around_the_export(share_link):
+    from nsmcp import retention
+
+    link, native = share_link
+    assert _no_contact(native, lambda: retention.free_mb(link / "export")) == ("returned", None)
+
+
+def test_a_new_work_map_beside_the_export(share_link):
+    link, native = share_link
+    kind, value = _no_contact(native, lambda: localpath.mkdtemp_local(link, "export.nieuw-", root=None))
+    assert kind == "raised" and isinstance(value, localpath.PathRefused) and value.soort == "netwerkpad"
+
+
+def test_removing_a_tree_and_the_scan_lock(share_link):
+    from nsmcp import collect, retention
+
+    link, native = share_link
+    kind, value = _no_contact(native, lambda: retention._remove_tree(link / "export.vorig"))
+    assert kind == "raised" and isinstance(value, localpath.PathRefused)
+    assert _no_contact(native, lambda: collect._release_lock(link / "export.lock")) == ("returned", None)
+    assert _no_contact(native, lambda: collect._remove_beside(link / "export.mislukt", link / "export")) == (
+        "returned",
+        None,
+    )

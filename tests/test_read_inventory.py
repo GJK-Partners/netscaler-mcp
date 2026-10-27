@@ -107,12 +107,33 @@ METADATA_EXCEPTIONS: dict[tuple[str, str, str], tuple[int, str]] = {
     ("start.py", "build_server_from_config", "fixture_dir.is_dir"): (1, _START_CHECK),
     ("start.py", "build_server_from_config", "export_dir.exists"): (1, _START_CHECK),
     ("start.py", "build_server_from_config", "export_dir.is_dir"): (2, _START_CHECK),
+    # Herstelronde 2: `tempfile`, `shutil`, `unlink` and `rmdir` count too.
+    ("collect.py", "_temporary_root", "tempfile.gettempdir"): (
+        1,
+        "the process's own temporary map for the live measurement (not the scan route): `gettempdir` names it from"
+        " the environment and may probe its candidates by name once per process; the work map in it is created"
+        " and deleted on the walk (`mkdtemp_local`, `rmtree_local`) - part 3b",
+    ),
 }
 
 _ANY_BASE = frozenset({"open", "read_text", "read_bytes", "write_text", "write_bytes", "fdopen", "rename"})
 # Metadata and listings by name (herstelronde 1): any base.
 _METADATA = frozenset(
-    {"exists", "is_file", "is_dir", "is_symlink", "glob", "rglob", "iterdir", "resolve", "stat", "lstat", "mkdir"}
+    {
+        "exists",
+        "is_file",
+        "is_dir",
+        "is_symlink",
+        "glob",
+        "rglob",
+        "iterdir",
+        "resolve",
+        "stat",
+        "lstat",
+        "mkdir",
+        "unlink",
+        "rmdir",
+    }
 )
 _OS = frozenset(
     {
@@ -128,6 +149,10 @@ _OS = frozenset(
         "mkdir",
         "makedirs",
         "walk",
+        "remove",
+        "unlink",
+        "rmdir",
+        "removedirs",
     }
 )
 # The `os.path` functions that ask the file system (the others are text only:
@@ -148,7 +173,7 @@ _OS_PATH = frozenset(
         "samefile",
     }
 )
-_SHUTIL = re.compile(r"copy.*|move")
+_SHUTIL = re.compile(r".+")  # herstelronde 2: every shutil function asks the file system by name
 
 
 def _flagged(call: ast.Call, imported: dict[str, tuple[str, str]]) -> str | None:
@@ -162,6 +187,8 @@ def _flagged(call: ast.Call, imported: dict[str, tuple[str, str]]) -> str | None
             return f"{origin}.{name}"
         if origin == "shutil" and _SHUTIL.fullmatch(name):
             return f"shutil.{name}"
+        if origin == "tempfile":
+            return f"tempfile.{name}"
         if origin == "json" and name == "load":
             return "json.load"
         if origin == "os.path" and name in _OS_PATH:
@@ -178,6 +205,8 @@ def _flagged(call: ast.Call, imported: dict[str, tuple[str, str]]) -> str | None
         return f"os.path.{attribute}"
     if module == "shutil" and _SHUTIL.fullmatch(attribute):
         return f"shutil.{attribute}"
+    if module == "tempfile":
+        return f"tempfile.{attribute}"
     if module == "json" and attribute == "load":
         return "json.load"
     if attribute in _ANY_BASE or attribute in _METADATA:
@@ -192,13 +221,13 @@ def scan_python(source: str) -> list[tuple[str, str, int]]:
     tree = ast.parse(source)
     imported: dict[str, tuple[str, str]] = {}
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module in ("os", "io", "shutil", "json", "os.path"):
+        if isinstance(node, ast.ImportFrom) and node.module in ("os", "io", "shutil", "json", "os.path", "tempfile"):
             for alias in node.names:
                 imported[alias.asname or alias.name] = (node.module, alias.name)
         if isinstance(node, ast.Import):
             # `import os as x` (the red review: the first scanner missed that form)
             for alias in node.names:
-                if alias.name in ("os", "io", "shutil", "json", "os.path") and alias.asname:
+                if alias.name in ("os", "io", "shutil", "json", "os.path", "tempfile") and alias.asname:
                     imported[alias.asname] = (alias.name, alias.name)
     found: list[tuple[str, str, int]] = []
     stack: list[str] = []
@@ -382,9 +411,17 @@ def test_the_inventory_counts_the_reads_the_spec_names():
         "    besturing.open(p, 0)\n"
         "    os.path.join(d, 'x')\n"
         "    os.path.normcase(p)\n"
+        "    shutil.rmtree(d)\n"
+        "    shutil.disk_usage(d)\n"
+        "    tempfile.mkdtemp(dir=d)\n"
+        "    p.unlink(missing_ok=True)\n"
+        "    d.rmdir()\n"
+        "    besturing.remove(p)\n"
     )
-    seen = [call for _function, call, _line in scan_python(metadata)]
-    assert len(seen) == 15, seen
+    seen = [call for _function, call, _line in scan_python("import shutil, tempfile\n" + metadata)]
+    assert len(seen) == 21, seen
+    for call in ("shutil.rmtree", "shutil.disk_usage", "tempfile.mkdtemp", "p.unlink", "d.rmdir", "os.remove"):
+        assert call in seen, (call, seen)
     assert "os.listdir" in seen and "os.open" in seen and "os.path.exists" in seen and "os.path.isdir" in seen
     assert not any("join" in call or "normcase" in call for call in seen)
     assert "s.replace" not in calls and "moment.replace" not in calls and "json.loads" not in calls

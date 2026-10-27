@@ -12,7 +12,6 @@ import hashlib
 import json
 import math
 import re
-import shutil
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -203,7 +202,7 @@ def _discard_previous(previous: Path, export_dir: Path) -> None:
     if not _plain_path(previous, directory=True):
         return
     try:
-        shutil.rmtree(previous)
+        _remove_tree(previous)
     except OSError:
         _emit("opruimen van .vorig is niet gelukt; de nieuwe export blijft geldig")
 
@@ -233,6 +232,14 @@ def keep(previous: Path, export_dir: Path, policy: Retention) -> Path | None:
         _emit("vorige export kon niet worden bewaard; de nieuwe export blijft geldig")
         _discard_previous(previous, export_dir)
         return None
+
+
+def _remove_tree(path: Path) -> None:
+    """A kept export or the recovery slot deleted on the volume-root walk
+    (`localpath.rmtree_local`): every object opened as itself and deleted by
+    its handle, a link inside deleted as itself, never followed."""
+    text = localpath.absolute_text(path)
+    localpath.rmtree_local(text, root=_volume_root(text))
 
 
 def _rename_beside(path: Path, new_name: str) -> None:
@@ -289,7 +296,10 @@ def free_mb(path: Path) -> int | None:
     authorize deleting history via a large sentinel or a boolean-as-integer.
     """
     try:
-        free = shutil.disk_usage(path.parent).free
+        # 1.1 B: asked on the held handle of the map around the export
+        # (`localpath.free_bytes_local`), never `disk_usage` on a name.
+        text = localpath.absolute_text(path.parent)
+        free = localpath.free_bytes_local(text, root=_volume_root(text))
         return free // (1024 * 1024) if type(free) is int and free >= 0 else None
     except (OSError, ValueError, TypeError, AttributeError, OverflowError):
         return None
@@ -354,7 +364,7 @@ def prune(export_dir: Path, policy: Retention) -> tuple[str, ...]:
             lines.append("bewaarbeleid: bewaarde export niet opnieuw bevestigd; opruimen gestopt")
             break
         try:
-            shutil.rmtree(candidate)
+            _remove_tree(candidate)
         except OSError:
             lines.append("bewaarbeleid: verwijderen niet gelukt; opruimen gestopt")
             break

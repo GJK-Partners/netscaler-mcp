@@ -383,3 +383,94 @@ def test_an_existing_leaf_that_cannot_be_opened_as_itself_is_unreadable_not_alre
         localpath.create_local(str(root / "slot"), b"2", root=str(root))
     assert refused.value.soort == "onleesbaar"
     assert (root / "slot").read_bytes() == b"1"
+
+
+# ---------------------------------------------------------------------------
+# Herstelronde 2 (H1-M-1): deleting, a new work map and the free space on the
+# walk.
+# ---------------------------------------------------------------------------
+
+
+@windows_only
+def test_rmtree_local_deletes_a_tree_and_a_link_inside_as_itself_never_its_target(tmp_path, seam):
+    root = tmp_path / "wortel"
+    tree = root / "boom"
+    (tree / "a" / "b").mkdir(parents=True)
+    (tree / "x.txt").write_text("x", encoding="ascii")
+    (tree / "a" / "b" / "y.txt").write_text("y", encoding="ascii")
+    outside = tmp_path / "buiten"
+    outside.mkdir()
+    (outside / "behouden.txt").write_text("blijft", encoding="ascii")
+    _junction(tree / "a" / "link", outside)
+
+    localpath.rmtree_local(str(tree), root=str(root))
+
+    assert not tree.exists()
+    assert (outside / "behouden.txt").read_text(encoding="ascii") == "blijft", "het doel van de koppeling bleef"
+    assert seam.calls["NtSetInformationFile"] >= 6
+    deletes = [record for record in seam.opens if record["access"] == localpath._DELETE_OPEN]
+    assert deletes and all(record["parent"] is not None for record in deletes), "elk object relatief geopend"
+
+
+@windows_only
+def test_rmtree_local_refuses_a_link_on_the_way_inside_the_root_and_deletes_nothing(tmp_path, seam):
+    root = tmp_path / "wortel"
+    root.mkdir()
+    outside = tmp_path / "buiten"
+    (outside / "boom").mkdir(parents=True)
+    _junction(root / "via", outside)
+    with pytest.raises(PathRefused) as refused:
+        localpath.rmtree_local(str(root / "via" / "boom"), root=str(root))
+    assert refused.value.soort == "koppeling"
+    assert (outside / "boom").is_dir()
+    assert seam.calls["NtSetInformationFile"] == 0
+
+
+@windows_only
+def test_remove_local_deletes_a_file_by_its_handle_and_refuses_a_directory(tmp_path, seam):
+    root = tmp_path / "wortel"
+    (root / "map").mkdir(parents=True)
+    (root / "slot").write_bytes(b"1")
+    localpath.remove_local(str(root / "slot"), root=str(root))
+    assert not (root / "slot").exists()
+    localpath.remove_local(str(root / "slot"), root=str(root), missing_ok=True)
+    with pytest.raises(FileNotFoundError):
+        localpath.remove_local(str(root / "slot"), root=str(root))
+    with pytest.raises(PathRefused) as refused:
+        localpath.remove_local(str(root / "map"), root=str(root))
+    assert refused.value.soort == "geen_gewoon_bestand" and (root / "map").is_dir()
+
+
+@windows_only
+def test_mkdtemp_local_creates_a_new_map_exclusively_relative_to_the_held_parent(tmp_path, seam):
+    root = tmp_path / "wortel"
+    root.mkdir()
+    first = localpath.mkdtemp_local(str(root), "export.nieuw-", root=str(root))
+    second = localpath.mkdtemp_local(str(root), "export.nieuw-", root=str(root))
+    assert first != second and Path(first).is_dir() and Path(second).is_dir()
+    assert Path(first).parent == root and Path(first).name.startswith("export.nieuw-")
+    creates = [record for record in seam.opens if record["disposition"] == localpath.FILE_CREATE]
+    assert len(creates) == 2 and all(record["parent"] is not None for record in creates)
+
+
+@windows_only
+def test_free_bytes_local_is_what_the_volume_reports_without_naming_a_path(tmp_path, seam):
+    import shutil
+
+    free = localpath.free_bytes_local(str(tmp_path))
+    reported = shutil.disk_usage(tmp_path).free
+    assert abs(free - reported) < 64 * 1024 * 1024, (free, reported)
+    assert seam.calls["NtQueryVolumeInformationFile"] >= 2
+
+
+def test_the_delete_and_temp_routes_refuse_off_windows_before_anything_opens(tmp_path, monkeypatch):
+    native = localpath._PosixNative(record=True)
+    monkeypatch.setattr(localpath, "_native", native)
+    for call in (
+        lambda: localpath.rmtree_local(str(tmp_path / "x"), root=str(tmp_path)),
+        lambda: localpath.remove_local(str(tmp_path / "x"), root=str(tmp_path)),
+        lambda: localpath.mkdtemp_local(str(tmp_path), "w-", root=str(tmp_path)),
+    ):
+        with pytest.raises(NotImplementedError):
+            call()
+    assert native.opens == [] and native.calls == {}

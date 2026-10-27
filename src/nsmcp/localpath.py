@@ -405,6 +405,7 @@ FileDispositionInformation = 13
 FileAttributeTagInformation = 35
 FileNamesInformation = 12
 FileFsDeviceInformation = 4
+FileFsFullSizeInformation = 7
 
 # A directory on the way is held with the traverse right only: a relative open
 # needs no access on the parent handle, and a directory that may be traversed
@@ -487,6 +488,17 @@ class _Native:
         self._TAG = FILE_ATTRIBUTE_TAG_INFORMATION
         self._STD = FILE_STANDARD_INFORMATION
         self._FSDEV = FILE_FS_DEVICE_INFORMATION
+
+        class FILE_FS_FULL_SIZE_INFORMATION(ctypes.Structure):
+            _fields_ = [
+                ("TotalAllocationUnits", ctypes.c_longlong),
+                ("CallerAvailableAllocationUnits", ctypes.c_longlong),
+                ("ActualAvailableAllocationUnits", ctypes.c_longlong),
+                ("SectorsPerAllocationUnit", wt.ULONG),
+                ("BytesPerSector", wt.ULONG),
+            ]
+
+        self._FSFULL = FILE_FS_FULL_SIZE_INFORMATION
 
         ntdll = ctypes.WinDLL("ntdll")
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -676,6 +688,23 @@ class _Native:
         if status != STATUS_SUCCESS:
             return status, b""
         return status, buffer.raw[: iosb.Information]
+
+    def query_free_bytes(self, handle: int) -> tuple[int, int]:
+        """`NtQueryVolumeInformationFile(FileFsFullSizeInformation)` on a held
+        handle: (status, the bytes available to this caller) - what
+        `GetDiskFreeSpaceExW` reports, without naming a path."""
+        self.calls["NtQueryVolumeInformationFile"] += 1
+        info = self._FSFULL()
+        iosb = self._IOSB()
+        ctypes = self._ct
+        status = (
+            self._ntdll.NtQueryVolumeInformationFile(
+                handle, ctypes.byref(iosb), ctypes.byref(info), ctypes.sizeof(info), FileFsFullSizeInformation
+            )
+            & 0xFFFFFFFF
+        )
+        free = int(info.CallerAvailableAllocationUnits) * int(info.SectorsPerAllocationUnit) * int(info.BytesPerSector)
+        return status, free
 
     def query_fs_device(self, handle: int) -> tuple[int, int, int]:
         """`NtQueryVolumeInformationFile(FileFsDeviceInformation)`: (status, device type, characteristics)."""
@@ -938,28 +967,7 @@ class LocalHandle:
         native = self._native
         if not isinstance(native, _Native):
             return sorted(native.list_dir(self._leaf))
-        found: list[str] = []
-        restart = True
-        while True:
-            status, raw = native.query_directory(self._leaf, restart)
-            restart = False
-            if status in (STATUS_NO_MORE_FILES, STATUS_NO_SUCH_FILE):
-                break
-            if status != STATUS_SUCCESS:
-                raise PathRefused("onleesbaar", path=self.path, status=status, detail="map opsommen")
-            position = 0
-            while True:
-                try:
-                    following, _index, length = struct.unpack_from("<III", raw, position)
-                    name = raw[position + 12 : position + 12 + length].decode("utf-16-le")
-                except (struct.error, UnicodeDecodeError):
-                    raise PathRefused("onleesbaar", path=self.path, detail="mapgegevens") from None
-                if name not in (".", ".."):
-                    found.append(name)
-                if not following:
-                    break
-                position += following
-        return found
+        return _names_on(native, self._leaf, self.path)
 
     def detach_leaf_fd(self) -> int:
         """Windows: hands the leaf handle over to a C runtime file descriptor
@@ -996,6 +1004,33 @@ class LocalHandle:
                 self._native.NtClose(self._leaf)
         finally:
             _close_all(self._native, self._chain)
+
+
+def _names_on(native: _Native, directory: int, path: str) -> list[str]:
+    """The names in a held directory handle (`NtQueryDirectoryFile`,
+    `FileNamesInformation`), `.` and `..` left out; nothing is opened."""
+    found: list[str] = []
+    restart = True
+    while True:
+        status, raw = native.query_directory(directory, restart)
+        restart = False
+        if status in (STATUS_NO_MORE_FILES, STATUS_NO_SUCH_FILE):
+            break
+        if status != STATUS_SUCCESS:
+            raise PathRefused("onleesbaar", path=path, status=status, detail="map opsommen")
+        position = 0
+        while True:
+            try:
+                following, _index, length = struct.unpack_from("<III", raw, position)
+                name = raw[position + 12 : position + 12 + length].decode("utf-16-le")
+            except (struct.error, UnicodeDecodeError):
+                raise PathRefused("onleesbaar", path=path, detail="mapgegevens") from None
+            if name not in (".", ".."):
+                found.append(name)
+            if not following:
+                break
+            position += following
+    return found
 
 
 def _close_all(native, handles: list[int]) -> None:
@@ -1199,8 +1234,23 @@ def _walk_windows(
                     FILE_OPEN,
                     FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
                 )
-            status, handle = native.NtCreateFile(held[-1], component, access, share, disposition, options)
-            if mode == "mkdir" and status in _ABSENT:
+            if mode == "mkdir_new" and is_leaf:
+                # The leaf of an exclusive mkdir: created, never opened; an
+                # existing name is `FileExistsError` for the caller to pick
+                # another one.
+                status, handle = native.NtCreateFile(
+                    held[-1],
+                    component,
+                    DIR_ACCESS,
+                    DIR_SHARE,
+                    FILE_CREATE,
+                    FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+                )
+                if status == STATUS_OBJECT_NAME_COLLISION:
+                    raise FileExistsError(errno.EEXIST, "de map bestaat al")
+            else:
+                status, handle = native.NtCreateFile(held[-1], component, access, share, disposition, options)
+            if mode in ("mkdir", "mkdir_new") and status in _ABSENT:
                 # Created relative to the held parent, as a directory and
                 # exclusively; a name that appeared meanwhile is opened as
                 # itself and goes through the same checks below.
@@ -1539,6 +1589,118 @@ def mkdir_local(path, *, root=None) -> None:
     _require_windows_for_writing()
     handle = _open(absolute_text(path), root=root, expect="dir", mode="mkdir", allow_missing=False, shared_writers=True)
     handle.close()
+
+
+def mkdtemp_local(parent, prefix: str, *, root=None) -> str:
+    """`tempfile.mkdtemp` on the walk: a new directory `<prefix><random>`
+    created EXCLUSIVELY (`FILE_CREATE`) relative to the held `parent`, which
+    must exist; an existing name is never reused (another random name is
+    tried). Returns the path text, composed from the text of `parent`."""
+    _require_windows_for_writing()
+    parent_text_ = absolute_text(parent)
+    for _attempt in range(100):
+        candidate = under(parent_text_, prefix + secrets.token_hex(4))
+        try:
+            handle = _open(
+                candidate, root=root, expect="dir", mode="mkdir_new", allow_missing=False, shared_writers=True
+            )
+        except FileExistsError:
+            continue
+        handle.close()
+        return candidate
+    raise FileExistsError(errno.EEXIST, "geen vrije naam voor een nieuwe werkmap")
+
+
+def free_bytes_local(path, *, root=None) -> int:
+    """The bytes available to this process on the volume of `path`, asked on
+    the held handle of that directory (`FileFsFullSizeInformation`) - never
+    `GetDiskFreeSpaceExW` on a name, which follows a link to a share."""
+    native = _native
+    handle = _open(absolute_text(path), root=root, expect="dir", mode="check", allow_missing=False, shared_writers=True)
+    try:
+        if not isinstance(native, _Native):
+            facts = os.statvfs(handle._leaf)  # pragma: no cover - logic runs off Windows only
+            return int(facts.f_bavail * facts.f_frsize)
+        status, free = native.query_free_bytes(handle._leaf)
+        if status != STATUS_SUCCESS:
+            raise PathRefused("onleesbaar", path=handle.path, status=status, detail="vrije ruimte")
+        return free
+    finally:
+        handle.close()
+
+
+_DELETE_OPEN = DELETE | FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE
+
+
+def _delete_below(native: _Native, parent: int, name: str, path: str, *, tree: bool) -> bool:
+    """Deletes `name` relative to the held `parent`, by its own handle
+    (`FileDispositionInformation`), never by a name and never through a link:
+    the object is opened as itself, a reparse point is deleted AS ITSELF (the
+    link, never its target), a directory is emptied first on its own handle
+    (only with `tree`). False when the name is absent. Raises `PathRefused`."""
+    status, handle = native.NtCreateFile(
+        parent,
+        name,
+        _DELETE_OPEN,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_OPEN,
+        FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+    )
+    if status in _ABSENT:
+        return False
+    if status != STATUS_SUCCESS or handle is None:
+        raise _status_refusal(status, path, allow_missing=False)
+    try:
+        tag_status, attributes, _tag = native.query_attribute_tag(handle)
+        if tag_status != STATUS_SUCCESS:
+            raise PathRefused("onleesbaar", path=path, status=tag_status, detail="tag")
+        is_link = bool(attributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        if attributes & FILE_ATTRIBUTE_DIRECTORY and not is_link:
+            if not tree:
+                raise PathRefused("geen_gewoon_bestand", path=path, detail="map, geen bestand")
+            for child in _names_on(native, handle, path):
+                _delete_below(native, handle, child, path, tree=True)
+        status = native.set_delete(handle)
+        if status != STATUS_SUCCESS:
+            raise _status_refusal(status, path, allow_missing=False)
+        return True
+    finally:
+        native.NtClose(handle)
+
+
+def _remove(path, *, root, tree: bool, missing_ok: bool) -> None:
+    _require_windows_for_writing()
+    text = absolute_text(path)
+    parent, _, name = text.rstrip("\\").rpartition("\\")
+    if not name or not parent:
+        raise PathRefused("onleesbaar", path=text, detail="geen naam")
+    _split(text)
+    if parent.endswith(":"):
+        parent += "\\"
+    try:
+        with open_local(parent, root=root, expect="dir", allow_missing=missing_ok) as held:
+            if not held.exists:
+                return
+            removed = _delete_below(_native, held.directory_handle, name, text, tree=tree)
+    except PathRefused as exc:
+        _log_refusal(exc)
+        raise
+    if not removed and not missing_ok:
+        raise FileNotFoundError(errno.ENOENT, "bestaat niet")
+
+
+def remove_local(path, *, root=None, missing_ok: bool = False) -> None:
+    """Deletes the file at `path` (or a link in its place, as itself) by its
+    handle, relative to the held parent. A directory is refused."""
+    _remove(path, root=root, tree=False, missing_ok=missing_ok)
+
+
+def rmtree_local(path, *, root=None, missing_ok: bool = False) -> None:
+    """`shutil.rmtree` on the walk: the directory at `path` and everything in
+    it, each object opened as itself relative to its held parent and deleted
+    by its handle; a link or reparse point inside is deleted as itself, never
+    followed (its target is untouched). The parent chain is held throughout."""
+    _remove(path, root=root, tree=True, missing_ok=missing_ok)
 
 
 def read_local_bytes(path, *, root=None, max_bytes: int, shared_writers: bool = False) -> bytes:
