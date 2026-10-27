@@ -164,9 +164,15 @@ def test_a_delayed_anchor_writer_never_moves_the_anchor_back(tmp_path, registry)
     stale_raw = first.anchor_raw
     second = tablekey.append(first, [("object-01", "NAAM-A"), ("object-02", "NAAM-B")])
     assert second.anchor.aantal == 2
+    # A delayed writer that read the anchor before the append and now writes
+    # its own state of the SAME height (a lost update): only the re-read
+    # under the lock can see that the record is no longer the one it read.
+    same_height = tablekey.Anchor(where.slot, first.anchor.tabel_id, 1, 2, "f" * 64, "vastgelegd", None, ())
+    with pytest.raises(Fault) as stale:
+        tablekey.write_anchor(where, stale_raw, same_height, "test")
+    assert stale.value.soort == "anker_onleesbaar"
+    assert registry.values[where.slot] == second.anchor_raw
     behind = tablekey.Anchor(where.slot, first.anchor.tabel_id, 1, 1, second.doc.rows[0].mac, "vastgelegd", None, ())
-    with pytest.raises(Fault):
-        tablekey.write_anchor(where, stale_raw, behind, "test")
     with pytest.raises(Fault) as lower:
         tablekey.write_anchor(where, second.anchor_raw, behind, "test")
     assert lower.value.soort == "teruggedraaid"
