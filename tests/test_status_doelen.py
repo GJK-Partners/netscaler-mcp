@@ -25,7 +25,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
-from conftest import _export_dir, _knowledge_file, maintenance_config, provenance_dir_for, record_collected
+from conftest import _export_dir, _knowledge_file, maintenance_config, provenance_dir_for, record_collected, table_rows
 from upgrade_fase_harness import _call, _text
 
 from nsmcp.disclosure import Disclosure
@@ -359,7 +359,7 @@ def test_at_beperkt_names_and_addresses_are_pseudonyms(tmp_path):
     assert "object-" in text
     # Tool names are this product's own vocabulary, not names off the box.
     assert "config_opslaan" in text
-    table = json.loads((tmp_path / "tabel.json").read_text(encoding="utf-8"))
+    table = table_rows(tmp_path / "tabel.json")
     assert {"lab-02", "lab-03", "lab-04", "192.0.2.2", "192.0.2.3"} <= set(table.values())
 
 
@@ -525,7 +525,7 @@ def test_the_preflight_measures_the_given_doel_instead_of_giving_up_on_two_targe
 
 
 def _pseudonym_of(tmp_path: Path, real: str) -> str:
-    table = json.loads((tmp_path / "tabel.json").read_text(encoding="utf-8"))
+    table = table_rows(tmp_path / "tabel.json")
     return next(pseudonym for pseudonym, name in table.items() if name == real)
 
 
@@ -603,7 +603,7 @@ def test_a_writing_tool_takes_the_same_pseudonym_as_doel(tmp_path):
         action_script=script,
         fixture_dir=tmp_path,
         action_run=_preview_only,
-        code_presenter=lambda *args: shown.append(args),
+        code_presenter=lambda *args, **kwargs: shown.append(args),
     )
     _ask(server)
     error, text = _ask(server, "onderhoud_backup_maken", {"doel": "object-999"})

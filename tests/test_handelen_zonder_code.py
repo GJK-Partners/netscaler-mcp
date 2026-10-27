@@ -25,7 +25,7 @@ from types import SimpleNamespace
 
 import mcp.types as types
 import pytest
-from conftest import maintenance_config, record_collected
+from conftest import maintenance_config, record_collected, table_rows
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from nsmcp import mcp_server
@@ -160,7 +160,7 @@ class CodeSpy:
         self.calls: list[dict] = []
         self._fail = fail
 
-    def __call__(self, tool, target, arguments, code, proposal_text, marker, section) -> None:
+    def __call__(self, tool, target, arguments, code, proposal_text, marker, section, *, tabel=()) -> None:
         self.calls.append(
             {
                 "tool": tool,
@@ -170,6 +170,7 @@ class CodeSpy:
                 "proposal_text": proposal_text,
                 "marker": marker,
                 "section": section,
+                "tabel": tuple(tabel),
             }
         )
         if self._fail:
@@ -634,7 +635,7 @@ def _server_with_disclosure(tmp_path: Path, spy: Spy, disclosure, export_dir: Pa
 def _table(tmp_path: Path) -> dict:
     """The pseudonym table build_server() writes next to the export (its
     default path: `export_dir.parent / openheid-vertaaltabel.json`)."""
-    return json.loads((tmp_path / "openheid-vertaaltabel.json").read_text(encoding="utf-8"))
+    return table_rows(tmp_path / "openheid-vertaaltabel.json")
 
 
 def _pseudonym_for(tmp_path: Path, naam: str) -> str:
@@ -5489,3 +5490,114 @@ def test_1_1_a_code_file_that_became_a_link_keeps_the_handling_rereads_nothing_a
     again = _call(server, "dienst_lid_uitschakelen", {**args, "bevestiging": code})
     assert again.isError is True and "onbekend of al gebruikt" in _text(again)
     assert _real_runs(spy) == 1
+
+
+# ---------------------------------------------------------------------------
+# 1.1 C.3 (SR-7): the write path and the integrity of the pseudonym table.
+# A manipulated table refuses BEFORE a code exists; a code is bound to the
+# slot, table id, generation and row MAC its pseudonym resolved through, and
+# redeeming it re-verifies the table in full and compares that binding.
+# ---------------------------------------------------------------------------
+
+
+def _limited_table(tmp_path: Path) -> Path:
+    return tmp_path / "openheid-vertaaltabel.json"
+
+
+def test_manipulated_table_refuses_write_before_a_code_is_issued(tmp_path):
+    forget_identities()
+    spy = Spy()
+    server = _server_with_disclosure(tmp_path, spy, Disclosure.LIMITED)
+    assert _call(server, "certificaat_klaarzetten", {"certnaam": BEPERKT_CERT}).isError is False
+    issued, runs = len(server.code_spy.calls), len(spy.calls)
+    table = _limited_table(tmp_path)
+    raw = json.loads(table.read_text(encoding="utf-8"))
+    raw["rijen"][0]["naam"], raw["rijen"][1]["naam"] = raw["rijen"][1]["naam"], raw["rijen"][0]["naam"]
+    table.write_text(json.dumps(raw), encoding="utf-8")
+    before = table.read_bytes()
+
+    for arguments in ({"certnaam": BEPERKT_CERT}, {"certnaam": "object-01"}):
+        r = _call(server, "certificaat_klaarzetten", arguments)
+        assert r.isError is True, _text(r)
+        tekst = _text(r)
+        assert "is niet intact" in tekst, tekst
+        assert BEPERKT_CERT not in tekst and raw["tabelId"] not in tekst
+    assert len(server.code_spy.calls) == issued, "geen code uitgegeven"
+    assert len(spy.calls) == runs, "geen script gestart, ook geen controle vooraf"
+    assert table.read_bytes() == before
+
+
+def test_code_redemption_rechecks_table_binding(tmp_path):
+    """A proposal under generation 1, a reset, redemption under generation 2
+    with the same pseudonym that now maps to the same real name: only the
+    binding differs, and the code spends without a script run."""
+    from nsmcp.confirm import TABEL_VERANDERD
+    from nsmcp.disclosure import main as table_cli
+
+    forget_identities()
+    spy = Spy()
+    server = _server_with_disclosure(tmp_path, spy, Disclosure.LIMITED)
+    assert _call(server, "certificaat_klaarzetten", {"certnaam": BEPERKT_CERT}).isError is False
+    pseudoniem = _pseudonym_for(tmp_path, BEPERKT_CERT)
+    voorstel = _call(server, "certificaat_klaarzetten", {"certnaam": pseudoniem})
+    assert voorstel.isError is False, _text(voorstel)
+    code = server.code_spy.codes[-1]
+    getoond = server.code_spy.calls[-1]["tabel"]
+    assert len(getoond) == 1 and getoond[0].startswith("vertaaltabel: ") and ", generatie 1, rij " in getoond[0]
+
+    table = _limited_table(tmp_path)
+    assert table_cli(["--reset", "--pad", str(table), "--gecontroleerd"]) == 0
+    assert _call(server, "certificaat_klaarzetten", {"certnaam": BEPERKT_CERT}).isError is False
+    assert _pseudonym_for(tmp_path, BEPERKT_CERT) == pseudoniem, "premisse: zelfde pseudoniem, zelfde echte naam"
+
+    uitvoering = _call(server, "certificaat_klaarzetten", {"certnaam": pseudoniem, "bevestiging": code})
+    assert uitvoering.isError is True, _text(uitvoering)
+    assert TABEL_VERANDERD in _text(uitvoering)
+    assert _real_runs(spy) == 0, "er is geen script gestart"
+    again = _call(server, "certificaat_klaarzetten", {"certnaam": pseudoniem, "bevestiging": code})
+    assert "onbekend of al gebruikt" in _text(again) and _real_runs(spy) == 0
+
+
+def test_a_bound_code_redeems_under_the_same_generation(tmp_path):
+    forget_identities()
+    spy = Spy()
+    server = _server_with_disclosure(tmp_path, spy, Disclosure.LIMITED)
+    assert _call(server, "certificaat_klaarzetten", {"certnaam": BEPERKT_CERT}).isError is False
+    pseudoniem = _pseudonym_for(tmp_path, BEPERKT_CERT)
+    assert _call(server, "certificaat_klaarzetten", {"certnaam": pseudoniem}).isError is False
+    code = server.code_spy.codes[-1]
+    done = _call(server, "certificaat_klaarzetten", {"certnaam": pseudoniem, "bevestiging": code})
+    assert done.isError is False, _text(done)
+    assert _real_runs(spy) == 1
+
+
+def test_the_table_line_names_no_name_no_pseudonym_and_stays_out_of_the_register(tmp_path):
+    forget_identities()
+    server = _server_with_disclosure(tmp_path, Spy(), Disclosure.LIMITED)
+    assert _call(server, "certificaat_klaarzetten", {"certnaam": BEPERKT_CERT}).isError is False
+    assert server.code_spy.calls[-1]["tabel"] == (), "een echte naam gaat door geen rij"
+    pseudoniem = _pseudonym_for(tmp_path, BEPERKT_CERT)
+    assert _call(server, "certificaat_klaarzetten", {"certnaam": pseudoniem}).isError is False
+    (regel,) = server.code_spy.calls[-1]["tabel"]
+    tabel_id = json.loads(_limited_table(tmp_path).read_text(encoding="utf-8"))["tabelId"]
+    assert regel == f"vertaaltabel: {tabel_id[:8]}, generatie 1, rij {_row_of(tmp_path, pseudoniem)} (certnaam)"
+    assert BEPERKT_CERT not in regel and pseudoniem not in regel
+    for path in tmp_path.rglob("*"):
+        if path.is_file() and path.suffix in (".jsonl", ".log", ".txt"):
+            assert tabel_id[:8] not in path.read_text(encoding="utf-8", errors="replace"), path
+
+
+def _row_of(tmp_path: Path, pseudoniem: str) -> int:
+    rows = json.loads(_limited_table(tmp_path).read_text(encoding="utf-8"))["rijen"]
+    return next(row["nr"] for row in rows if row["pseudoniem"] == pseudoniem)
+
+
+def test_the_channel_text_carries_the_table_line_under_the_section():
+    from nsmcp.code_channel import _message
+
+    tekst = _message("t", "doel", {"a": "b"}, "ABCDEF", "A", "sectie", ("vertaaltabel: 0123abcd, generatie 2, rij 3",))
+    regels = tekst.splitlines()
+    assert regels[regels.index("sectie: sectie") + 1] == "vertaaltabel: 0123abcd, generatie 2, rij 3"
+    assert _message("t", "doel", {"a": "b"}, "ABCDEF", "A", "sectie") == _message(
+        "t", "doel", {"a": "b"}, "ABCDEF", "A", "sectie", ()
+    )

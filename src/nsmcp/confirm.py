@@ -118,6 +118,12 @@ _CODE_ONBEKEND_OF_GEBRUIKT = "bevestigingscode onbekend of al gebruikt; vraag ee
 # situation. A shared constant is what keeps this fixed: neither method can
 # drift onto its own wording for "verlopen" again.
 _CODE_VERLOPEN = "bevestigingscode is verlopen (tien minuten); vraag een nieuw voorstel aan"
+# 1.1 C.3: the table a pseudonym resolved through changed between the
+# proposal and the redemption (another table, generation or row).
+TABEL_VERANDERD = (
+    "de vertaaltabel is sinds het voorstel veranderd (een andere tabel, generatie of rij); de bevestigingscode is"
+    " daarmee vervallen en er is niets uitgevoerd; vraag een nieuw voorstel aan"
+)
 
 
 def _normalize_code(code: str) -> str:
@@ -155,6 +161,11 @@ class _Pending:
     expires_at: float
     marker: str
     failures: int = 0
+    # 1.1 C.3: what every pseudonym of this proposal resolved through (slot,
+    # table id, generation, row number, row MAC per argument). NEXT TO the
+    # fingerprint, not in it: `_fingerprint` is also what the `sso` channel
+    # sends as `vingerafdruk`, and that external contract stays unchanged.
+    table_binding: tuple = ()
 
 
 class ConfirmationStore:
@@ -263,7 +274,7 @@ class ConfirmationStore:
             raise ConfirmError(_CODE_VERLOPEN)
         return entry.marker
 
-    def issue(self, tool: str, arguments: dict, target: str, *, section: str) -> str:
+    def issue(self, tool: str, arguments: dict, target: str, *, section: str, table_binding: tuple = ()) -> str:
         """`section` is the allowlist section the call named with `doel`. It
         is a REQUIRED keyword, on `redeem()` as well: a caller that forgets it
         fails loud instead of issuing a code that is bound to no section."""
@@ -280,10 +291,13 @@ class ConfirmationStore:
             fingerprint=_fingerprint(tool, arguments, target, section),
             expires_at=self._now() + self._ttl,
             marker=marker,
+            table_binding=tuple(table_binding),
         )
         return code
 
-    def redeem(self, code: str, tool: str, arguments: dict, target: str, *, section: str) -> None:
+    def redeem(
+        self, code: str, tool: str, arguments: dict, target: str, *, section: str, table_binding: tuple = ()
+    ) -> None:
         """Spends `code` only if it is live and bound to this exact tool,
         arguments, target and allowlist section. The failure counter below
         keys on the SAME fingerprint, section included. `section` is
@@ -322,6 +336,11 @@ class ConfirmationStore:
                 "bevestigingscode hoort bij een andere handeling of een ander doel en is "
                 "daarmee ongeldig geworden; vraag een nieuw voorstel aan"
             )
+        # 1.1 C.3: the caller re-resolved every pseudonym against a table it
+        # verified in full again (load rules 1-8); the code is already popped,
+        # so a difference spends it and nothing runs.
+        if pending.table_binding != tuple(table_binding):
+            raise ConfirmError(TABEL_VERANDERD)
 
     def _count_failure(self, fingerprint: str) -> None:
         """Counts one wrong guess against every outstanding proposal WITH THIS

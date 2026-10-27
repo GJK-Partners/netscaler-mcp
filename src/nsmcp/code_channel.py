@@ -197,7 +197,18 @@ def _argument_lines(arguments: dict) -> list[str]:
     return [f"{name}: {_drawn(arguments[name])}" for name in sorted(arguments)]
 
 
-def _message(tool: str, target: str, arguments: dict, code: str, marker: str, section: str) -> str:
+def _table_lines(tabel: tuple[str, ...]) -> str:
+    """1.1 C.3: one `vertaaltabel: <id[:8]>, generatie <g>, rij <nr>` line
+    per argument that reached its real name through the pseudonym table -
+    an extra human check (a reset the operator did not know of shows as
+    another id or generation). Presentation only, never the binding itself;
+    never a name, never a pseudonym."""
+    return "".join(f"{_drawn(line)}\n" for line in tabel)
+
+
+def _message(
+    tool: str, target: str, arguments: dict, code: str, marker: str, section: str, tabel: tuple[str, ...] = ()
+) -> str:
     """The operator's own text. Dutch, ASCII, and everything needed to judge
     the proposal AGAINST the chat window: which tool, which target, which
     allowlist section, which arguments - so a code that belongs to a
@@ -220,6 +231,7 @@ def _message(tool: str, target: str, arguments: dict, code: str, marker: str, se
         f"Handeling: {tool}\n"
         f"doel: {_drawn(target)}\n"
         f"sectie: {_drawn(section)}\n"
+        f"{_table_lines(tabel)}"
         f"wat:\n{wat}\n"
         "\n"
         f"{marker_line(marker)}\n"
@@ -341,7 +353,15 @@ def send_notice(presenter, message: str) -> None:
 
 
 def window_presenter(
-    tool: str, target: str, arguments: dict, code: str, proposal_text: str, marker: str, section: str
+    tool: str,
+    target: str,
+    arguments: dict,
+    code: str,
+    proposal_text: str,
+    marker: str,
+    section: str,
+    *,
+    tabel: tuple[str, ...] = (),
 ) -> None:
     """Shows the code in a message box on the machine where THIS server runs.
 
@@ -357,7 +377,7 @@ def window_presenter(
     windll = getattr(ctypes, "windll", None)
     if windll is None:
         raise CodeChannelError("dit platform heeft geen vensters (geen Windows); kies het bestandskanaal")
-    _show_box(windll, _message(tool, target, arguments, code, marker, section))
+    _show_box(windll, _message(tool, target, arguments, code, marker, section, tabel))
 
 
 window_presenter.label = WINDOW_LABEL
@@ -425,8 +445,10 @@ class FileCodeChannel:
         proposal_text: str,
         marker: str,
         section: str,
+        *,
+        tabel: tuple[str, ...] = (),
     ) -> None:
-        body = f"{_message(tool, target, arguments, code, marker, section)}\n\n{proposal_text}\n"
+        body = f"{_message(tool, target, arguments, code, marker, section, tabel)}\n\n{proposal_text}\n"
         try:
             with self._lock:
                 self._write(body)
@@ -711,6 +733,8 @@ class SsoCodeChannel:
         proposal_text: str,
         marker: str,
         section: str,
+        *,
+        tabel: tuple[str, ...] = (),
     ) -> None:
         # Sweep BEFORE anything else, on every delivery: the same "sweep on
         # both doors" pattern `ConfirmationStore._purge()` uses on `issue()`,
@@ -776,7 +800,9 @@ class SsoCodeChannel:
                 "sectie": section,
                 # `voorstel` gets its OWN, larger bound (`_PROPOSAL_ECHO_
                 # LIMIT`, above) - a JSON payload value, not a terminal line.
-                "voorstel": _bounded_run_echo(proposal_text, _PROPOSAL_ECHO_LIMIT),
+                # 1.1 C.3: the table lines lead the proposal text - no new
+                # field, so the external contract (and its mirror) is unchanged.
+                "voorstel": _bounded_run_echo(_table_lines(tabel) + proposal_text, _PROPOSAL_ECHO_LIMIT),
                 # A later fix gave `doel` its own field
                 # precisely so it survives ANY cut of `voorstel`, whatever the
                 # bound - `fase` is exactly as salient (the stated purpose:

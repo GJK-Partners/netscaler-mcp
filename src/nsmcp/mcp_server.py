@@ -130,6 +130,8 @@ from nsmcp.disclosure import (
     names_from_export,
     render,
     resolve_pseudonym,
+    resolve_pseudonym_bound,
+    verify_table,
 )
 from nsmcp.doelen import GEEN_DOEL_TEXT, LedgerView, target_names, targets_answer
 from nsmcp.errors import ToolError
@@ -1089,6 +1091,20 @@ def _action_log(
         # by necessity and not by taste: stderr is the only channel this
         # process has for a message, so there is nowhere left to report to.
         pass
+
+
+def _binding_key(gebonden) -> tuple:
+    """1.1 C.3: the table binding of a write call, as the confirmation store
+    keeps it: per argument (and `doel`) the slot, the full table id, the
+    generation, the row number and the row MAC, in a fixed order."""
+    return tuple(sorted((veld, b.slot, b.tabel_id, b.generatie, b.nr, b.mac) for veld, b in gebonden))
+
+
+def _binding_lines(gebonden) -> tuple[str, ...]:
+    """1.1 C.3 / R8: the operator's channel lines for the same binding -
+    presentation only, never a name or a pseudonym, and never written to the
+    ledger, the action register or a log."""
+    return tuple(f"{b.channel_line()} ({veld})" for veld, b in sorted(gebonden, key=lambda item: item[0]))
 
 
 def build_server(
@@ -4165,7 +4181,9 @@ def build_server(
             except ConfirmError:
                 return None
 
-        async def _present(arguments, code, target_label, shown_target, operator_proposal, marker, section):
+        async def _present(
+            arguments, code, target_label, shown_target, operator_proposal, marker, section, tabel=(), binding=()
+        ):
             # The Windows window probe must not hold the event loop. Cancellation
             # consumes a proposal that never reached its caller, just like failure.
             try:
@@ -4178,10 +4196,11 @@ def build_server(
                     operator_proposal,
                     marker,
                     section,
+                    **({"tabel": tuple(tabel)} if tabel else {}),
                 )
             except BaseException as exc:
                 try:
-                    confirmations.redeem(code, tool, arguments, target_label, section=section)
+                    confirmations.redeem(code, tool, arguments, target_label, section=section, table_binding=binding)
                 except ConfirmError:
                     pass
                 if isinstance(exc, asyncio.CancelledError):
@@ -4276,7 +4295,7 @@ def build_server(
                 flush=True,
             )
 
-        async def _upgrade_work(doelnaam: str) -> str:
+        async def _upgrade_work(doelnaam: str, binding: tuple = (), tabel: tuple = ()) -> str:
             """`onderhoud_upgrade_fase`'s OWN two-step flow.
 
             Shares the target resolution (`doelnaam`, already resolved by
@@ -4628,7 +4647,7 @@ def build_server(
 
             if not execution_attempt:
                 try:
-                    code = confirmations.issue(tool, phase_clean, target_label, section=doelnaam)
+                    code = confirmations.issue(tool, phase_clean, target_label, section=doelnaam, table_binding=binding)
                 except ConfirmError as exc:
                     raise _failure(
                         doelnaam,
@@ -4639,7 +4658,9 @@ def build_server(
                     marker = confirmations.marker(code)
                 except ConfirmError:
                     try:
-                        confirmations.redeem(code, tool, phase_clean, target_label, section=doelnaam)
+                        confirmations.redeem(
+                            code, tool, phase_clean, target_label, section=doelnaam, table_binding=binding
+                        )
                     except ConfirmError:
                         pass
                     raise ToolError(CHANNEL_FAILED) from None
@@ -4711,12 +4732,16 @@ def build_server(
                     proposal,
                     marker,
                     doelnaam,
+                    tabel=tabel,
+                    binding=binding,
                 )
                 return _with_marker(_rendered(doelnaam, voorstel, caller_name=None), marker)
 
             audit.update(marker=_proposal_marker())
             try:
-                confirmations.redeem(bevestiging, tool, phase_clean, target_label, section=doelnaam)
+                confirmations.redeem(
+                    bevestiging, tool, phase_clean, target_label, section=doelnaam, table_binding=binding
+                )
             except ConfirmError as exc:
                 raise _failure(
                     doelnaam,
@@ -5197,17 +5222,34 @@ def build_server(
             # itself still reaches _rendered() with a target it can look up
             # (an unknown section simply yields no allowlist names).
             doelnaam = ""
+            # 1.1 C.3: what every pseudonym of this call resolved through,
+            # per argument (and the `doel`): bound to the code at issue and
+            # compared again at redemption after a full re-verification.
+            gebonden: list = []
             try:
+                if disclosure is Disclosure.LIMITED:
+                    # 1.1 C.3: the table gate BEFORE validate() and BEFORE a
+                    # code exists - also for a call that names only real
+                    # names, whose answer is rendered only after the issue.
+                    verify_table(pseudonym_table_path)
                 doelnaam = _target_for(given_target)
+                if disclosure is Disclosure.LIMITED and has_pseudonym_shape(given_target.strip()):
+                    _doel, doel_binding = resolve_pseudonym_bound(
+                        given_target.strip(), tuple(sorted(allowlist.targets())), pseudonym_table_path
+                    )
+                    if doel_binding is not None:
+                        gebonden.append(("doel", doel_binding))
                 if tool == "onderhoud_upgrade_fase":
-                    return await _upgrade_work(doelnaam)
+                    return await _upgrade_work(doelnaam, _binding_key(gebonden), _binding_lines(gebonden))
                 if disclosure is not Disclosure.FULL:
                     # Below 'volledig' the caller only ever SAW pseudonyms,
                     # and validate() judges real object names. Resolve first,
                     # so the allowlist keeps bounding what may be touched.
                     namen = _write_names(doelnaam)
                     for veld, gegeven in list(action_arguments.items()):
-                        echt = resolve_pseudonym(gegeven, namen, pseudonym_table_path)
+                        echt, rij = resolve_pseudonym_bound(gegeven, namen, pseudonym_table_path)
+                        if rij is not None:
+                            gebonden.append((veld, rij))
                         if echt is None:
                             # WHAT the caller handed in decides how this
                             # refusal may speak about it, and the two cases
@@ -5584,7 +5626,9 @@ def build_server(
                 # channel (venster/bestand/SSO) does, via `operator_proposal`.
                 operator_plan = _from_script(plan_text, extra_values=context_values, for_operator=True)
                 try:
-                    code = confirmations.issue(tool, clean, target_label, section=doelnaam)
+                    code = confirmations.issue(
+                        tool, clean, target_label, section=doelnaam, table_binding=_binding_key(gebonden)
+                    )
                 except ConfirmError as exc:
                     # A refused 27th simultaneous
                     # proposal (`TooManyProposals`, a `ConfirmError`) is a
@@ -5625,7 +5669,9 @@ def build_server(
                     marker = confirmations.marker(code)
                 except ConfirmError:
                     try:
-                        confirmations.redeem(code, tool, clean, target_label, section=doelnaam)
+                        confirmations.redeem(
+                            code, tool, clean, target_label, section=doelnaam, table_binding=_binding_key(gebonden)
+                        )
                     except ConfirmError:
                         pass
                     raise ToolError(CHANNEL_FAILED) from None
@@ -5756,6 +5802,8 @@ def build_server(
                     operator_proposal,
                     marker,
                     doelnaam,
+                    tabel=_binding_lines(gebonden),
+                    binding=_binding_key(gebonden),
                 )
                 # caller_name=None, and provably so: every value in `clean`
                 # passed the allowlist, and `_write_names()` collects exactly
@@ -5781,7 +5829,9 @@ def build_server(
                 )
             audit.update(marker=_proposal_marker())
             try:
-                confirmations.redeem(bevestiging, tool, clean, target_label, section=doelnaam)
+                confirmations.redeem(
+                    bevestiging, tool, clean, target_label, section=doelnaam, table_binding=_binding_key(gebonden)
+                )
             except ConfirmError as exc:
                 raise _failure(
                     doelnaam,
