@@ -549,14 +549,20 @@ def _check_2_classic_transition(export) -> Check:
             return Check(2, NAME_2_TRANSITION, NOT_ASSESSED, evidence, gap.reason)
     undecided = sum(len(c.undecided) for c in readable)
     if undecided:
-        return Check(
-            2,
-            NAME_2_TRANSITION,
-            NOT_ASSESSED,
-            evidence,
-            f"{undecided} regel(s) zijn onbeslist: de feature heeft geen vendorrij in dit product, of de vorm is"
-            " niet bewezen classic en niet bewezen advanced; een onbesliste regel is geen groen",
-        )
+        # Review K-3: a probable parameter of a row without a known form is
+        # "not examined", never "no vendor row or not proven".
+        not_examined = sum(len(c.not_examined) for c in readable)
+        rows = sorted({row for c in readable for row in c.not_examined_rows()})
+        parts = []
+        if undecided - not_examined:
+            parts.append(
+                f"{undecided - not_examined} regel(s) zijn onbeslist: de feature heeft geen vendorrij in dit"
+                " product, of de vorm is niet bewezen classic en niet bewezen advanced; een onbesliste regel is"
+                " geen groen"
+            )
+        if not_examined:
+            parts.append(f"{not_examined} regel(s) niet onderzocht (tabel 1 rij {', '.join(str(r) for r in rows)})")
+        return Check(2, NAME_2_TRANSITION, NOT_ASSESSED, evidence, "; ".join(parts))
     deprecated = sum(len(c.deprecated) for c in readable)
     if deprecated:
         return Check(

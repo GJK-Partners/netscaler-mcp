@@ -398,14 +398,17 @@ _HTMLINJECTION_OBJECTS = frozenset(
     {"htmlinjectionvariable", "htmlinjectionparameter", "prebodyinjection", "postbodyinjection"}
 )
 _ROW_SPDY = "CTX296948 tabel 1 rij 5 (SPDY)"
-_ROW_HTTP2 = "CTX296948 tabel 1 rij 6 (HTTP/2)"
 _ROW_APPFLOW_CSM = "CTX296948 tabel 1 rij 8 (AppFlow with Client-Side Measurements)"
 # Rows 5, 6 and 8 of table 1 have no known classic command form. The product
-# says so in every transition answer; their probable parameters, switched on,
+# says so in every transition answer; the probable parameters of rows 5 and 8,
+# switched on, are undecided (HTTP/2 itself is an ordinary supported function on
+# 13.1 and 14.1, ruling K-1: the reservation covers row 6),
 # are undecided with the row - never blocking, never green.
 NOT_EXAMINED_ROWS = "niet onderzocht: SPDY, HTTP/2-classic, AppFlow client-side measurements (tabel 1 rij 5, 6, 8)"
+# The source of each candidate parameter and the table 1 row it stands for.
+NOT_EXAMINED_SOURCES = {_ROW_SPDY: 5, _ROW_APPFLOW_CSM: 8}
 CANDIDATE_PARAMETERS_NOTE = (
-    "alleen hun vermoedelijke parameters (-spdy, -http2, -clientSideMeasurements aan) tellen als onbeslist"
+    "alleen de vermoedelijke parameters van rij 5 en 8 (-spdy, -clientSideMeasurements aan) tellen als onbeslist"
 )
 # `Q.` / `S.` at the start of a token (not the tail of `REQ.` / `RES.`).
 _QS_PREFIX = re.compile(r"(?<![A-Za-z0-9_.])[QS]\.[A-Z]")
@@ -466,6 +469,25 @@ class Classification:
     def undecided(self) -> tuple[int, ...]:
         return self.lines(SET_UNDECIDED)
 
+    @property
+    def not_examined(self) -> tuple[int, ...]:
+        """Undecided lines that are a probable parameter of a row without a
+        known form (table 1 rows 5 and 8): "not examined", not "not proven"."""
+        return tuple(
+            sorted(f.line for f in self.findings if f.verzameling == SET_UNDECIDED and f.bron in NOT_EXAMINED_SOURCES)
+        )
+
+    def not_examined_rows(self) -> tuple[int, ...]:
+        return tuple(
+            sorted(
+                {
+                    NOT_EXAMINED_SOURCES[f.bron]
+                    for f in self.findings
+                    if f.verzameling == SET_UNDECIDED and f.bron in NOT_EXAMINED_SOURCES
+                }
+            )
+        )
+
 
 @dataclass
 class _Line:
@@ -479,6 +501,10 @@ def _read(lines: list[str]) -> list[_Line]:
     read = []
     for number, raw in enumerate(lines, start=1):
         tokens, readable = line_tokens(raw.strip())
+        # Review K-2: the value of `-comment` is text, never a flag or a name.
+        tokens = [
+            "" if index > 0 and tokens[index - 1].lower() == "-comment" else token for index, token in enumerate(tokens)
+        ]
         read.append(_Line(number, tokens, readable, [t.lower() for t in tokens]))
     return read
 
@@ -813,8 +839,6 @@ def _rest_form(line: _Line, raw: str, declared: set[str]) -> tuple[str, int, str
         spdy = _value_after(line, "-spdy")
         if spdy is not None and spdy != "disabled":
             return "httpProfile -spdy", SET_UNDECIDED, "SPDY aan; classic vorm niet bekend", _ROW_SPDY
-        if _value_after(line, "-http2") == "enabled":
-            return "httpProfile -http2", SET_UNDECIDED, "HTTP/2 aan; classic vorm niet bekend", _ROW_HTTP2
     if head[:1] in (("add",), ("set",)) and head[1:3] == ("appflow", "action"):
         if _value_after(line, "-clientsidemeasurements") == "enabled":
             return (

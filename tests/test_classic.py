@@ -866,7 +866,6 @@ def test_classic_filter_and_html_injection_commands_block(line, bron):
     ("line", "row"),
     [
         ("add ns httpProfile HP_SPDY -spdy ENABLED", 5),
-        ("set ns httpProfile nshttp_default_profile -http2 ENABLED", 6),
         ("add appflow action AF_ACT -collectors COL -clientSideMeasurements ENABLED", 8),
     ],
 )
@@ -921,3 +920,53 @@ def test_classic_an_unreadable_line_with_a_rest_form_stays_undecided():
     """Ruling R3c: a line that is itself not readable stays undecided, also
     when its raw text carries a form with a vendor row."""
     assert _sets(['add rewrite action RA replace HTTP.REQ.URL "SYS.EVAL_CLASSIC_EXPR(']) == {1: SET_UNDECIDED}
+
+
+# ---------------------------------------------------------------------------
+# Herkeuring 2: K-1 (HTTP/2 is no candidate), K-2 (-comment), K-3 (reason).
+# ---------------------------------------------------------------------------
+
+
+def test_classic_http2_is_no_candidate_parameter():
+    """Ruling K-1: HTTP/2 is an ordinary supported function on 13.1 and 14.1;
+    the fixed reservation covers table 1 row 6."""
+    assert _sets(["set ns httpProfile nshttp_default_profile -http2 ENABLED"]) == {}
+
+
+def test_classic_the_doh_fixture_is_no_blocker_with_the_reservation():
+    from nsmcp.classic import NOT_EXAMINED_ROWS
+
+    check = _check_2_classic_transition(load_export(FIXTURES / "lab-export-vpx-doh-synthetic"))
+    assert check.word == NO_BLOCKER, check.reason
+    assert NOT_EXAMINED_ROWS in check.evidence
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'add cs policy CSP_C -comment "-url" -rule HTTP.REQ.IS_VALID',
+        'add ns httpProfile HP_C -comment "-spdy" -dropInvalReqs ENABLED',
+        'add rewrite action RA_C replace HTTP.REQ.URL HTTP.REQ.URL -comment "-pattern"',
+        'add appflow action AF_C -collectors COL -comment "-clientSideMeasurements" ENABLED',
+        'set cmp parameter -comment "-policyType" CLASSIC',
+    ],
+)
+def test_classic_flag_tests_never_read_the_comment_value(line):
+    """Review K-2: the value of `-comment` is text, never a flag."""
+    assert _sets([line]) == {}
+
+
+def test_classic_transition_reason_for_a_candidate_parameter_says_not_examined(tmp_path):
+    """Review K-3: a probable parameter of a row without a known form is "not
+    examined", not "no vendor row or not proven"."""
+    check = _check_2_classic_transition(_export_with_running(tmp_path, ["add ns httpProfile HP_SPDY -spdy ENABLED"]))
+    assert check.word == NOT_ASSESSED
+    assert check.reason == "2 regel(s) niet onderzocht (tabel 1 rij 5)"
+
+
+def test_classic_transition_reason_names_undecided_and_not_examined_apart(tmp_path):
+    extra = ["add ns httpProfile HP_SPDY -spdy ENABLED", "add xyz policy XYZ_POL ns_true XYZ_ACT"]
+    check = _check_2_classic_transition(_export_with_running(tmp_path, extra))
+    assert check.word == NOT_ASSESSED
+    assert check.reason.startswith("2 regel(s) zijn onbeslist: ")
+    assert check.reason.endswith("; 2 regel(s) niet onderzocht (tabel 1 rij 5)")
