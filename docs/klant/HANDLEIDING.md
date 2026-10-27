@@ -1792,23 +1792,33 @@ in de export"). Elke classic-policyregel valt in een van vier verzamelingen:
    (Filter, SureConnect, Priority Queuing, HTTP DoS Protection, AppQoE, classic Cache
    Redirection, Content Switching, Compression, Application Firewall, SSL, een classic expressie
    in een LB-regel, en `add cs policy` met `-url` of `-domain`), met een bewezen classic vorm, en
-   gebonden. Ook elke andere vorm met een eigen rij in tabel 1 of 2 (onder meer
+   gebonden. Ook de andere vormen met een eigen rij in tabel 1 of 2 die het product herkent,
+   vallen hier, met die rij als bron: HTMLInjection en elk ander Filter-commando,
    `SYS.EVAL_CLASSIC_EXPR`, patclass, `-pattern` en `-bypassSafetyCheck` in een rewrite-actie,
    `HTTP.REQ.BODY` zonder lengte, een `Q.`- of `S.`-voorvoegsel, `set cmp parameter -policyType
-   CLASSIC` en een ingebouwde classic-policy die alleen op een bindregel staat) valt hier, met die
-   rij als bron.
-2. **verwijderd, ongebonden**: dezelfde vormen zonder binding. Bij de overstap blokkeert dit net
-   zo goed als verzameling 1: de vendorcheck keurt elk commando van zo'n feature af, gebonden of
-   niet. Beide blokkeren de overstap tot de regels naar advanced zijn omgezet.
+   CLASSIC` en een ingebouwde classic-compressiepolicy (`ns_cmp_*`, `ns_nocmp_*`) op de
+   policyplaats van een bindregel. Tekst binnen een string-, regex- of q-literal en in een
+   `-comment` telt nooit als vorm.
+2. **verwijderd, ongebonden**: dezelfde vormen zonder binding, of waarvan de binding niet vast te
+   stellen is (een onleesbare bindregel, een classic LB-regel zonder bindregel). Bij de overstap
+   blokkeert dit net zo goed als verzameling 1: de vendorcheck keurt elk commando van zo'n feature
+   af, gebonden of niet. Beide blokkeren de overstap tot de regels naar advanced zijn omgezet.
 3. **deprecated, blokkeert niet**: classic vormen die op 14.1 blijven werken: classic
    Gateway-authenticatie, -sessie, -verkeer en -autorisatie (ook classic client-security-expressies),
    classic audit (SYSLOG en NSLOG), de classic TM-sessie, het classic tunnelverkeer en de classic
    AAA-pre-authenticatie. Omzetten is een ontwerpkeuze, geen upgradevoorwaarde; het product zet
    dit nooit zwaarder neer dan een aandachtspunt.
 4. **onbeslist**: een regel waarvan de vorm geen vendorrij heeft, waarvan de expressie niet
-   bewezen classic en niet bewezen advanced is, of waarvan de binding niet vast te stellen is (een
-   onleesbare bindregel, een classic LB-regel zonder bindregel). Een onbesliste regel is nooit
-   groen: de toets zegt dan `niet beoordeeld`.
+   bewezen classic en niet bewezen advanced is, of die zelf niet eenduidig leesbaar is, en de
+   vermoedelijke parameters van de rijen hieronder die buiten de zoektocht vallen. Een onbesliste
+   regel is nooit groen: de toets zegt dan `niet beoordeeld`.
+
+Buiten de zoektocht, en dat zegt elk antwoord van de toets: "niet onderzocht: SPDY,
+HTTP/2-classic, AppFlow client-side measurements (tabel 1 rij 5, 6, 8)". Voor die drie rijen
+kent het product geen eenduidige classic commandovorm; alleen hun vermoedelijke parameters
+(`-spdy`, `-http2`, `-clientSideMeasurements` aan) tellen als onbeslist. Staan die niet aan in de
+draaiende en de opgeslagen configuratie, dan houden deze rijen de toets niet tegen; de vendorcheck
+in R2 beslist daar.
 
 `ns_true` en `ns_false` bewijzen alleen dat een expressie classic is, nooit dat een feature
 verwijderd is: dezelfde `ns_true` is in een classic CS-policy blokkerend en in een classic

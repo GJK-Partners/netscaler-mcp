@@ -733,7 +733,11 @@ def test_the_handleiding_classic_paragraph_matches_the_classic_module():
         "classic AAA-pre-authenticatie",
     }
     assert "classic tunnelverkeer en de classic AAA-pre-authenticatie" in paragraph
-    assert "elke andere vorm met een eigen rij in tabel 1 of 2" in paragraph
+    assert "de andere vormen met een eigen rij in tabel 1 of 2 die het product herkent" in paragraph
+    from nsmcp.classic import NOT_EXAMINED_ROWS
+
+    assert f'"{NOT_EXAMINED_ROWS}"' in paragraph
+    assert "HTMLInjection en elk ander Filter-commando" in paragraph
     for word in (
         "Gateway-authenticatie, -sessie, -verkeer en -autorisatie",
         "classic audit (SYSLOG en NSLOG)",

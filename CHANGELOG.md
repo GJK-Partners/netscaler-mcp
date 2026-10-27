@@ -99,13 +99,19 @@ the knowledge package.
   longer loads from 13.1 on, so it can only survive in the saved one, which
   the vendor check reads); without the saved configuration in the export it
   is `niet beoordeeld` ("opgeslagen configuratie niet in de export"). A removed
-  feature blocks the transition bound or not. Every form with its own row in
-  CTX296948 table 1 or 2 blocks it, with that row as the source: priority
-  queuing, HTTP DoS protection, AppQoE, `SYS.EVAL_CLASSIC_EXPR`, patclass,
-  rewrite `-pattern` and `-bypassSafetyCheck`, `HTTP.REQ.BODY` without a
-  length, a `Q.`/`S.` prefix, `set cmp parameter -policyType CLASSIC` and a
-  built-in classic policy only on a bind line. Undecided is only for a form
-  without a vendor row and for a binding that cannot be established. None of
+  feature blocks the transition bound or not, also when its binding cannot
+  be established. The forms with their own row in CTX296948 table 1 or 2 that
+  the product recognises block it, with that row as the source: priority
+  queuing, HTTP DoS protection, AppQoE, HTMLInjection and every other Filter
+  command, `SYS.EVAL_CLASSIC_EXPR`, patclass, rewrite `-pattern` and
+  `-bypassSafetyCheck`, `HTTP.REQ.BODY` without a length, a `Q.`/`S.` prefix,
+  `set cmp parameter -policyType CLASSIC` and a built-in classic compression
+  policy (`ns_cmp_*`, `ns_nocmp_*`) on a policy position of a bind line. Text
+  inside a string, regex or q literal and in a `-comment` is never a form.
+  Table 1 rows 5, 6 and 8 (SPDY, HTTP/2, AppFlow client-side measurements)
+  are outside the search, and every answer of the check says so; only their
+  probable parameters switched on count as undecided. Undecided is for a form
+  without a vendor row and for a line that is itself not readable. None of
   this is reachable from any tool yet: no behaviour change within 14.1.
 
 ### Changed
