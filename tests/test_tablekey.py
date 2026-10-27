@@ -514,18 +514,37 @@ def test_a_record_of_another_value_type_is_unreadable(tmp_path, hkcu):
 # ---------------------------------------------------------------------------
 
 
-def test_an_8_3_file_name_of_the_table_is_refused_and_another_case_is_the_same_place(tmp_path, registry):
+def _skip_without_8_3_names(long: Path, short: Path) -> None:
+    """GitHub's runner volume (and any volume with 8.3 name generation off)
+    hands back the long name: then there is no second name to refuse."""
+    if short.name == long.name:
+        pytest.skip(
+            f"8.3-namen worden op het volume van {str(long)[:2]!r} niet gegenereerd; de M-2-weigering is niet te meten"
+        )
+
+
+def test_another_case_of_the_file_name_is_the_same_place_and_is_not_refused(tmp_path, registry):
+    """Herkeuring M-2, the half that holds on every volume: another case of
+    the file name is the same file, key and lock - the same slot, no
+    `NameSpelling`, and the table loads under that spelling."""
+    table = tmp_path / "Beheer Map" / "openheid-vertaaltabel.json"
+    first = load(place(table))
+    upper = Path(str(table.parent)) / table.name.upper()
+    assert place(upper).slot == place(table).slot
+    assert load(place(upper)).anchor == first.anchor
+
+
+def test_an_8_3_file_name_of_the_table_is_refused_and_an_8_3_directory_is_the_same_place(tmp_path, registry):
     """Herkeuring M-2: the key and the lock are named after the spelling
     given, so an 8.3 FILE name would look for a key that is not this table's
-    (`sleutel_ontbreekt`, misleading): refused with its own exception. Another
-    case is the same file, key and lock, and the same slot."""
+    (`sleutel_ontbreekt`, misleading): refused with its own exception. An 8.3
+    DIRECTORY name is the same place."""
     table = tmp_path / "Beheer Map" / "openheid-vertaaltabel.json"
     load(place(table))
     short_file = Path(_short_name(table))
-    assert short_file.name != table.name, "premisse: een echte 8.3-bestandsnaam"
+    _skip_without_8_3_names(table, short_file)
     with pytest.raises(tablekey.NameSpelling):
         place(short_file)
-    assert place(Path(str(table.parent)) / table.name.upper()).slot == place(table).slot
     short_dir = Path(_short_name(table.parent)) / table.name
     assert place(short_dir).slot == place(table).slot, "een 8.3-MAPNAAM is dezelfde plek"
 

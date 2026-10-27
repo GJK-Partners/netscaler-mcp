@@ -430,7 +430,10 @@ def test_an_8_3_file_name_is_refused_with_its_own_sentence_and_nothing_is_writte
     buffer = ctypes.create_unicode_buffer(1024)
     assert ctypes.windll.kernel32.GetShortPathNameW(str(table), buffer, 1024)
     short = Path(buffer.value)
-    assert short.name != table.name, "premisse: een echte 8.3-bestandsnaam"
+    if short.name == table.name:
+        pytest.skip(
+            f"8.3-namen worden op het volume van {str(table)[:2]!r} niet gegenereerd; de M-2-weigering is niet te meten"
+        )
     before = sorted(p.name for p in table.parent.iterdir()), dict(_store().values)
     with pytest.raises(PseudonymTableBroken) as refused:
         _render(short, NAME_A)
