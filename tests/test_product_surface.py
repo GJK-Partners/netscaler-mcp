@@ -3818,3 +3818,69 @@ def test_1_1_every_reader_names_a_refusal_with_its_pinned_sentence(tmp_path, mon
     assert texts == expected
     for text in texts.values():
         assert str(tmp_path) not in text and "PLEKNAALD9" not in text, text
+
+
+# ---------------------------------------------------------------------------
+# 1.1 A.5.1: pre-flight check 2 within the line. The classic tables move out
+# of `preflight` into their own module; within 14.1 not one word of check 2
+# may change (spec section 2, rule 5). Every sentence below is the 1.0.3
+# text, written out as a literal, never read back from the module.
+# ---------------------------------------------------------------------------
+
+_CHECK_2_BOUNDARY_1_0_3 = (
+    "parsed/runningconfig.txt, {n} regels; gezocht op de markers die in 14.1 verwijderd zijn: 'add filter',"
+    " 'add cr policy', ns_true, ns_false; een classic policy die geen van deze markers draagt valt buiten deze"
+    " toets, en van een regel wordt nooit de tekst herhaald"
+)
+
+
+class _RunningConfigOnly:
+    def __init__(self, lines):
+        self._lines = lines
+
+    def running_config_lines(self):
+        return list(self._lines), None
+
+
+def test_1_1_the_in_line_classic_check_sentences_are_pinned_byte_for_byte():
+    from nsmcp.preflight import _check_2_classic_markers
+
+    def run(lines):
+        check = _check_2_classic_markers(_RunningConfigOnly(lines))
+        return check.number, check.name, check.word, check.evidence, check.reason
+
+    assert run(["set ns config -IPAddress 192.0.2.1"]) == (
+        2,
+        "classic-markers in de running config",
+        "geen blokkade",
+        _CHECK_2_BOUNDARY_1_0_3.format(n=1),
+        "",
+    )
+    assert run(["add cr policy P -rule ns_true -action CACHE", "bind cr vserver V -policyName P -priority 100"]) == (
+        2,
+        "classic-markers in de running config",
+        "blokkade",
+        _CHECK_2_BOUNDARY_1_0_3.format(n=2) + "; verwijderde markers op regel 1; alleen deprecated op regel -",
+        "1 regel(s) dragen een marker die in 14.1 verwijderd is en die aan een entiteit gebonden is",
+    )
+    assert run(["add cr policy P -rule ns_true -action CACHE"]) == (
+        2,
+        "classic-markers in de running config",
+        "aandachtspunt",
+        _CHECK_2_BOUNDARY_1_0_3.format(n=1) + "; verwijderde markers op regel 1; alleen deprecated op regel -",
+        "1 regel(s) dragen een marker die in 14.1 verwijderd is, maar geen bind-regel noemt het object; ongebonden"
+        " houdt de upgrade niet tegen, maar de regel blijft dan onnodig in de configuratie staan",
+    )
+    assert run(
+        [
+            "add authentication ldapPolicy A ns_true L",
+            "bind vpn vserver V -policy A -priority 100 -gotoPriorityExpression ns_true",
+        ]
+    ) == (
+        2,
+        "classic-markers in de running config",
+        "aandachtspunt",
+        _CHECK_2_BOUNDARY_1_0_3.format(n=2) + "; verwijderde markers op regel -; alleen deprecated op regel 1, 2",
+        "2 regel(s) dragen een marker die alleen deprecated is (classic gateway-authenticatie); dat houdt de"
+        " upgrade niet tegen",
+    )
