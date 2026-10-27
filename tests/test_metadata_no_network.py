@@ -34,6 +34,16 @@ pytestmark = [
 ]
 
 SHARE = "\\\\192.0.2.10\\x"
+# A host of its own per test: after one real contact the redirector caches a
+# host as unreachable and a later call by name would come back fast (measured
+# in mutation 87), so the 100 ms bound only proves something with a fresh host.
+_HOSTS = iter(range(20, 250))
+
+
+def _fresh_share() -> str:
+    return "\\\\192.0.2." + str(next(_HOSTS)) + "\\x"
+
+
 LIMIT_S = 0.1
 
 
@@ -42,7 +52,7 @@ def share_link(tmp_path, monkeypatch):
     """`tmp_path/share` -> the share, and a recording seam."""
     link = tmp_path / "share"
     try:
-        os.symlink(SHARE, link, target_is_directory=True)
+        os.symlink(_fresh_share(), link, target_is_directory=True)
     except OSError as exc:  # pragma: no cover - depends on the symlink right of the account
         pytest.skip(f"symbolische link niet toegestaan op deze machine: {exc.__class__.__name__}")
     native = localpath._Native(record=True)
@@ -58,7 +68,7 @@ def _no_contact(native, call):
         outcome = ("raised", exc)
     elapsed = time.perf_counter() - started
     for record in native.opens:
-        assert "192.0.2.10" not in record["name"] and "mup" not in record["name"].lower(), record
+        assert "192.0.2." not in record["name"] and "mup" not in record["name"].lower(), record
     assert elapsed < LIMIT_S, f"{elapsed:.3f} s: zo lang duurt een netwerkcontact"
     return outcome
 

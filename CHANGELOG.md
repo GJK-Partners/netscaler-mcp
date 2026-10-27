@@ -327,6 +327,31 @@ the knowledge package.
   a byte is read, instead of reading up to 32 MiB first.
 - An existing name met by an exclusive create (the scan lock) that cannot be
   opened as itself is `onleesbaar`, no longer "a scan is running".
+- The script pin: a link or reparse point with a script name (`.ps1`, `.psm1`)
+  beside the started script is a pin mismatch ("het script <naam> naast
+  <script> ligt niet als gewoon bestand in de scriptmap (<zin>)"), never
+  skipped: PowerShell would read its target by name. A real directory with
+  such a name is no script. `python -m nsmcp.powershell --pin <map>` names such
+  a link as an error instead of leaving it unpinned.
+- The scan route deletes, creates and measures on the walk too: the work map
+  of a scan is created exclusively relative to the held map around the export
+  (`localpath.mkdtemp_local`), the recovery slot, the failure slot, stale work
+  maps, kept exports and the live measurement's work map are deleted object by
+  object on their own handles (`localpath.rmtree_local`; a link inside is
+  deleted as itself, its target untouched), the scan lock by its handle
+  (`localpath.remove_local`), and the free space for the keeping policy is
+  asked on the held handle of the map around the export
+  (`FileFsFullSizeInformation`, `localpath.free_bytes_local`) instead of
+  `shutil.disk_usage`, `tempfile.mkdtemp`, `shutil.rmtree` and `Path.unlink` on
+  a name (each of which followed a link to a share: 21 s per call, measured).
+  The inventory counts every `shutil` and `tempfile` function, `unlink`,
+  `rmdir` and `os.remove`; what remains (`tempfile.gettempdir` for the live
+  measurement) is pinned with its reason.
+- At the start, when the newest provenance record names another export map
+  than the configuration (after the update to 1.1, an export path with an 8.3
+  short name or a link in it), the server says so on stderr: target-bound
+  answers and writing tools refuse this export until the first scan
+  (HANDLEIDING: after the update, first a scan).
 
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is
