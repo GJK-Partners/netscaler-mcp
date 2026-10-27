@@ -245,3 +245,24 @@ Every read verifies the file it is about to use against that manifest, and
 re-checks that the manifest itself has not changed underneath (a scan can swap
 the export directory mid-read). A source with no hash is a read gap: no hash is
 no trust.
+
+Since 1.1 the PLACE of a file is part of that trust, not only its bytes. A hash
+that matches says nothing about where the bytes came from: a junction inside
+the export, beside the pseudonym table or in the place of a ledger file led a
+read to a place the start check would have refused, and a matching hash in the
+manifest then accepted it. So every file the product opens - Python and
+PowerShell alike - is opened in exactly one place: `nsmcp.localpath` (and its
+PowerShell twin `Open-GjkLokaalBestand` in `scripts/GjkUpgrade-LokaalPad.ps1`,
+the same walk, kinds and fixed sentences). It opens every component itself with
+`NtCreateFile`, relative to a directory handle it holds, as itself
+(`FILE_OPEN_REPARSE_POINT`), and refuses every reparse point inside the approved
+directory, the directory itself included; containment is structural (the root
+is walked on its own text, everything below it relative to the held root
+handle), never a comparison of resolved path strings. A held directory is
+shared for reading and writing but not for deletion, so it cannot be renamed or
+replaced while a file below it is in use. `tests/test_read_inventory.py` proves
+mechanically that no other module and no script opens a file by name (pinned
+exceptions with their reason), and an audit hook in the route and session tests
+catches any open by path at run time. What the walk does not prove: the access
+rights on those directories (who may write there), and which bytes PowerShell
+finally executes for a pinned script.

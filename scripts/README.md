@@ -9,7 +9,28 @@ PowerShell 5.1, ASCII-only:
   `Close-GjkSshSession`, en vier interne hulpfuncties met het voorvoegsel `_Gjk`
   (`_GjkPinHostsleutel`, `_GjkIsHostsleutelfout`, `_GjkIsOndubbelzinnigeHostsleutelfout`,
   `_GjkZonderBanner`): de hostsleutel pinnen, een hostsleutelfout herkennen en het gemeten
-  waarschuwingsblok van de appliance uit de uitvoer halen. Twaalf in totaal.
+  waarschuwingsblok van de appliance uit de uitvoer halen. Twaalf in totaal. Sinds 1.1 neemt
+  `Copy-GjkFile` geen pad meer aan maar de vastgehouden stroom van `Open-GjkLokaalBestand`
+  (`-Lokaal`); een tekst of een gesloten stroom weigert het voordat er een credential gelezen of
+  een sessie geopend wordt. `Set-SFTPItem` opent de bundel op naam, alleen binnen die greep en op
+  de plek waar de wandeling uitkwam.
+- **`GjkUpgrade-LokaalPad.ps1`** (1.1) - de lokale-padregel aan de PowerShell-kant, de tweeling
+  van `nsmcp.localpath`: `Open-GjkLokaalBestand -Pad <pad> (-Wortel <map> | -ZonderWortel)
+  -Klasse bundel|sidecar|pakket|ledger|runnerlog [-MagOntbreken]` opent elk onderdeel zelf met
+  `NtCreateFile` (een ingebedde C#-binding via `Add-Type`), relatief aan een vastgehouden map,
+  als zichzelf (`FILE_OPEN_REPARSE_POINT`), leest eerst de tag en dan pas het type, en geeft een
+  `FileStream` op de vastgehouden bladhandle terug; de keten blijft vast tot
+  `Close-GjkLokaalBestand`. Mappen op de weg alleen met traverseerrecht en zonder
+  `FILE_SHARE_DELETE`; het blad met `FILE_SHARE_READ` (bundel, sidecar, pakket) of
+  `FILE_SHARE_READ | FILE_SHARE_WRITE` (ledger, runnerlog). Binnen de wortel, de wortel zelf
+  inbegrepen, is elk herparseerpunt een weigering; boven de wortel wordt alleen een symlink of
+  mount point gevolgd, na de spelling- en volumetoets van zijn doel. Een weigering is een
+  `[GjkLokaalPad.PadGeweigerd]` met dezelfde soort en dezelfde vaste zin (zonder pad) als de
+  Python-kant (`localpath.REASONS`; een test houdt ze byte voor byte gelijk). Verder
+  `Join-GjkLokaalPad` (wortel en pad uit dezelfde tekst), `Get-GjkLokaleSha256`,
+  `Read-GjkLokaleBytes`, `Get-GjkLokaalPadSoort` en `Get-GjkLokaalPadReden`. Alleen lezen: geen
+  PowerShell-route schrijft via deze functie. De runner leest dit bestand op naam uit zijn eigen
+  map; het valt dus onder de `scriptpin` van die map (pin de hele map opnieuw na een update).
 - **`Invoke-GjkUpgradeFase.ps1`** - de entrypoint. Voert **EEN fase** (R0..R6) van de
   upgraderoute uit, als apart proces, per aanroep. Elke tekstparameter (`-Doel`, `-Adres`, `-Run`,
   `-Gebruiker`, `-CredentialTarget`, `-HostsleutelVingerafdruk`, `-Doelbuild`, `-Firmwaremap`,
@@ -109,7 +130,10 @@ uit het Python-pakket `nsmcp`, nooit uit deze scripts. Dat loopt via twee kleine
 3. **`python -m nsmcp.upgrade_measure`** (actie `vorm`) zet de RUWE metingen die het script
    verzamelde (df -k /var, show ha node, de vendor-precheck-JSON, de sha256 VAN DE DOOS - gemeten
    NA de overzet, met `shell sha256 -q <buildboom>/<bundelnaam>` in dezelfde SSH-sessie, nooit
-   `Get-FileHash` op het lokale bestand - of de sessie openging, ...) om in getypte poorten, door
+   `Get-FileHash` op het lokale bestand; sinds 1.1 vergelijkt `firmware-hash` die met de
+   vendor-sidecar EN met de lokale sha256 die de runner voor de sessie op de vastgehouden stroom
+   van de bundel berekende (`Open-GjkLokaalBestand`; de bundel blijft in R1 vastgehouden tot na
+   de upload en de meting op de doos), elk verschil sluit R1 - of de sessie openging, ...) om in getypte poorten, door
    de bestaande, al geteste poortfuncties in
    `nsmcp.upgrade` aan te roepen (`disk_gate`, `secondary_gate`, `hash_gate`, `precheck_gate`)
    plus een reeks kleine functies voor wat geen eerdere taak al had: `hostkey_session_gate` (de
@@ -357,7 +381,7 @@ te verzinnen).
 | 1 | de fase is GEOORDEELD en de uitkomst is `poort dicht` of `mislukt`; OF het script heeft de aanroep zelf GEWEIGERD voordat er een ledgerregel bestond (`[GEWEIGERD]`: niet-ASCII argument, een stuurteken (CR, LF, tab) in een tekstparameter of een verboden adres, een adres/doel op de verboden lijst, een ontbrekende `-Actieid` op een echte run, een `-Doelbuild`, `-Huidigebuild`, `-Vloerbuild`, `-VloerBulletin`, `-VloerPakket` of `-VloerPakketDatum` die de vorm niet heeft) | `upgrade_gate`, of het script zelf |
 | 2 | NIET BEOORDEELD: `upgrade_gate` of `upgrade_measure` kon de STDIN-invoer zelf niet lezen (kapotte JSON of een ontbrekend verplicht veld), of `upgrade_measure` (actie `start`) weigerde `fase_gestart` omdat er op hetzelfde doel al een fase open staat binnen zijn tijdslimiet of de ledgermap niet te lezen is (het script logt dan `[FOUT]` + `[GEWEIGERD]` en opent geen sessie), of de fase draagt al ELDERS in het eigen ledgerbestand van deze run een sluitregel - ELKE sluitregel voor deze fase, niet alleen de laatste (`ClosedPhaseError`, herbeoordeling geweigerd omdat een gesloten fase niet opnieuw gesloten mag worden - een retry hoort een nieuwe `run` te zijn). Er is geen fase-uitkomst. Een onleesbare REGEL in het eigen ledgerbestand van deze run (in plaats van de STDIN-invoer) is dit NIET: die telt als een eigen `niet beoordeeld`-poort ("ledger leesbaar") die de fase op `poort dicht` sluit (exitcode 1) - de gesloten stand kan dan niet volledig vastgesteld worden, maar er komt wel een sluitregel | `upgrade_gate` / `upgrade_measure` |
 | 3 | de runner kon zijn werk niet eens proberen te voltooien: Posh-SSH ontbreekt, OF een ONVERWACHTE MEETFOUT (een ontbrekende firmwarebundel, een mislukte SFTP-upload, een niet-nul exitcode uit `upgrade_measure`). Gelogd als `[FOUT]` + `[GEWEIGERD]`, GEEN `[EINDSTATUS]`, en er komt geen sluitregel in het ledger | het script zelf |
-| 4 | een firmwarebundel die via het patroon van een bare `-Doelbuild` gevonden wordt, heeft niet de bundelvorm `build-<tak>-<build>_nc_64.tgz`: geweigerd voordat de naam in een commando komt. Gelogd als `[FOUT]` + `[GEWEIGERD]`, GEEN `[EINDSTATUS]`, geen sluitregel | het script zelf |
+| 4 | een firmwarebundel die via het patroon van een bare `-Doelbuild` gevonden wordt, heeft niet de bundelvorm `build-<tak>-<build>_nc_64.tgz`: geweigerd voordat de naam in een commando komt; OF (1.1) een lokaal bestand van de fase - de bundel in R1, R2, R3 en R5 zonder tak, de sidecar in R1 - is door `Open-GjkLokaalBestand` geweigerd (een koppeling of ander herparseerpunt in of als de firmwaremap, een netwerk- of apparaatpad, een gegevensstroom): `[FOUT] de firmwarebundel is geweigerd: <vaste zin>` (of `de sidecar van de firmwarebundel`), zonder pad, voor `fase_gestart`, het transport en de sessie. Gelogd als `[FOUT]` + `[GEWEIGERD]`, GEEN `[EINDSTATUS]`, geen sluitregel | het script zelf |
 
 Exitcode 1 is in dit contract het woord voor een GEOORDEELDE weigering. Daarom eindigt een crash
 NOOIT met 1: een onverwachte meetfout is exitcode 3, zodat een aanroeper een echte poortuitspraak

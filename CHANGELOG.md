@@ -74,6 +74,19 @@ the knowledge package.
   server log with `NSMCP_DEBUG`. Append (`open_local_for_append`) and replace
   (`replace_local`: an exclusive temporary file renamed by its handle) use the
   same held chain.
+- `scripts/GjkUpgrade-LokaalPad.ps1` with `Open-GjkLokaalBestand`, the
+  PowerShell twin of `nsmcp.localpath` (third part of the runtime path rule):
+  the same walk through an embedded C# binding (`Add-Type`) of `NtCreateFile`,
+  `NtQueryInformationFile`, `NtQueryVolumeInformationFile`, `NtClose`,
+  `GetDriveTypeW`, `QueryDosDeviceW`, `GetFileType` and
+  `DeviceIoControl(FSCTL_GET_REPARSE_POINT)`, the same kinds and the same fixed
+  sentences (a test keeps them equal to `localpath.REASONS` byte for byte).
+  It returns a `FileStream` on the held leaf handle and holds the chain until
+  `Close-GjkLokaalBestand`; the leaf share mode follows the file class (ledger
+  and runner log share writing; bundle, sidecar and package share reading
+  only). Read only: no PowerShell route writes through it. The runner reads it
+  by name from its own directory, so it is a script under the `scriptpin` of
+  that directory: pin the whole directory again after the update.
 
 ### Changed
 - `uv.lock` is the one source of the dependencies. `requirements-build.txt` is no
@@ -352,6 +365,47 @@ the knowledge package.
   short name or a link in it), the server says so on stderr: target-bound
   answers and writing tools refuse this export until the first scan
   (HANDLEIDING: after the update, first a scan).
+- The phase runner opens every local file through `Open-GjkLokaalBestand`
+  (third part): before `fase_gestart`, the transport and the session it walks
+  to the firmware bundle in `-Firmwaremap` (R1, R2, R3, and R5 with a bare
+  target build) and in R1 to its `.sha256` sidecar. R1 computes the local
+  sha256 on the held stream (no `Get-FileHash` by name) and holds the bundle
+  until the phase ends; the bundle size is read on its handle. Newly refused
+  by the runner, with `[FOUT] de firmwarebundel is geweigerd: <zin>` (or "de
+  sidecar van de firmwarebundel"), `[GEWEIGERD]` and exit code 4, without the
+  path and without a ledger row: a junction, symbolic link or other reparse
+  point as the bundle or the sidecar, a firmware map that is itself a
+  junction, a network or device place on the way. A rename of the bundle
+  during R1 now fails instead of being caught where the name is used.
+- `Copy-GjkFile` takes the held stream (`-Lokaal`) instead of a path and
+  refuses a string or a closed stream before a credential is read;
+  `Set-SFTPItem` opens the bundle by name only while the chain and the bundle
+  are held, on the place the walk reached. After the upload the
+  `firmware-hash` gate compares the sha256 on the appliance with the vendor
+  sidecar AND with the local hash on the held stream (`hash_gate(vendor, box,
+  local)`); any difference, or a missing local hash, closes R1. The open
+  evidence reads "sha256 op de doos gelijk aan de vendorwaarde en aan de
+  lokaal vastgehouden bundel". R1 skips an upload only when the bundle on the
+  appliance also matches the local hash.
+- The runner's Python bridges hand their stderr back through a pipe, no longer
+  through a temporary file created, written and read by name. Fixed with it:
+  under `Stop`, Windows PowerShell 5.1 turned the first stderr line of a bridge
+  into a terminating error (measured), and the runner then ended with exit
+  code 1 - the word for a judged refusal - instead of its own `[FOUT]` line
+  and exit code (for example "kon fase_gestart niet laten vastleggen: <stderr>",
+  exit code 2).
+- The PowerShell inventory of `tests/test_read_inventory.py` holds no part-3
+  findings any more: the runner's two `Get-Content`, its `Get-FileHash` and its
+  `Get-Item` run through the walk; three findings stay pinned with their
+  reason: the two Posh-SSH content manifests (`[System.IO.File]::`, exception 3:
+  module files Import-Module reads on its own authority) and the one upload by
+  name (`Set-SFTPItem -Path`, no exception: only behind the check of a held
+  stream). Tests: `tests/test_localpath_powershell.py` (the Python test vectors
+  on the PowerShell walk: junction, symbolic link, cloud placeholder, alternate
+  data stream, network drive and device targets through the seam, the status
+  table, races (a) to (c) with real junctions swapped between two components)
+  and, in tests/test_runner_script.py, race (d) between the local hash and the
+  upload with the NEP transport.
 
 ### Unchanged
 - A valid package of the existing line (no `minimaleEngine`) loads and is

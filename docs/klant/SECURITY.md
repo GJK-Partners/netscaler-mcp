@@ -113,6 +113,37 @@ het product niet; dat is een beheereis:
   dat de exportmap niet in de ledgermap, de herkomstmap of de firmwaremap ligt; de rechten toetst
   hij niet. Zie "Bestanden op schijf" in de handleiding.
 
+**Elk bestand op zijn uiteindelijke lokale plek (RH-2, sinds 1.1).** Tot en met 1.0.3 toetste de
+server de paden uit de configuratie bij de start; een bestand dat hij daarna las, toetste hij op
+ligging in de exportmap met een padvergelijking die een koppeling volgde, of helemaal niet. Een
+junction of symbolische link BINNEN de exportmap, naast de vertaaltabel of op de plek van een
+ledgerbestand leidde zo naar een plek die bij de start geweigerd zou zijn - ook naar een share.
+Sinds 1.1 opent het product elk bestand dat het leest of schrijft op één plek (`nsmcp.localpath`;
+aan de PowerShell-kant `Open-GjkLokaalBestand` in `scripts\GjkUpgrade-LokaalPad.ps1`, dezelfde
+wandeling met dezelfde zinnen): onderdeel voor onderdeel, relatief aan een map die het vasthoudt,
+elk onderdeel als zichzelf, zonder een koppeling te volgen. Nu geweigerd, met een vaste zin per
+soort en zonder pad onder openheid `volledig`: een koppeling of ander herparseerpunt (ook een
+cloud-plaatshouder of deduplicatie) in een goedgekeurde map of op de plek van een bestand, een
+goedgekeurde map die zelf een koppeling is (de export-, ledger-, tabel- of firmwaremap), een
+netwerkpad of netwerkstation onderweg, een apparaatpad en een alternatieve gegevensstroom. Boven
+de goedgekeurde map wordt alleen een junction of symbolische link gevolgd, en pas nadat zijn doel
+de spelling- en volumetoets doorstond; een doel op een share wordt niet geopend. Een vastgehouden
+map kan tijdens de bewerking niet hernoemd, verwijderd of vervangen worden. De faserunner berekent
+de lokale sha256 van de firmwarebundel op de vastgehouden bundel, houdt hem vast tijdens de upload
+(die hem op naam opent) en R1 vergelijkt de sha256 op de appliance met de vendorwaarde én met die
+lokale hash; elk verschil sluit R1. De grenzen:
+
+- de rechten op de mappen (ACL's) bewijst de code nog steeds niet. Wie in een goedgekeurde map mag
+  schrijven, kan daar een ander GEWOON bestand neerzetten; de beheereisen hierboven blijven;
+- een `scriptpin` bewijst dat de gehashte bytes op het moment van hashen gelijk waren aan de pin,
+  niet dat `powershell.exe` precies die bytes uitvoert: executie-identiteit valt buiten 1.1. Dat
+  geldt ook voor `GjkUpgrade-LokaalPad.ps1` en het transport, die de runner op naam uit zijn eigen
+  map inleest, en voor het inhoudsmanifest van Posh-SSH;
+- het kiezen van een naam (een map opsommen op het bundelpatroon) en een vraag naar metadata
+  lezen geen inhoud; elke inhoud die erop volgt, gaat door de wandeling;
+- de upload door `Set-SFTPItem` opent de bundel op naam terwijl de keten en de bundel
+  vastgehouden worden; de vergelijking op de appliance bindt de geuploade bytes aan de gehashte.
+
 **Wie het kennispad kan beschrijven, kan zonder pin de kennis veranderen.** Een pakket waarin
 getroffen reeks en fix-build samen verlaagd zijn, of waaruit het laatste bulletin is gehaald,
 doorstaat elke vormcontrole; het werd gemeten met een lagere vloer en minder geraakte CVE's,

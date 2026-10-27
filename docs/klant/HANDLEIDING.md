@@ -241,7 +241,9 @@ bij de start. Dat geldt ook voor het configuratiebestand zelf en voor de plek wa
 uitkomt: de server volgt een junction of symbolische link stap voor stap zonder het doel te
 openen, en weigert een configuratiebestand op een share (dan zou elk relatief pad een netwerkpad
 worden), een koppeling naar een share of een gegevensstroom, en een netwerkstation
-(`Z:` gekoppeld aan een share). Een junction naar een andere lokale map blijft toegestaan.
+(`Z:` gekoppeld aan een share). Een junction naar een andere lokale map blijft toegestaan boven
+een werkmap; binnen de export-, ledger-, tabel- of firmwaremap, of als die map zelf, niet (zie
+"Bestanden op schijf").
 `handelen.codekanaal.pad` moet bovendien absoluut zijn.
 
 ### Het kennispakket vastpinnen (`kennispin`)
@@ -1318,6 +1320,21 @@ niet naar rechten. Wie in welke map mag schrijven, regelt u zelf:
   aanleverende partij ook kan beschrijven. De server start dan wel, want de herkomstmap ligt
   niet in de exportmap, maar die gedeelde bovenmap is dan de zwakste plek: het herkomstbewijs
   is niet sterker dan de rechten daarop.
+
+**Geen koppelingen en geen cloud-plaatshouders in de werkmappen (sinds 1.1).** Het product opent
+elk bestand onderdeel voor onderdeel vanuit de map waarin het hoort, en volgt daarbinnen geen
+koppeling. In de exportmap, de ledgermap (met de herkomstmap), de map van de vertaaltabel en de
+firmwaremap mag daarom geen junction, symbolische link of ander herparseerpunt staan, ook niet op
+de plek van een bestand, en de map zelf mag geen koppeling zijn: wie `D:\export` als junction naar
+een andere map aanlegt, ziet de server wel starten, maar elke lezing geeft een leesgat met de reden
+"er zit een koppeling in het pad". Een bestand dat een synchronisatiedienst als plaatshouder laat
+staan (OneDrive "alleen online", deduplicatie) is een herparseerpunt en wordt ook geweigerd. Zet
+deze mappen op een lokale, vaste schijf en buiten een gesynchroniseerde map (niet onder OneDrive of
+een omgeleide documentenmap): een netwerkstation, een share of een verwisselbaar station wordt
+geweigerd. Een junction BOVEN zo'n map, naar een andere lokale map, blijft toegestaan. De
+faserunner weigert een koppeling in of als de firmwaremap met `[FOUT] de firmwarebundel is
+geweigerd: <reden>` en exitcode 4, voordat er een fase begint of iets naar de appliance gaat. Welke
+rechten iemand op die mappen heeft, toetst het product nog steeds niet.
 
 In het voorbeeld onder "Configuratie" staan configuratie, kennis en export samen onder
 `C:\GJK\netscaler-mcp\`. Dat is alleen veilig zolang die map een beheermap is en de export door
