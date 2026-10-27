@@ -479,8 +479,10 @@ the knowledge package.
   channels of the product accept it; a presenter of your own with exactly
   seven positional parameters fails closed on such a call (`CHANNEL_FAILED`,
   the code is spent, nothing runs) - add `*, tabel=()` to it.
-- The slot uses the STORED name of the table file when it exists, so an 8.3
-  spelling or another case of the file name gives the same place; the names in
+- The slot uses the STORED name of the table file when it exists: another case
+  of the name, or an 8.3 spelling of a directory, gives the same place; an 8.3
+  spelling of the table's FILE name is refused with its own sentence (the key
+  and the lock beside it are named after the full name); the names in
   the table's directory (first-start check, backup reuse) are listed on the
   directory handle the table lock holds, never on a path text.
 - A reset without a readable anchor names the old files after the generation

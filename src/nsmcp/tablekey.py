@@ -141,6 +141,14 @@ class Stop(Exception):
     point was written."""
 
 
+class NameSpelling(Exception):
+    """The table was named with another spelling of its FILE name than the
+    one stored on disk (an 8.3 short name). The key file and the lock file
+    are named after the configured spelling, so such a call would look for a
+    key and a lock that do not belong to this table: refused, before
+    anything is read or written."""
+
+
 class AnchorStoreError(Exception):
     """The anchor store itself failed (not: the record is absent)."""
 
@@ -328,9 +336,12 @@ def place_of(table: Path, root: str, held: localpath.LocalHandle) -> Place:
     delete sharing). A place that cannot be established is `slot`.
 
     The table's own name is its STORED name when the file exists
-    (`localpath.leaf_name`, on the handle of a walk from the held directory),
-    so an 8.3 spelling or another case of the file name gives the same slot;
-    only when there is no file yet does the configured name stand in."""
+    (`localpath.leaf_name`, on the handle of a walk from the held directory):
+    another case gives the same slot, and another NAME for the same file (an
+    8.3 short name) is refused (`NameSpelling`) - the key and the lock beside
+    the table are named after the spelling given, so they would not be this
+    table's own. Only when there is no file yet does the configured name
+    stand in."""
     try:
         serial = held.volume_serial()
         directory = held.directory_name()
@@ -342,6 +353,10 @@ def place_of(table: Path, root: str, held: localpath.LocalHandle) -> Place:
         raise PlaceRefused("de vertaaltabel", exc) from exc
     except OSError as exc:
         raise FileFailed("de vertaaltabel", exc) from exc
+    # Case does not matter (the file system folds it, for the key and the
+    # lock as well); another NAME for the same file does.
+    if stored is not None and stored.upper() != table.name.upper():
+        raise NameSpelling(stored)
     return Place(table, root, compute_slot(serial, directory, stored or table.name), held)
 
 

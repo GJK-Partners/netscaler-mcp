@@ -901,8 +901,11 @@ anker niet meer leesbaar is; de server zelf reset nooit.
 machine. Een ander volume (herformatteren, verhuizen, een kloon met een ander
 volumeserienummer), het hernoemen of verplaatsen van de map van de tabel of van een map
 erboven, een ander gebruikersprofiel (ook een profielmigratie of een zwervend profiel) of een
-andere machine maakt de tabel onbruikbaar tot een gecontroleerde reset. Een korte (8.3-)
-spelling of andere hoofdletters van hetzelfde pad geven dezelfde plek. Wie als hetzelfde Windows-account code draait, kan de sleutel lezen en het
+andere machine maakt de tabel onbruikbaar tot een gecontroleerde reset. Andere hoofdletters, en
+een korte (8.3-)spelling van een MAP, geven dezelfde plek. De bestandsnaam van de tabel zelf
+noemt u altijd voluit (in de configuratie en bij `--onderteken`, `--herstel` en `--reset`): een
+korte 8.3-bestandsnaam wordt geweigerd, omdat het sleutel- en het slotbestand bij de volledige
+naam horen. Wie als hetzelfde Windows-account code draait, kan de sleutel lezen en het
 anker wijzigen; daartegen beschermt dit niet.
 
 ## Dagelijks gebruik

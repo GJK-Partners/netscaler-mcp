@@ -514,13 +514,20 @@ def test_a_record_of_another_value_type_is_unreadable(tmp_path, hkcu):
 # ---------------------------------------------------------------------------
 
 
-def test_the_slot_takes_the_stored_file_name_so_an_8_3_file_name_gives_the_same_slot(tmp_path, registry):
+def test_an_8_3_file_name_of_the_table_is_refused_and_another_case_is_the_same_place(tmp_path, registry):
+    """Herkeuring M-2: the key and the lock are named after the spelling
+    given, so an 8.3 FILE name would look for a key that is not this table's
+    (`sleutel_ontbreekt`, misleading): refused with its own exception. Another
+    case is the same file, key and lock, and the same slot."""
     table = tmp_path / "Beheer Map" / "openheid-vertaaltabel.json"
     load(place(table))
     short_file = Path(_short_name(table))
     assert short_file.name != table.name, "premisse: een echte 8.3-bestandsnaam"
-    assert place(short_file).slot == place(table).slot
+    with pytest.raises(tablekey.NameSpelling):
+        place(short_file)
     assert place(Path(str(table.parent)) / table.name.upper()).slot == place(table).slot
+    short_dir = Path(_short_name(table.parent)) / table.name
+    assert place(short_dir).slot == place(table).slot, "een 8.3-MAPNAAM is dezelfde plek"
 
 
 def test_a_create_that_fails_is_a_file_failure_with_its_class_only(tmp_path, registry, monkeypatch):

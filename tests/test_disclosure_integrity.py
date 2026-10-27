@@ -421,3 +421,29 @@ def test_a_file_failure_at_the_seam_is_a_broken_table_without_the_os_text(tmp_pa
         _render(table, NAME_A)
     message = str(broken.value)
     assert "(PermissionError)" in message and "toegang geweigerd" not in message and str(tmp_path) not in message
+
+
+def test_an_8_3_file_name_is_refused_with_its_own_sentence_and_nothing_is_written(tmp_path):
+    import ctypes
+
+    table = _table(tmp_path, NAME_A)
+    buffer = ctypes.create_unicode_buffer(1024)
+    assert ctypes.windll.kernel32.GetShortPathNameW(str(table), buffer, 1024)
+    short = Path(buffer.value)
+    assert short.name != table.name, "premisse: een echte 8.3-bestandsnaam"
+    before = sorted(p.name for p in table.parent.iterdir()), dict(_store().values)
+    with pytest.raises(PseudonymTableBroken) as refused:
+        _render(short, NAME_A)
+    message = str(refused.value)
+    assert "andere spelling van haar bestandsnaam" in message and "sleutel_ontbreekt" not in message
+    _assert_no_content(message)
+
+    # The refusal comes under the lock, whose file is named after the spelling
+    # given: that one empty lock file may appear; nothing else does.
+    def unchanged() -> bool:
+        names = [n for n in sorted(p.name for p in table.parent.iterdir()) if n != short.name + ".lock"]
+        return (names, dict(_store().values)) == before
+
+    assert unchanged()
+    assert main(["--reset", "--pad", str(short), "--gecontroleerd"]) == 1
+    assert unchanged()

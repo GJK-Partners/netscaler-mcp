@@ -1197,6 +1197,12 @@ class _TableErrors:
             return
         if isinstance(exc, tablekey.Fault):
             raise _integrity(self._path, exc) from None
+        if isinstance(exc, tablekey.NameSpelling):
+            raise PseudonymTableBroken(
+                f"de vertaaltabel op {self._path} is genoemd met een andere spelling van haar bestandsnaam dan op"
+                " schijf staat (bijvoorbeeld een korte 8.3-naam); het sleutel- en het slotbestand horen bij de"
+                " volledige naam - noem de tabel met haar volledige bestandsnaam en stel de vraag opnieuw"
+            ) from None
         if isinstance(exc, tablekey.PlaceRefused):
             raise _table_refused(exc.what, exc.exc) from exc.exc
         if isinstance(exc, tablekey.FileFailed):
