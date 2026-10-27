@@ -130,7 +130,22 @@ def test_the_directory_of_the_pseudonym_table_and_its_lock(share_link):
     table = link / "beheer" / "tabel.json"
     kind, value = _no_contact(native, lambda: disclosure._ProcessLock(table).__enter__())
     assert kind == "raised" and isinstance(value, disclosure.PseudonymTablePathRefused)
-    kind, value = _no_contact(native, lambda: disclosure._atomic_write(table, {}))
+    # 1.1 C: the table is replaced by the commit protocol (`tablekey._replace`,
+    # `localpath.replace_local` relative to the table's directory), its
+    # refusal mapped by `disclosure._TableErrors` - the route every append,
+    # migration, restore and reset takes.
+    from nsmcp import tablekey
+
+    place = tablekey.Place(table, localpath.absolute_text(table.parent), "0" * 64)
+
+    def replace_table():
+        with disclosure._TableErrors(table):
+            tablekey._replace(place, table.name, b"{}", "de vertaaltabel")
+
+    kind, value = _no_contact(native, replace_table)
+    assert kind == "raised" and isinstance(value, disclosure.PseudonymTablePathRefused)
+    # And the whole route a question takes (lock, slot, load, append).
+    kind, value = _no_contact(native, lambda: disclosure._load_table(table, ["NAAM"]))
     assert kind == "raised" and isinstance(value, disclosure.PseudonymTablePathRefused)
 
 
