@@ -52,6 +52,17 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from nsmcp.answer import Answer, Certainty, Finding
+from nsmcp.classic import (
+    MARKERS_SEARCHED,
+    SET_BLOCKING,
+    SET_DEPRECATED,
+    SET_LABELS,
+    SET_UNBOUND,
+    SET_UNDECIDED,
+    classify,
+    classify_markers,
+    markers_bound,
+)
 from nsmcp.config_drift import comparison_evidence, read_comparison, undecided_reason
 from nsmcp.cve import (
     FIPS_SUFFIX,
@@ -384,90 +395,20 @@ def _license_server_word(export) -> tuple[str, str]:
 
 NAME_2 = "classic-markers in de running config"
 
-# The markers of features REMOVED in 14.1, measured in the field. This is one
-# of two hard blockers that fail a NetScaler upgrade without ever showing up
-# in the build number - the other being file-based licensing (EOL
-# 15-4-2026, refused by the pre-upgrade check from 14.1-66.x onward). This
-# one covers: classic CS/CR/compression, classic AppFW, classic SSL,
-# `add filter`, `add cr policy`, `ns_true`/`ns_false`.
-#
-# Only markers that are TEXTUALLY UNAMBIGUOUS are in this table. Whether an
-# `add cs policy` line is classic or advanced cannot be read off the line
-# without parsing the expression language, and guessing there would produce a
-# blocker on a healthy config just as easily as a silent green on a broken
-# one. The evidence line below therefore SAYS what was searched for and what
-# falls outside it - a `geen blokkade` on a partial scan that presents itself
-# as a complete one is exactly the false green this product exists to prevent.
-_REMOVED_PREFIXES = ("add filter action", "add filter policy", "add cr policy")
-# The classic default expressions. The advanced engine has neither.
-_CLASSIC_EXPRESSIONS = ("ns_true", "ns_false")
-# Classic GATEWAY authentication is deprecated but does NOT block the upgrade
-# (measured; conversion to nFactor is a design choice, not an upgrade gate).
-# Putting it down heavier than it is, is as wrong as missing it. The `bind`
-# forms are in here too: a classic gateway policy is BOUND by definition, and
-# without them the bind line alone would turn the one marker that provably
-# does not block into a blocker.
-_DEPRECATED_PREFIXES = (
-    "add authentication",
-    "add vpn",
-    "bind authentication",
-    "bind vpn",
-)
-
-_SEARCHED = "'add filter', 'add cr policy', ns_true, ns_false"
+# The classic tables and both classifications live in `nsmcp.classic` (spec
+# 1.1 A.5.1, one owner per rule). Within the line this check calls the moved
+# 1.0.3 marker table and nothing else, so it says byte for byte what it said
+# before; the transition check below calls the four-set classification.
 
 
 def _markers(lines: list[str]) -> tuple[list[int], list[int], list[int]]:
-    """(removed, deprecated, bound) - LINE NUMBERS, never text.
-
-    Design 3.6: the running config passes a credential filter, and of a
-    filtered line this product gives the verdict and the line number, never
-    the text. So this function returns numbers and the callers print numbers.
-    """
-    removed: list[int] = []
-    deprecated: list[int] = []
-    bound: list[int] = []
-    for number, raw in enumerate(lines, start=1):
-        lowered = raw.strip().lower()
-        hit = any(lowered.startswith(prefix) for prefix in _REMOVED_PREFIXES) or any(
-            expression in lowered for expression in _CLASSIC_EXPRESSIONS
-        )
-        if not hit:
-            continue
-        if any(lowered.startswith(prefix) for prefix in _DEPRECATED_PREFIXES):
-            deprecated.append(number)
-            continue
-        removed.append(number)
-        if lowered.startswith("bind "):
-            # A marker ON a bind line is bound by definition.
-            bound.append(number)
-    return removed, deprecated, bound
+    """(removed, deprecated, bound) - LINE NUMBERS, never text (`classic.classify_markers`)."""
+    return classify_markers(lines)
 
 
 def _is_bound(lines: list[str], marker_lines: list[int]) -> bool:
-    """Does any `bind` line name an object one of these marker lines declares?
-
-    The name is used INTERNALLY only - to decide the word - and never printed:
-    an object name out of the running config is not collected by the
-    disclosure seam, so echoing one would reach the model unmasked.
-    """
-    names = set()
-    for number in marker_lines:
-        parts = lines[number - 1].strip().split()
-        # `add cr policy <naam> ...` / `add filter policy <naam> ...`: the
-        # token right after the three-word keyword.
-        if len(parts) >= 4 and parts[0].lower() == "add":
-            names.add(parts[3].strip('"').lower())
-    if not names:
-        return False
-    for raw in lines:
-        lowered = raw.strip().lower()
-        if not lowered.startswith("bind "):
-            continue
-        tokens = {token.strip('"') for token in lowered.split()}
-        if names & tokens:
-            return True
-    return False
+    """Does any `bind` line name an object one of these marker lines declares (`classic.markers_bound`)?"""
+    return markers_bound(lines, marker_lines)
 
 
 def _check_2_classic_markers(export) -> Check:
@@ -476,7 +417,7 @@ def _check_2_classic_markers(export) -> Check:
         return Check(2, NAME_2, NOT_ASSESSED, RUNNING_CONFIG_FILE, gap.reason)
     boundary = (
         f"{RUNNING_CONFIG_FILE}, {len(lines)} regels; gezocht op de markers die in 14.1"
-        f" verwijderd zijn: {_SEARCHED}; een classic policy die geen van deze markers draagt"
+        f" verwijderd zijn: {MARKERS_SEARCHED}; een classic policy die geen van deze markers draagt"
         " valt buiten deze toets, en van een regel wordt nooit de tekst herhaald"
     )
     removed, deprecated, bound_lines = _markers(lines)
@@ -513,6 +454,73 @@ def _check_2_classic_markers(export) -> Check:
         f"{len(deprecated)} regel(s) dragen een marker die alleen deprecated is (classic"
         " gateway-authenticatie); dat houdt de upgrade niet tegen",
     )
+
+
+# Check 2 in TRANSITION mode (13.1 -> 14.1, spec 1.1 A.5.1 and A.9). Not one
+# of the nine checks: the step that adds the configuration key
+# `onderhoud.overstappen` puts it in the place of `_check_2_classic_markers`
+# for a 13.1 appliance in transition mode, and nowhere else. Within 14.1 the
+# check above stays the only check 2.
+TRANSITION_NOT_A_VENDOR_PRECHECK = "dit is geen vendor-precheck; R2 laat de vendor beslissen met check_invalid_config"
+_TRANSITION_SETS = (SET_BLOCKING, SET_UNBOUND, SET_DEPRECATED, SET_UNDECIDED)
+
+
+def _set_lines(classification, verzameling: int) -> str:
+    # `upgrade` imports this module, so its bound is imported at call time.
+    from nsmcp.upgrade import _bounded
+
+    numbers = classification.lines(verzameling)
+    # Bounded: a configuration can hold thousands of such lines, and the
+    # evidence is one line in front of an operator. The count stays exact.
+    listed = _bounded(", ".join(str(n) for n in numbers)) if numbers else "-"
+    return f"verzameling {verzameling} ({SET_LABELS[verzameling]}): {len(numbers)} op regel {listed}"
+
+
+def _check_2_classic_transition(export) -> Check:
+    """Check 2 for the transition: the four sets of `classic.classify` over
+    the running config. `blokkade` when set 1 is not empty; `niet beoordeeld`
+    when set 4 is not empty (an undecided line is no green); `aandachtspunt`
+    when only sets 2 or 3 hold something; `geen blokkade` when all are empty.
+    Counts and line numbers only, never the text of a line."""
+    lines, gap = export.running_config_lines()
+    if gap is not None:
+        return Check(2, NAME_2, NOT_ASSESSED, RUNNING_CONFIG_FILE, gap.reason)
+    classification = classify(lines)
+    evidence = (
+        f"{RUNNING_CONFIG_FILE}, {len(lines)} regels; classic per feature geclassificeerd (CTX296948): "
+        + "; ".join(_set_lines(classification, v) for v in _TRANSITION_SETS)
+        + f"; van een regel wordt nooit de tekst herhaald; {TRANSITION_NOT_A_VENDOR_PRECHECK}"
+    )
+    if classification.blocking:
+        return Check(
+            2,
+            NAME_2,
+            BLOCKER,
+            evidence,
+            f"{len(classification.blocking)} regel(s) in een feature waaruit classic in 14.1 verwijderd is, met een"
+            " classic vorm en gebonden; de overstap loopt daarop vast tot ze naar advanced omgezet zijn",
+        )
+    if classification.undecided:
+        return Check(
+            2,
+            NAME_2,
+            NOT_ASSESSED,
+            evidence,
+            f"{len(classification.undecided)} regel(s) zijn onbeslist: de feature heeft geen vendorrij in dit"
+            " product, of de expressie is niet bewezen classic en niet bewezen advanced; een onbesliste regel is"
+            " geen groen",
+        )
+    if classification.unbound or classification.deprecated:
+        return Check(
+            2,
+            NAME_2,
+            ATTENTION,
+            evidence,
+            f"{len(classification.unbound)} regel(s) verwijderd maar ongebonden en {len(classification.deprecated)}"
+            " regel(s) alleen deprecated; dat houdt de overstap niet tegen: deprecated omzetten is een"
+            " ontwerpkeuze, geen upgradevoorwaarde",
+        )
+    return Check(2, NAME_2, NO_BLOCKER, evidence)
 
 
 # ---------------------------------------------------------------------------
